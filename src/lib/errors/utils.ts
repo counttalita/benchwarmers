@@ -141,6 +141,24 @@ export const createError = {
     }
   ),
 
+  // Not found errors
+  notFound: (
+    code: string = 'NOT_FOUND',
+    message: string = 'Resource not found',
+    context?: Record<string, any>
+  ) => new AppError(
+    code,
+    message,
+    ErrorCategory.VALIDATION,
+    ErrorSeverity.LOW,
+    { 
+      context,
+      statusCode: 404,
+      userMessage: 'The requested resource was not found.',
+      retryable: false
+    }
+  ),
+
   // Rate limiting errors
   rateLimit: (
     code: string = 'RATE_LIMIT_ERROR',

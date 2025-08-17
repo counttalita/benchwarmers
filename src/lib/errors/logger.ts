@@ -254,3 +254,7 @@ export function logUserAction(
 ): void {
   errorLoggerInstance.logUserAction(userId, action, resource, success, error)
 }
+
+export function logInfo(message: string, context?: Record<string, any>): void {
+  logger.info(message, context)
+}

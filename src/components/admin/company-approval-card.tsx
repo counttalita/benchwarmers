@@ -73,6 +73,7 @@ export function CompanyApprovalCard({ company, onActionComplete }: CompanyApprov
     }
   }
 
+
   const handleReject = () => {
     if (!rejectionReason.trim()) {
       setError(createError.validation('REJECTION_REASON_REQUIRED', 'Please provide a rejection reason'))

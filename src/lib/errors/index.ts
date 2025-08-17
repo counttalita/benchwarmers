@@ -30,7 +30,8 @@ export {
 
 export {
   errorLogger,
-  logError as logAppError,
+  logError,
+  logInfo,
   logApiCall as logAppApiCall,
   logUserAction as logAppUserAction
 } from './logger'
