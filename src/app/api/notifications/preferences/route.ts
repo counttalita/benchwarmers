@@ -3,13 +3,6 @@ import { notificationService } from '@/lib/notifications/notification-service'
 import { logRequest, logError } from '@/lib/logger'
 import { z } from 'zod'
 
-const getNotificationsSchema = z.object({
-  status: z.enum(['unread', 'read', 'archived']).optional(),
-  limit: z.coerce.number().min(1).max(100).optional(),
-  offset: z.coerce.number().min(0).optional(),
-  type: z.string().optional()
-})
-
 const updatePreferencesSchema = z.object({
   type: z.string(),
   channels: z.array(z.enum(['in_app', 'email', 'push'])),
@@ -20,49 +13,38 @@ const updatePreferencesSchema = z.object({
   frequency: z.enum(['immediate', 'daily', 'weekly']).optional()
 })
 
+const bulkUpdateSchema = z.object({
+  preferences: z.array(updatePreferencesSchema)
+})
+
 export async function GET(request: NextRequest) {
-  const correlationId = `notifications-get-${Date.now()}`
+  const correlationId = `preferences-get-${Date.now()}`
   
   try {
     logRequest(request, { correlationId })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id') || 'test-user-id'
+    const companyId = request.headers.get('x-company-id')
     
     const { searchParams } = new URL(request.url)
-    const query = Object.fromEntries(searchParams.entries())
+    const type = searchParams.get('type')
     
-    const validatedQuery = getNotificationsSchema.parse(query)
-    
-    const notifications = await notificationService.getUserNotifications(
+    const preferences = await notificationService.getNotificationPreferences(
       userId,
-      validatedQuery
+      companyId || undefined,
+      type || undefined
     )
 
-    const stats = await notificationService.getNotificationStats(userId)
-
     return NextResponse.json({
-      notifications,
-      stats,
-      pagination: {
-        limit: validatedQuery.limit || 50,
-        offset: validatedQuery.offset || 0,
-        total: stats.total
-      }
+      preferences
     })
 
   } catch (error) {
-    logError('Failed to get notifications', {
+    logError('Failed to get notification preferences', {
       correlationId,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid query parameters', details: error.errors },
-        { status: 400 }
-      )
-    }
 
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -72,7 +54,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const correlationId = `notifications-post-${Date.now()}`
+  const correlationId = `preferences-post-${Date.now()}`
   
   try {
     logRequest(request, { correlationId })
@@ -97,6 +79,54 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     logError('Failed to update notification preferences', {
+      correlationId,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid request body', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  const correlationId = `preferences-bulk-${Date.now()}`
+  
+  try {
+    logRequest(request, { correlationId })
+
+    // TODO: Get user from session/auth
+    const userId = request.headers.get('x-user-id') || 'test-user-id'
+    const companyId = request.headers.get('x-company-id')
+    
+    const body = await request.json()
+    const validatedBody = bulkUpdateSchema.parse(body)
+    
+    const results = await Promise.all(
+      validatedBody.preferences.map(pref =>
+        notificationService.updateNotificationPreferences({
+          userId,
+          companyId: companyId || undefined,
+          ...pref
+        })
+      )
+    )
+
+    return NextResponse.json({
+      message: 'Notification preferences updated successfully',
+      preferences: results
+    })
+
+  } catch (error) {
+    logError('Failed to bulk update notification preferences', {
       correlationId,
       error: error instanceof Error ? error.message : 'Unknown error'
     })

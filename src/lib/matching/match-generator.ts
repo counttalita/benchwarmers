@@ -132,7 +132,7 @@ export class MatchGenerator {
       return generatedMatches
 
     } catch (error) {
-      logError('Error generating matches', error, { correlationId, talentRequestId })
+      console.error('Error generating matches:', error, { correlationId, talentRequestId })
       throw error
     }
   }
@@ -147,9 +147,7 @@ export class MatchGenerator {
         company: {
           select: {
             id: true,
-            name: true,
-            size: true,
-            industry: true
+            name: true
           }
         }
       }
@@ -204,8 +202,8 @@ export class MatchGenerator {
       urgency: talentRequest.urgency || 'medium',
       projectType: this.mapProjectType(talentRequest.projectType),
       teamSize: talentRequest.teamSize || 1,
-      clientIndustry: talentRequest.company?.industry || 'Technology',
-      companySize: talentRequest.company?.size || 'medium',
+      clientIndustry: talentRequest.industry || 'Technology',
+      companySize: talentRequest.companySize || 'medium',
       workStyle: this.mapWorkStyle(talentRequest.communicationStyle)
     }
   }
@@ -225,21 +223,36 @@ export class MatchGenerator {
   /**
    * Map project type to matching engine format
    */
-  private mapProjectType(projectType: string): string {
-    const mapping: Record<string, string> = {
+  private mapProjectType(projectType: string | undefined): 'development' | 'consulting' | 'design' | 'data' | 'other' {
+    if (!projectType) return 'development'
+    
+    const mapping: Record<string, 'development' | 'consulting' | 'design' | 'data' | 'other'> = {
       'short-term': 'development',
       'long-term': 'development',
       'contract': 'consulting',
-      'full-time': 'development'
+      'full-time': 'development',
+      'consulting': 'consulting',
+      'development': 'development',
+      'design': 'design',
+      'ui-ux': 'design',
+      'frontend': 'development',
+      'backend': 'development',
+      'fullstack': 'development',
+      'data-science': 'data',
+      'analytics': 'data',
+      'machine-learning': 'data',
+      'ai': 'data'
     }
-    return mapping[projectType] || 'development'
+    return mapping[projectType.toLowerCase()] || 'other'
   }
 
   /**
    * Map work style to matching engine format
    */
-  private mapWorkStyle(communicationStyle: string): string {
-    const mapping: Record<string, string> = {
+  private mapWorkStyle(communicationStyle: string | undefined): 'agile' | 'waterfall' | 'hybrid' {
+    if (!communicationStyle) return 'hybrid'
+    
+    const mapping: Record<string, 'agile' | 'waterfall' | 'hybrid'> = {
       'formal': 'waterfall',
       'casual': 'agile',
       'collaborative': 'agile',
@@ -259,7 +272,7 @@ export class MatchGenerator {
         OR: [
           {
             skills: {
-              path: '$[*].name',
+              path: ['$[*].name'],
               array_contains: projectRequirement.requiredSkills.map(s => s.name)
             }
           }
@@ -269,9 +282,7 @@ export class MatchGenerator {
         company: {
           select: {
             id: true,
-            name: true,
-            size: true,
-            industry: true
+            name: true
           }
         }
       },
@@ -374,7 +385,7 @@ export class MatchGenerator {
       endDate: projectRequirement.duration.endDate,
       hoursPerWeek: 40, // Default, could be from requirement
       timezone: projectRequirement.location.timezone || 'UTC',
-      urgency: projectRequirement.urgency
+      urgency: projectRequirement.urgency === 'critical' ? 'urgent' : projectRequirement.urgency
     }
 
     const talentIds = matchScores.map(match => match.talentId)
@@ -463,18 +474,11 @@ export class MatchGenerator {
       await prisma.match.create({
         data: {
           id: generatedMatch.id,
-          talentRequestId,
-          talentId: matchScore.talentId,
+          requestId: talentRequestId,
+          profileId: matchScore.talentId,
           score: matchScore.totalScore,
-          breakdown: matchScore.breakdown,
-          reasons: matchScore.reasons,
-          concerns: matchScore.concerns,
-          rank: generatedMatch.rank,
-          confidence: matchScore.confidence,
-          predictedSuccess: matchScore.predictedSuccess,
-          status: 'pending',
-          expiresAt,
-          responseDeadline
+          scoreBreakdown: matchScore.breakdown,
+          status: 'pending'
         }
       })
 
@@ -526,22 +530,21 @@ export class MatchGenerator {
   async getMatches(talentRequestId: string): Promise<GeneratedMatch[]> {
     const matches = await prisma.match.findMany({
       where: {
-        talentRequestId,
-        expiresAt: { gt: new Date() }
+        requestId: talentRequestId
       },
-      orderBy: { rank: 'asc' },
+      orderBy: { score: 'desc' },
       include: {
-        talent: {
+        profile: {
           select: {
             id: true,
             name: true,
             title: true,
             skills: true,
-            rate: true,
+            rateMin: true,
+            rateMax: true,
             location: true,
             rating: true,
-            reviewCount: true,
-            isVerified: true
+            reviewCount: true
           }
         }
       }
@@ -549,19 +552,19 @@ export class MatchGenerator {
 
     return matches.map(match => ({
       id: match.id,
-      talentRequestId: match.talentRequestId,
-      talentId: match.talentId,
-      score: match.score,
-      breakdown: match.breakdown as any,
-      reasons: match.reasons as string[],
-      concerns: match.concerns as string[],
-      rank: match.rank,
-      confidence: match.confidence,
-      predictedSuccess: match.predictedSuccess,
+      talentRequestId: match.requestId,
+      talentId: match.profileId,
+      score: Number(match.score),
+      breakdown: match.scoreBreakdown as any,
+      reasons: [], // Would need to be calculated or stored separately
+      concerns: [], // Would need to be calculated or stored separately
+      rank: 0, // Would need to be calculated based on score ranking
+      confidence: 0, // Would need to be calculated or stored separately
+      predictedSuccess: 0, // Would need to be calculated or stored separately
       status: match.status as any,
       createdAt: match.createdAt,
-      expiresAt: match.expiresAt,
-      responseDeadline: match.responseDeadline
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Default 7 days from now
+      responseDeadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // Default 3 days from now
     }))
   }
 
@@ -570,7 +573,7 @@ export class MatchGenerator {
    */
   async updateMatchStatus(
     matchId: string,
-    status: 'viewed' | 'interested' | 'not_interested' | 'contacted' | 'hired',
+    status: 'pending' | 'viewed' | 'interested' | 'not_interested',
     correlationId?: string
   ): Promise<void> {
     
@@ -601,16 +604,16 @@ export class MatchGenerator {
   }> {
     
     const matches = await prisma.match.findMany({
-      where: { talentRequestId },
+      where: { requestId: talentRequestId },
       include: {
-        talent: {
+        profile: {
           select: { skills: true }
         }
       }
     })
 
     const totalMatches = matches.length
-    const averageScore = matches.reduce((sum, m) => sum + m.score, 0) / totalMatches
+    const averageScore = matches.reduce((sum, m) => sum + Number(m.score), 0) / totalMatches
     
     const statusBreakdown = matches.reduce((acc, match) => {
       acc[match.status] = (acc[match.status] || 0) + 1
@@ -619,7 +622,7 @@ export class MatchGenerator {
 
     const skillCounts = new Map<string, number>()
     matches.forEach(match => {
-      const skills = match.talent?.skills as any[] || []
+      const skills = match.profile?.skills as any[] || []
       skills.forEach(skill => {
         skillCounts.set(skill.name, (skillCounts.get(skill.name) || 0) + 1)
       })

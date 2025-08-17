@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { logError, logInfo } from '@/lib/errors'
+import { logError, logInfo, createError, parseError } from '@/lib/errors'
 import { v4 as uuidv4 } from 'uuid'
 
 const updateMatchStatusSchema = z.object({
-  status: z.enum(['viewed', 'interested', 'not_interested', 'contacted', 'hired']),
+  status: z.enum(['pending', 'viewed', 'interested', 'not_interested']),
   notes: z.string().optional(),
   feedback: z.string().optional()
 })
@@ -28,38 +28,39 @@ export async function GET(
     const match = await prisma.match.findUnique({
       where: { id: matchId },
       include: {
-        talent: {
+        profile: {
           select: {
             id: true,
             name: true,
             title: true,
-            bio: true,
+            seniorityLevel: true,
             skills: true,
-            experience: true,
-            rate: true,
+            rateMin: true,
+            rateMax: true,
+            currency: true,
             location: true,
             timezone: true,
             rating: true,
             reviewCount: true,
-            completedProjects: true,
-            responseTime: true,
-            isVerified: true,
-            isPremium: true,
-            availability: true,
+            remotePreference: true,
+            availabilityCalendar: true,
+            pastProjects: true,
             languages: true,
-            certifications: true
+            certifications: true,
+            isVisible: true
           }
         },
-        talentRequest: {
+        request: {
           select: {
             id: true,
             title: true,
             description: true,
             requiredSkills: true,
-            budget: true,
+            budgetMin: true,
+            budgetMax: true,
+            currency: true,
             startDate: true,
-            endDate: true,
-            urgency: true,
+            durationWeeks: true,
             status: true
           }
         }
@@ -77,7 +78,7 @@ export async function GET(
     logInfo('Successfully fetched match details', {
       correlationId,
       matchId,
-      talentId: match.talentId,
+      profileId: match.profileId,
       score: match.score
     })
 
@@ -88,7 +89,8 @@ export async function GET(
     })
 
   } catch (error) {
-    logError('Error fetching match details', error, { correlationId, matchId: params.matchId })
+    const appError = parseError(error)
+    logError(appError, { correlationId, operation: 'fetch_match_details' })
     
     return NextResponse.json({
       success: false,
@@ -124,7 +126,7 @@ export async function PATCH(
     const existingMatch = await prisma.match.findUnique({
       where: { id: matchId },
       include: {
-        talentRequest: {
+        request: {
           select: {
             companyId: true,
             status: true
@@ -142,7 +144,7 @@ export async function PATCH(
     }
 
     // Check if talent request is still active
-    if (existingMatch.talentRequest.status === 'cancelled' || existingMatch.talentRequest.status === 'completed') {
+    if (existingMatch.request.status === 'closed') {
       return NextResponse.json({
         success: false,
         error: 'Cannot update match for inactive talent request',
@@ -155,22 +157,10 @@ export async function PATCH(
       where: { id: matchId },
       data: {
         status: validatedData.status,
-        notes: validatedData.notes,
-        feedback: validatedData.feedback,
-        updatedAt: new Date(),
-        // Track when certain statuses were first set
-        ...(validatedData.status === 'viewed' && !existingMatch.viewedAt && {
-          viewedAt: new Date()
-        }),
-        ...(validatedData.status === 'interested' && !existingMatch.interestedAt && {
-          interestedAt: new Date()
-        }),
-        ...(validatedData.status === 'contacted' && !existingMatch.contactedAt && {
-          contactedAt: new Date()
-        })
+        updatedAt: new Date()
       },
       include: {
-        talent: {
+        profile: {
           select: {
             id: true,
             name: true,
@@ -180,29 +170,29 @@ export async function PATCH(
       }
     })
 
-    // Log status change for analytics
-    await prisma.matchStatusHistory.create({
-      data: {
-        matchId,
-        fromStatus: existingMatch.status,
-        toStatus: validatedData.status,
-        notes: validatedData.notes,
-        changedAt: new Date()
-      }
-    }).catch(error => {
-      // Don't fail the main operation if history logging fails
-      logError('Failed to log match status history', error, { correlationId, matchId })
-    })
+    // Log status change for analytics (commented out until model is added)
+    // await prisma.matchStatusHistory.create({
+    //   data: {
+    //     matchId,
+    //     fromStatus: existingMatch.status,
+    //     toStatus: validatedData.status,
+    //     notes: validatedData.notes,
+    //     changedAt: new Date()
+    //   }
+    // }).catch((error: any) => {
+    //   // Don't fail the main operation if history logging fails
+    //   logError('Failed to log match status history', error)
+    // })
 
     // Trigger notifications based on status change
-    await this.handleStatusChangeNotifications(updatedMatch, validatedData.status, correlationId)
+    await handleStatusChangeNotifications(updatedMatch, validatedData.status, correlationId)
 
     logInfo('Successfully updated match status', {
       correlationId,
       matchId,
       oldStatus: existingMatch.status,
       newStatus: validatedData.status,
-      talentId: updatedMatch.talentId
+      profileId: updatedMatch.profileId
     })
 
     return NextResponse.json({
@@ -214,7 +204,12 @@ export async function PATCH(
 
   } catch (error) {
     if (error instanceof z.ZodError) {
-      logError('Validation error updating match status', error, { correlationId })
+      const validationError = createError.validation(
+        'MATCH_STATUS_VALIDATION_ERROR',
+        'Validation error updating match status',
+        { zodErrors: error.errors, correlationId }
+      )
+      logError(validationError)
       
       return NextResponse.json({
         success: false,
@@ -224,7 +219,8 @@ export async function PATCH(
       }, { status: 400 })
     }
 
-    logError('Error updating match status', error, { correlationId, matchId: params.matchId })
+    const appError = parseError(error)
+    logError(appError, { correlationId, operation: 'update_match_status' })
     
     return NextResponse.json({
       success: false,
@@ -269,16 +265,14 @@ export async function DELETE(
       where: { id: matchId },
       data: {
         status: 'not_interested',
-        notes: 'Removed by user',
-        updatedAt: new Date(),
-        deletedAt: new Date()
+        updatedAt: new Date()
       }
     })
 
     logInfo('Successfully removed match', {
       correlationId,
       matchId,
-      talentId: existingMatch.talentId
+      profileId: existingMatch.profileId
     })
 
     return NextResponse.json({
@@ -288,7 +282,8 @@ export async function DELETE(
     })
 
   } catch (error) {
-    logError('Error removing match', error, { correlationId, matchId: params.matchId })
+    const appError = parseError(error)
+    logError(appError, { correlationId, operation: 'remove_match' })
     
     return NextResponse.json({
       success: false,
@@ -307,42 +302,43 @@ async function handleStatusChangeNotifications(
   correlationId: string
 ) {
   try {
-    // Send notification to talent when they're contacted or hired
-    if (newStatus === 'contacted' || newStatus === 'hired') {
+    // Send notification to talent when they're interested
+    if (newStatus === 'interested') {
       logInfo('Triggering talent notification', {
         correlationId,
         matchId: match.id,
-        talentId: match.talentId,
+        profileId: match.profileId,
         status: newStatus
       })
       
       // TODO: Implement notification system
       // await notificationService.sendTalentMatchNotification({
-      //   talentId: match.talentId,
+      //   profileId: match.profileId,
       //   matchId: match.id,
       //   status: newStatus,
-      //   companyName: match.talentRequest.company.name
+      //   companyName: match.request.company.name
       // })
     }
 
-    // Send notification to company when talent responds (if we had talent responses)
-    if (newStatus === 'interested') {
+    // Send notification to company when match is viewed
+    if (newStatus === 'viewed') {
       logInfo('Triggering company notification', {
         correlationId,
         matchId: match.id,
-        companyId: match.talentRequest.companyId
+        companyId: match.request.companyId
       })
       
       // TODO: Implement notification system
       // await notificationService.sendCompanyMatchNotification({
-      //   companyId: match.talentRequest.companyId,
+      //   companyId: match.request.companyId,
       //   matchId: match.id,
-      //   talentName: match.talent.name
+      //   talentName: match.profile.name
       // })
     }
 
   } catch (error) {
-    logError('Error sending match status notifications', error, { correlationId })
+    const appError = parseError(error)
+    logError(appError, { correlationId, operation: 'send_match_notifications' })
     // Don't throw - notifications are not critical
   }
 }

@@ -1,19 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
+import { logError, logInfo, createError, parseError } from '@/lib/errors'
+import { v4 as uuidv4 } from 'uuid'
+
+// Validation schemas
+const createOfferSchema = z.object({
+  matchId: z.string().min(1, 'Match ID is required'),
+  rate: z.number().positive('Rate must be positive'),
+  currency: z.string().default('USD'),
+  startDate: z.string().transform(str => new Date(str)),
+  durationWeeks: z.number().positive('Duration must be positive'),
+  terms: z.string().optional(),
+  totalAmount: z.number().positive('Total amount must be positive'),
+  platformFee: z.number().min(0, 'Platform fee cannot be negative'),
+  providerAmount: z.number().positive('Provider amount must be positive')
+})
 
 // GET /api/offers - Get all offers with filtering
 export async function GET(request: NextRequest) {
-  const requestLogger = logger.child({ 
-    method: 'GET', 
-    path: '/api/offers',
-    requestId: crypto.randomUUID()
-  })
+  const correlationId = uuidv4()
 
   try {
     const { searchParams } = new URL(request.url)
-    const talentId = searchParams.get('talentId')
-    const requestId = searchParams.get('requestId')
+    const matchId = searchParams.get('matchId')
+    const seekerCompanyId = searchParams.get('seekerCompanyId')
+    const providerCompanyId = searchParams.get('providerCompanyId')
     const status = searchParams.get('status')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
@@ -22,12 +34,16 @@ export async function GET(request: NextRequest) {
     // Build where clause for filtering
     const where: any = {}
 
-    if (talentId) {
-      where.talentId = talentId
+    if (matchId) {
+      where.matchId = matchId
     }
 
-    if (requestId) {
-      where.talentRequestId = requestId
+    if (seekerCompanyId) {
+      where.seekerCompanyId = seekerCompanyId
+    }
+
+    if (providerCompanyId) {
+      where.providerCompanyId = providerCompanyId
     }
 
     if (status) {
@@ -39,31 +55,42 @@ export async function GET(request: NextRequest) {
       prisma.offer.findMany({
         where,
         include: {
-          talent: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phoneNumber: true,
-              avatar: true,
-              rating: true,
-              totalReviews: true
-            }
-          },
-          talentRequest: {
-            select: {
-              id: true,
-              title: true,
-              description: true,
-              budget: true,
-              duration: true,
-              company: {
+          match: {
+            include: {
+              profile: {
                 select: {
                   id: true,
                   name: true,
-                  domain: true
+                  title: true,
+                  rating: true,
+                  reviewCount: true,
+                  location: true
+                }
+              },
+              request: {
+                select: {
+                  id: true,
+                  title: true,
+                  description: true,
+                  budgetMin: true,
+                  budgetMax: true,
+                  durationWeeks: true
                 }
               }
+            }
+          },
+          seekerCompany: {
+            select: {
+              id: true,
+              name: true,
+              domain: true
+            }
+          },
+          providerCompany: {
+            select: {
+              id: true,
+              name: true,
+              domain: true
             }
           }
         },
@@ -76,28 +103,36 @@ export async function GET(request: NextRequest) {
       prisma.offer.count({ where })
     ])
 
-    requestLogger.info('Offers retrieved successfully', {
+    logInfo('Offers retrieved successfully', {
+      correlationId,
       count: offers.length,
       total,
       page,
       limit,
-      filters: { talentId, requestId, status }
+      filters: { matchId, seekerCompanyId, providerCompanyId, status }
     })
 
     return NextResponse.json({
-      offers,
+      success: true,
+      data: offers,
       pagination: {
         page,
         limit,
         total,
         totalPages: Math.ceil(total / limit)
-      }
+      },
+      correlationId
     })
 
   } catch (error) {
-    requestLogger.error('Failed to retrieve offers', error)
+    const appError = parseError(error)
+    logError(appError, { correlationId, operation: 'get_offers' })
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        success: false,
+        error: 'Failed to retrieve offers', 
+        correlationId 
+      },
       { status: 500 }
     )
   }
@@ -105,130 +140,173 @@ export async function GET(request: NextRequest) {
 
 // POST /api/offers - Create new offer
 export async function POST(request: NextRequest) {
-  const requestLogger = logger.child({ 
-    method: 'POST', 
-    path: '/api/offers',
-    requestId: crypto.randomUUID()
-  })
+  const correlationId = uuidv4()
 
   try {
     const body = await request.json()
-    const {
-      talentId,
-      talentRequestId,
-      proposedRate,
-      proposedDuration,
-      message,
-      availability
-    } = body
-
-    if (!talentId || !talentRequestId || !proposedRate) {
-      requestLogger.warn('Missing required fields in offer creation')
-      return NextResponse.json(
-        { error: 'Talent ID, request ID, and proposed rate are required' },
-        { status: 400 }
-      )
-    }
-
-    // Validate talent exists
-    const talent = await prisma.user.findUnique({
-      where: { id: talentId }
+    
+    logInfo('Creating new offer', {
+      correlationId,
+      requestBody: body
     })
 
-    if (!talent) {
-      requestLogger.warn('Talent not found for offer creation', { talentId })
-      return NextResponse.json(
-        { error: 'Talent not found' },
-        { status: 404 }
-      )
-    }
+    // Validate request data
+    const validatedData = createOfferSchema.parse(body)
 
-    // Validate talent request exists
-    const talentRequest = await prisma.talentRequest.findUnique({
-      where: { id: talentRequestId }
-    })
-
-    if (!talentRequest) {
-      requestLogger.warn('Talent request not found for offer creation', { talentRequestId })
-      return NextResponse.json(
-        { error: 'Talent request not found' },
-        { status: 404 }
-      )
-    }
-
-    // Check if offer already exists
-    const existingOffer = await prisma.offer.findFirst({
-      where: {
-        talentId,
-        talentRequestId
-      }
-    })
-
-    if (existingOffer) {
-      requestLogger.warn('Offer already exists', { talentId, talentRequestId })
-      return NextResponse.json(
-        { error: 'Offer already exists for this talent and request' },
-        { status: 409 }
-      )
-    }
-
-    // Create offer
-    const offer = await prisma.offer.create({
-      data: {
-        talentId,
-        talentRequestId,
-        proposedRate,
-        proposedDuration,
-        message,
-        availability,
-        status: 'pending'
-      },
+    // Validate match exists and get related data
+    const match = await prisma.match.findUnique({
+      where: { id: validatedData.matchId },
       include: {
-        talent: {
+        profile: {
           select: {
             id: true,
-            name: true,
-            email: true,
-            phoneNumber: true,
-            avatar: true,
-            rating: true,
-            totalReviews: true
+            companyId: true,
+            name: true
           }
         },
-        talentRequest: {
+        request: {
           select: {
             id: true,
+            companyId: true,
             title: true,
-            description: true,
-            budget: true,
-            duration: true,
-            company: {
-              select: {
-                id: true,
-                name: true,
-                domain: true
-              }
-            }
+            budgetMin: true,
+            budgetMax: true
           }
         }
       }
     })
 
-    requestLogger.info('Offer created successfully', {
+    if (!match) {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Match not found',
+          correlationId 
+        },
+        { status: 404 }
+      )
+    }
+
+    // Check if offer already exists for this match
+    const existingOffer = await prisma.offer.findFirst({
+      where: {
+        matchId: validatedData.matchId
+      }
+    })
+
+    if (existingOffer) {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Offer already exists for this match',
+          correlationId 
+        },
+        { status: 409 }
+      )
+    }
+
+    // Calculate platform fee (15% as per requirements)
+    const platformFeeRate = 0.15
+    const calculatedPlatformFee = validatedData.totalAmount * platformFeeRate
+    const calculatedProviderAmount = validatedData.totalAmount - calculatedPlatformFee
+
+    // Create offer
+    const offer = await prisma.offer.create({
+      data: {
+        matchId: validatedData.matchId,
+        seekerCompanyId: match.request.companyId,
+        providerCompanyId: match.profile.companyId,
+        rate: validatedData.rate,
+        currency: validatedData.currency,
+        startDate: validatedData.startDate,
+        durationWeeks: validatedData.durationWeeks,
+        terms: validatedData.terms,
+        totalAmount: validatedData.totalAmount,
+        platformFee: calculatedPlatformFee,
+        providerAmount: calculatedProviderAmount,
+        status: 'pending'
+      },
+      include: {
+        match: {
+          include: {
+            profile: {
+              select: {
+                id: true,
+                name: true,
+                title: true,
+                rating: true,
+                reviewCount: true
+              }
+            },
+            request: {
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                budgetMin: true,
+                budgetMax: true
+              }
+            }
+          }
+        },
+        seekerCompany: {
+          select: {
+            id: true,
+            name: true,
+            domain: true
+          }
+        },
+        providerCompany: {
+          select: {
+            id: true,
+            name: true,
+            domain: true
+          }
+        }
+      }
+    })
+
+    logInfo('Offer created successfully', {
+      correlationId,
       offerId: offer.id,
-      talentId,
-      talentRequestId
+      matchId: validatedData.matchId,
+      totalAmount: validatedData.totalAmount,
+      platformFee: calculatedPlatformFee
     })
 
     return NextResponse.json({
+      success: true,
+      data: offer,
       message: 'Offer created successfully',
-      offer
+      correlationId
     })
 
   } catch (error) {
-    requestLogger.error('Failed to create offer', error)
+    if (error instanceof z.ZodError) {
+      const validationError = createError.validation(
+        'OFFER_VALIDATION_ERROR',
+        'Validation error creating offer',
+        { zodErrors: error.errors, correlationId }
+      )
+      logError(validationError)
+      
+      return NextResponse.json({
+        success: false,
+        error: 'Validation failed',
+        details: error.errors,
+        correlationId
+      }, { status: 400 })
+    }
+
+    const appError = parseError(error)
+    logError(appError, { correlationId, operation: 'create_offer' })
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        success: false,
+        error: 'Failed to create offer',
+        correlationId 
+      },
       { status: 500 }
     )
   }

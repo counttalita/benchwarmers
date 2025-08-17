@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { transactionService } from '@/lib/payments/transactions'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 
 // GET /api/payments/transactions - Get transactions for company
 export async function GET(request: NextRequest) {
