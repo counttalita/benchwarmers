@@ -1,7 +1,7 @@
 # API Endpoints Documentation
 
 ## Overview
-This document provides comprehensive documentation for all API endpoints in Talent Brew, a B2B talent marketplace connecting companies with benched professionals to organisations seeking specialised skills.
+This document provides comprehensive documentation for all API endpoints in BenchWarmers, a B2B talent marketplace connecting companies with benched professionals to organisations seeking specialised skills.
 
 ## Base URL
 - **Development**: `http://localhost:3000/api`

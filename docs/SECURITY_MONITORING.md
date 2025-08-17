@@ -2,7 +2,7 @@
 
 ## Overview
 
-Talent Brew is a B2B talent marketplace connecting companies with benched professionals to organisations seeking specialised skills. The platform implements comprehensive security measures and monitoring systems to protect user data, prevent unauthorized access, and ensure platform integrity. The security architecture follows industry best practices and compliance requirements.
+BenchWarmers is a B2B talent marketplace connecting companies with benched professionals to organisations seeking specialised skills. The platform implements comprehensive security measures and monitoring systems to protect user data, prevent unauthorized access, and ensure platform integrity. The security architecture follows industry best practices and compliance requirements.
 
 ## Security Architecture
 

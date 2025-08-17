@@ -2,7 +2,7 @@
 
 ## Overview
 
-Talent Brew is a B2B talent marketplace connecting companies with benched professionals to organisations seeking specialised skills. The platform implements a comprehensive component architecture built on modern React patterns and design principles. The UI library follows atomic design methodology, emphasizing reusability, accessibility, and maintainability.
+BenchWarmers is a B2B talent marketplace connecting companies with benched professionals to organisations seeking specialised skills. The platform implements a comprehensive component architecture built on modern React patterns and design principles. The UI library follows atomic design methodology, emphasizing reusability, accessibility, and maintainability.
 
 ## Architecture Principles
 

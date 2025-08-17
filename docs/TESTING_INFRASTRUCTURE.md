@@ -2,7 +2,7 @@
 
 ## Overview
 
-Talent Brew is a B2B talent marketplace connecting companies with benched professionals to organisations seeking specialised skills. The platform implements a comprehensive testing infrastructure to ensure code quality, reliability, and maintainability. The testing strategy covers unit tests, integration tests, API tests, end-to-end tests, and performance testing. setup uses Jest as the primary testing framework with additional tools for specific testing scenarios.
+BenchWarmers is a B2B talent marketplace connecting companies with benched professionals to organisations seeking specialised skills. The platform implements a comprehensive testing infrastructure to ensure code quality, reliability, and maintainability. The testing strategy covers unit tests, integration tests, API tests, end-to-end tests, and performance testing. setup uses Jest as the primary testing framework with additional tools for specific testing scenarios.
 
 ## Testing Stack
 

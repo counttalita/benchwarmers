@@ -1,7 +1,7 @@
 # User Workflows Documentation
 
 ## Overview
-This document details the complete user workflows for both seeker companies (talent buyers) and provider companies (talent sellers) in Talent Brew, a B2B talent marketplace connecting companies with benched professionals to organisations seeking specialised skills.
+This document details the complete user workflows for both seeker companies (talent buyers) and provider companies (talent sellers) in BenchWarmers, a B2B talent marketplace connecting companies with benched professionals to organisations seeking specialised skills.
 
 ## Seeker Company Workflows
 

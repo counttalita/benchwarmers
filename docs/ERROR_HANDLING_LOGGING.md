@@ -2,7 +2,7 @@
 
 ## Overview
 
-Talent Brew is a B2B talent marketplace connecting companies with benched professionals to organisations seeking specialised skills. The platform implements a comprehensive error handling and logging system to ensure robust application behavior, effective debugging, and comprehensive audit trails. The system provides structured error management, detailed logging, and monitoring capabilities. The system is designed for production-grade reliability and debugging efficiency.
+BenchWarmers is a B2B talent marketplace connecting companies with benched professionals to organisations seeking specialised skills. The platform implements a comprehensive error handling and logging system to ensure robust application behavior, effective debugging, and comprehensive audit trails. The system provides structured error management, detailed logging, and monitoring capabilities. The system is designed for production-grade reliability and debugging efficiency.
 
 ## Error Handling Architecture
 

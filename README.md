@@ -1,8 +1,8 @@
-# 🚀 Talent Brew - BenchWarmers Marketplace
+# 🚀 BenchWarmers Marketplace
 
 <div align="center">
 
-![Talent Brew Logo](https://via.placeholder.com/200x80/1f2937/ffffff?text=Talent+Brew)
+![BenchWarmers Logo](https://via.placeholder.com/200x80/1f2937/ffffff?text=BenchWarmers)
 
 **Transforming Downtime into Opportunity**
 
@@ -21,7 +21,7 @@ A B2B talent marketplace connecting companies with benched professionals to orga
 
 ## 🌟 Overview
 
-Talent Brew revolutionises how organisations manage talent resources by creating a seamless marketplace where:
+BenchWarmers revolutionises how organisations manage talent resources by creating a seamless marketplace where:
 
 - **Provider Companies** can monetise their benched professionals during downtime
 - **Seeker Companies** can access specialised skills without long-term commitments
@@ -88,7 +88,7 @@ npm run db:seed
 npm run dev
 ```
 
-🎉 **Open [http://localhost:3000](http://localhost:3000) to see Talent Brew in action!**
+🎉 **Open [http://localhost:3000](http://localhost:3000) to see BenchWarmers in action!**
 
 ### What `npm run setup` does:
 
@@ -134,7 +134,7 @@ npm run docker:down  # Stop Docker containers
 ## 📁 Project Structure
 
 ```
-📦 talent-brew/
+📦 benchwarmers/
 ├── 📂 src/
 │   ├── 📂 app/                    # Next.js 14 app directory
 │   │   ├── 📂 api/               # API routes
@@ -176,7 +176,7 @@ Copy `.env.example` to `.env.local` and configure:
 
 ```bash
 # Database
-DATABASE_URL="postgresql://user:password@localhost:5432/talentbrew"
+DATABASE_URL="postgresql://user:password@localhost:5432/benchwarmers"
 REDIS_URL="redis://localhost:6379"
 
 # Authentication
@@ -189,7 +189,7 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_test_..."
 
 # Email
 SENDGRID_API_KEY="SG..."
-SENDGRID_FROM_EMAIL="noreply@talentbrew.com"
+SENDGRID_FROM_EMAIL="noreply@benchwarmers.com"
 
 # File Storage
 NEXT_PUBLIC_APPWRITE_PROJECT_ID="your-project-id"
@@ -301,7 +301,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🏢 About TOSH
 
-**Talent Brew** is proudly developed by [TOSH (The Only Software Hub)](https://tosh.co.za/), a leading software development company specialising in innovative digital solutions.
+**BenchWarmers** is proudly developed by [The Only Software Hub](https://tosh.co.za/), a leading software development company specialising in innovative digital solutions.
 
 ---
 
@@ -309,6 +309,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Made with ❤️ by [TOSH](https://tosh.co.za/)**
 
-[Website](https://tosh.co.za/) • [Contact](mailto:info@tosh.co.za) • [LinkedIn](https://linkedin.com/company/tosh)
+[Website](https://tosh.co.za/) • [Contact](mailto:ask@tosh.co.za) • [LinkedIn](https://linkedin.com/company/tosh)
 
 </div>

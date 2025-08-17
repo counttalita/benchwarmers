@@ -1,4 +1,4 @@
-# Talent Brew - System Overview
+# BenchWarmers - System Overview
 
 ## Table of Contents
 1. [System Architecture](#system-architecture)

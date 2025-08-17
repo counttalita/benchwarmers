@@ -1,7 +1,7 @@
 # Admin Workflows Documentation
 
 ## Overview
-This document details the administrative workflows and management interfaces for platform administrators in Talent Brew, a B2B talent marketplace connecting companies with benched professionals to organisations seeking specialised skills.
+This document details the administrative workflows and management interfaces for platform administrators in BenchWarmers, a B2B talent marketplace connecting companies with benched professionals to organisations seeking specialised skills.
 
 ## Admin Dashboard Overview
 
