@@ -51,6 +51,7 @@ export class TimesheetManager {
       const engagement = await prisma.engagement.findUnique({
         where: { id: entry.engagementId },
         include: {
+          timesheetEntries: true,
           contract: {
             include: {
               offer: true
@@ -78,7 +79,7 @@ export class TimesheetManager {
       }
 
       // Check for overlapping entries
-      const overlappingEntry = await prisma.timesheetEntry.findFirst({
+      const existingEntry = await prisma.timesheetEntry.findUnique({
         where: {
           engagementId: entry.engagementId,
           date: entry.date,
@@ -99,12 +100,12 @@ export class TimesheetManager {
         }
       })
 
-      if (overlappingEntry) {
+      if (existingEntry) {
         return { success: false, error: 'Time entry overlaps with existing entry' }
       }
 
       // Create timesheet entry
-      const timesheetEntry = await prisma.timesheetEntry.create({
+      const newEntry = await prisma.timesheetEntry.create({
         data: {
           id: `TS-${Date.now()}`,
           engagementId: entry.engagementId,
@@ -121,13 +122,13 @@ export class TimesheetManager {
 
       logInfo('Timesheet entry created successfully', {
         correlationId,
-        entryId: timesheetEntry.id,
+        entryId: newEntry.id,
         hoursWorked: entry.hoursWorked
       })
 
       return {
         success: true,
-        entryId: timesheetEntry.id
+        entryId: newEntry.id
       }
 
     } catch (error) {
@@ -156,7 +157,7 @@ export class TimesheetManager {
       billableOnly?: boolean
     }
   ): Promise<TimesheetEntry[]> {
-    const where: any = { engagementId }
+    const where: { engagementId: string; date?: { gte?: Date; lte?: Date }; status?: string; billable?: boolean } = { engagementId }
 
     if (filters?.startDate) {
       where.date = { ...where.date, gte: filters.startDate }
@@ -259,7 +260,7 @@ export class TimesheetManager {
       weekEnd.setDate(weekEnd.getDate() + 6)
 
       // Get all draft entries for the week
-      const draftEntries = await prisma.timesheetEntry.findMany({
+      const entries = await prisma.timesheetEntry.findMany({
         where: {
           engagementId,
           date: {
@@ -270,14 +271,14 @@ export class TimesheetManager {
         }
       })
 
-      if (draftEntries.length === 0) {
+      if (entries.length === 0) {
         return { success: false, error: 'No draft entries found for this week' }
       }
 
       // Update all entries to submitted
       await prisma.timesheetEntry.updateMany({
         where: {
-          id: { in: draftEntries.map(e => e.id) }
+          id: { in: entries.map((e: { id: string }) => e.id) }
         },
         data: {
           status: 'submitted',
@@ -325,7 +326,7 @@ export class TimesheetManager {
         approvedBy
       })
 
-      const updateData: any = {
+      const updateData: { status: string; approvedAt?: Date; rejectedAt?: Date; rejectionReason?: string } = {
         status: action === 'approve' ? 'approved' : 'rejected'
       }
 
@@ -373,7 +374,7 @@ export class TimesheetManager {
     startDate: Date,
     endDate: Date
   ): Promise<{
-    engagement: any
+    engagement: { id: string; status: string; startDate: Date; endDate?: Date; totalAmount: number }
     totalHours: number
     billableHours: number
     totalAmount: number

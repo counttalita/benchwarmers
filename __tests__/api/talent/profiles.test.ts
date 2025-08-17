@@ -4,23 +4,23 @@ import { POST as createProfile, GET as listProfiles } from '@/app/api/talent/pro
 import { PUT as updateProfile } from '@/app/api/talent/profiles/[id]/route'
 import { POST as uploadCertification } from '@/app/api/talent/profiles/certifications/route'
 
-// Mock Appwrite
-jest.mock('@/lib/appwrite', () => ({
-  databases: {
-    createDocument: jest.fn(),
-    getDocument: jest.fn(),
-    updateDocument: jest.fn(),
-    listDocuments: jest.fn()
-  },
-  storage: {
-    createFile: jest.fn(),
-    getFileView: jest.fn()
+// Mock Prisma
+jest.mock('@/lib/prisma', () => ({
+  prisma: {
+    talentProfile: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+      count: jest.fn()
+    },
+    company: {
+      findUnique: jest.fn()
+    },
+    certification: {
+      create: jest.fn()
+    }
   }
-}))
-
-// Mock auth
-jest.mock('@/lib/auth', () => ({
-  getCurrentUser: jest.fn()
 }))
 
 describe('Talent Profiles API', () => {
@@ -32,24 +32,37 @@ describe('Talent Profiles API', () => {
     it('should create a talent profile with valid data', async () => {
       const request = new NextRequest('http://localhost:3000/api/talent/profiles', {
         method: 'POST',
+        headers: {
+          'x-company-id': 'company-123'
+        },
         body: JSON.stringify({
           name: 'John Doe',
           title: 'Senior Developer',
-          seniorityLevel: 'senior',
-          skills: ['JavaScript', 'React', 'Node.js'],
+          skills: [
+            { name: 'JavaScript', level: 'senior', yearsOfExperience: 5 },
+            { name: 'React', level: 'senior', yearsOfExperience: 4 },
+            { name: 'Node.js', level: 'senior', yearsOfExperience: 3 }
+          ],
           location: 'New York, NY',
-          remotePreference: 'hybrid',
           rateMin: 80,
           rateMax: 120,
-          currency: 'USD'
+          currency: 'USD',
+          availability: 'available'
         })
       })
 
-      // Mock authenticated user
-      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
-        id: 'user-123',
-        companyId: 'company-123'
-      })
+      // Mock Prisma responses
+      jest.mocked(require('@/lib/prisma').prisma.company.findUnique).mockResolvedValue({
+        id: 'company-123',
+        type: 'provider'
+      } as any)
+
+      jest.mocked(require('@/lib/prisma').prisma.talentProfile.create).mockResolvedValue({
+        id: 'profile-123',
+        name: 'John Doe',
+        title: 'Senior Developer',
+        isVisible: true
+      } as any)
 
       const response = await createProfile(request)
       const data = await response.json()
@@ -64,6 +77,9 @@ describe('Talent Profiles API', () => {
     it('should validate required fields', async () => {
       const request = new NextRequest('http://localhost:3000/api/talent/profiles', {
         method: 'POST',
+        headers: {
+          'x-company-id': 'company-123'
+        },
         body: JSON.stringify({
           name: '',
           title: '',
@@ -75,10 +91,8 @@ describe('Talent Profiles API', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data.errors).toBeDefined()
-      expect(data.errors.name).toBe('Name is required')
-      expect(data.errors.title).toBe('Title is required')
-      expect(data.errors.skills).toBe('At least one skill is required')
+      expect(data.error).toBeDefined()
+      expect(data.details).toBeDefined()
     })
 
     it('should require authentication', async () => {
@@ -90,14 +104,11 @@ describe('Talent Profiles API', () => {
         })
       })
 
-      // Mock unauthenticated user
-      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue(null)
-
       const response = await createProfile(request)
       const data = await response.json()
 
-      expect(response.status).toBe(401)
-      expect(data.error).toBe('Unauthorized')
+      expect(response.status).toBe(400)
+      expect(data.error).toBe('Company ID is required')
     })
   })
 
@@ -105,6 +116,9 @@ describe('Talent Profiles API', () => {
     it('should update a talent profile', async () => {
       const request = new NextRequest('http://localhost:3000/api/talent/profiles/profile-123', {
         method: 'PUT',
+        headers: {
+          'x-company-id': 'company-123'
+        },
         body: JSON.stringify({
           title: 'Lead Developer',
           rateMin: 100,
@@ -112,16 +126,19 @@ describe('Talent Profiles API', () => {
         })
       })
 
-      // Mock authenticated user and existing profile
-      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
-        id: 'user-123',
-        companyId: 'company-123'
-      })
+      // Mock Prisma responses
+      jest.mocked(require('@/lib/prisma').prisma.talentProfile.findUnique).mockResolvedValue({
+        id: 'profile-123',
+        companyId: 'company-123',
+        title: 'Senior Developer',
+        company: { id: 'company-123', name: 'Test Company' }
+      } as any)
 
-      jest.mocked(require('@/lib/appwrite').databases.getDocument).mockResolvedValue({
-        $id: 'profile-123',
-        companyId: 'company-123'
-      })
+      jest.mocked(require('@/lib/prisma').prisma.talentProfile.update).mockResolvedValue({
+        id: 'profile-123',
+        title: 'Lead Developer',
+        rateMax: 150
+      } as any)
 
       const response = await updateProfile(request, { params: { id: 'profile-123' } })
       const data = await response.json()
@@ -134,22 +151,21 @@ describe('Talent Profiles API', () => {
     it('should prevent updating other company profiles', async () => {
       const request = new NextRequest('http://localhost:3000/api/talent/profiles/profile-123', {
         method: 'PUT',
+        headers: {
+          'x-company-id': 'company-123'
+        },
         body: JSON.stringify({
           title: 'Lead Developer'
         })
       })
 
-      // Mock authenticated user
-      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
-        id: 'user-123',
-        companyId: 'company-123'
-      })
-
-      // Mock profile from different company
-      jest.mocked(require('@/lib/appwrite').databases.getDocument).mockResolvedValue({
-        $id: 'profile-123',
-        companyId: 'different-company'
-      })
+      // Mock Prisma responses
+      jest.mocked(require('@/lib/prisma').prisma.talentProfile.findUnique).mockResolvedValue({
+        id: 'profile-123',
+        companyId: 'different-company',
+        title: 'Senior Developer',
+        company: { id: 'different-company', name: 'Other Company' }
+      } as any)
 
       const response = await updateProfile(request, { params: { id: 'profile-123' } })
       const data = await response.json()
@@ -162,6 +178,12 @@ describe('Talent Profiles API', () => {
   describe('GET /api/talent/profiles', () => {
     it('should list visible talent profiles', async () => {
       const request = new NextRequest('http://localhost:3000/api/talent/profiles?skills=JavaScript&location=New York')
+
+      // Mock Prisma responses
+      jest.mocked(require('@/lib/prisma').prisma.talentProfile.findMany).mockResolvedValue([
+        { id: 'profile-1', name: 'John Doe', company: { id: 'company-1', name: 'Company 1' } }
+      ] as any)
+      jest.mocked(require('@/lib/prisma').prisma.talentProfile.count).mockResolvedValue(1)
 
       const response = await listProfiles(request)
       const data = await response.json()
@@ -191,18 +213,31 @@ describe('Talent Profiles API', () => {
       const file = new File(['certificate content'], 'certificate.pdf', { type: 'application/pdf' })
       formData.append('file', file)
       formData.append('profileId', 'profile-123')
-      formData.append('name', 'AWS Certified Developer')
+      formData.append('certificationName', 'AWS Certified Developer')
+      formData.append('issuer', 'AWS')
+      formData.append('year', '2023')
 
       const request = new NextRequest('http://localhost:3000/api/talent/profiles/certifications', {
         method: 'POST',
+        headers: {
+          'x-company-id': 'company-123'
+        },
         body: formData
       })
 
-      // Mock authenticated user
-      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
-        id: 'user-123',
-        companyId: 'company-123'
-      })
+      // Mock Prisma responses
+      jest.mocked(require('@/lib/prisma').prisma.talentProfile.findUnique).mockResolvedValue({
+        id: 'profile-123',
+        companyId: 'company-123',
+        company: { id: 'company-123', name: 'Test Company' }
+      } as any)
+
+      jest.mocked(require('@/lib/prisma').prisma.certification.create).mockResolvedValue({
+        id: 'cert-123',
+        name: 'AWS Certified Developer',
+        issuer: 'AWS',
+        year: 2023
+      } as any)
 
       const response = await uploadCertification(request)
       const data = await response.json()
@@ -219,9 +254,15 @@ describe('Talent Profiles API', () => {
       const largeFile = new File(['x'.repeat(11 * 1024 * 1024)], 'large.pdf', { type: 'application/pdf' })
       formData.append('file', largeFile)
       formData.append('profileId', 'profile-123')
+      formData.append('certificationName', 'Test Cert')
+      formData.append('issuer', 'Test Issuer')
+      formData.append('year', '2023')
 
       const request = new NextRequest('http://localhost:3000/api/talent/profiles/certifications', {
         method: 'POST',
+        headers: {
+          'x-company-id': 'company-123'
+        },
         body: formData
       })
 
@@ -237,9 +278,15 @@ describe('Talent Profiles API', () => {
       const unsupportedFile = new File(['content'], 'file.exe', { type: 'application/x-msdownload' })
       formData.append('file', unsupportedFile)
       formData.append('profileId', 'profile-123')
+      formData.append('certificationName', 'Test Cert')
+      formData.append('issuer', 'Test Issuer')
+      formData.append('year', '2023')
 
       const request = new NextRequest('http://localhost:3000/api/talent/profiles/certifications', {
         method: 'POST',
+        headers: {
+          'x-company-id': 'company-123'
+        },
         body: formData
       })
 

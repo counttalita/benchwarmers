@@ -207,7 +207,7 @@ export default function TalentRequestForm() {
                       <SelectValue placeholder="Select project type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="short-term">Short-term (< 3 months)</SelectItem>
+                      <SelectItem value="short-term">Short-term (&lt; 3 months)</SelectItem>
                       <SelectItem value="long-term">Long-term (3+ months)</SelectItem>
                       <SelectItem value="contract">Contract</SelectItem>
                       <SelectItem value="full-time">Full-time</SelectItem>
@@ -597,7 +597,7 @@ export default function TalentRequestForm() {
                       <SelectValue placeholder="Select response time" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="immediate">Immediate (< 1 hour)</SelectItem>
+                      <SelectItem value="immediate">Immediate (&lt; 1 hour)</SelectItem>
                       <SelectItem value="2-hours">Within 2 hours</SelectItem>
                       <SelectItem value="24-hours">Within 24 hours</SelectItem>
                       <SelectItem value="48-hours">Within 48 hours</SelectItem>

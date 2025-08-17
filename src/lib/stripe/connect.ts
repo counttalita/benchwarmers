@@ -262,7 +262,7 @@ export class StripeConnectService {
    */
   async refundPayment(paymentIntentId: string, amount?: number, reason?: string): Promise<Stripe.Refund> {
     try {
-      const refundData: any = {
+      const refundData: { payment_intent: string; amount?: number; reason?: string } = {
         payment_intent: paymentIntentId,
       }
 

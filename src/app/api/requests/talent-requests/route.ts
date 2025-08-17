@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { logRequest, logError } from '@/lib/logger'
 import { z } from 'zod'
 
+
+
 const createRequestSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().min(1).max(2000),
@@ -52,6 +54,14 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const validatedBody = createRequestSchema.parse(body)
+    
+    // Additional validation for budget range
+    if (validatedBody.budget.max <= validatedBody.budget.min) {
+      return NextResponse.json(
+        { error: 'Maximum budget must be greater than minimum budget' },
+        { status: 400 }
+      )
+    }
     
     // Verify company is a seeker
     const company = await prisma.company.findUnique({

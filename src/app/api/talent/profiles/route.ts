@@ -1,90 +1,135 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
+import { logRequest, logError } from '@/lib/logger'
+import { z } from 'zod'
 
-// POST /api/talent/profiles - Create a talent profile
+const createProfileSchema = z.object({
+  name: z.string().min(1).max(100),
+  title: z.string().min(1).max(200),
+  skills: z.array(z.object({
+    name: z.string(),
+    level: z.enum(['junior', 'mid', 'senior', 'lead', 'principal']),
+    yearsOfExperience: z.number().min(0).max(50)
+  })).min(1),
+  rateMin: z.number().positive(),
+  rateMax: z.number().positive(),
+  currency: z.string().default('USD'),
+  location: z.string().optional(),
+  timezone: z.string().optional(),
+  availability: z.enum(['available', 'partially_available', 'unavailable']).default('available'),
+  bio: z.string().max(2000).optional(),
+  experience: z.number().min(0).max(50).optional(),
+  education: z.array(z.object({
+    degree: z.string(),
+    institution: z.string(),
+    year: z.number().min(1900).max(new Date().getFullYear())
+  })).optional(),
+  certifications: z.array(z.object({
+    name: z.string(),
+    issuer: z.string(),
+    year: z.number().min(1900).max(new Date().getFullYear()),
+    expiryDate: z.string().datetime().optional()
+  })).optional(),
+  portfolio: z.array(z.object({
+    title: z.string(),
+    description: z.string(),
+    url: z.string().url().optional(),
+    technologies: z.array(z.string()).optional()
+  })).optional(),
+  languages: z.array(z.object({
+    language: z.string(),
+    proficiency: z.enum(['basic', 'conversational', 'fluent', 'native'])
+  })).optional()
+})
+
 export async function POST(request: NextRequest) {
+  const correlationId = `create-profile-${Date.now()}`
+  
   try {
+    logRequest(request, { metadata: { correlationId } })
+
+    // TODO: Get user from session/auth
+    const userId = request.headers.get('x-user-id') || 'test-user-id'
+    const companyId = request.headers.get('x-company-id')
+    
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'Company ID is required' },
+        { status: 400 }
+      )
+    }
+
     const body = await request.json()
-    const { 
-      name, 
-      skills, 
-      experience, 
-      hourlyRate, 
-      location, 
-      availability,
-      preferences,
-      userId 
-    } = body
-
-    // Validate required fields
-    if (!name || !skills || !hourlyRate || !location || !userId) {
-      return NextResponse.json(
-        { error: 'Missing required fields: name, skills, hourlyRate, location, userId' },
-        { status: 400 }
-      )
-    }
-
-    // Validate hourly rate
-    if (hourlyRate < 10 || hourlyRate > 1000) {
-      return NextResponse.json(
-        { error: 'Hourly rate must be between $10 and $1000' },
-        { status: 400 }
-      )
-    }
-
-    // Check if user already has a profile
-    const existingProfile = await prisma.talentProfile.findFirst({
-      where: { userId }
+    const validatedBody = createProfileSchema.parse(body)
+    
+    // Verify company is a provider
+    const company = await prisma.company.findUnique({
+      where: { id: companyId }
     })
 
-    if (existingProfile) {
+    if (!company) {
       return NextResponse.json(
-        { error: 'User already has a talent profile' },
-        { status: 409 }
+        { error: 'Company not found' },
+        { status: 404 }
       )
     }
 
-    // Create the talent profile
-    const profile = await prisma.talentProfile.create({
+    if (company.type !== 'provider' && company.type !== 'both') {
+      return NextResponse.json(
+        { error: 'Only provider companies can create talent profiles' },
+        { status: 403 }
+      )
+    }
+
+    // Validate rate range
+    if (validatedBody.rateMax <= validatedBody.rateMin) {
+      return NextResponse.json(
+        { error: 'Maximum rate must be greater than minimum rate' },
+        { status: 400 }
+      )
+    }
+
+    const talentProfile = await prisma.talentProfile.create({
       data: {
-        name,
-        skills: skills || [],
-        experience: experience || [],
-        hourlyRate,
-        location,
-        availability: availability || [],
-        preferences: preferences || {},
-        userId,
-        isAvailable: true,
-        rating: 0,
-        totalReviews: 0
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            avatar: true
-          }
-        }
+        name: validatedBody.name,
+        title: validatedBody.title,
+        skills: validatedBody.skills,
+        rateMin: validatedBody.rateMin,
+        rateMax: validatedBody.rateMax,
+        currency: validatedBody.currency,
+        location: validatedBody.location,
+        timezone: validatedBody.timezone,
+        availability: validatedBody.availability,
+        bio: validatedBody.bio,
+        experience: validatedBody.experience,
+        education: validatedBody.education,
+        certifications: validatedBody.certifications,
+        portfolio: validatedBody.portfolio,
+        languages: validatedBody.languages,
+        companyId,
+        status: 'active',
+        isVisible: true
       }
     })
 
-    logger.info('Talent profile created successfully', { profileId: profile.id, userId })
-
-    return NextResponse.json(
-      { 
-        success: true, 
-        profile,
-        message: 'Talent profile created successfully'
-      },
-      { status: 201 }
-    )
+    return NextResponse.json({
+      success: true,
+      profile: talentProfile
+    }, { status: 201 })
 
   } catch (error) {
-    logger.error('Failed to create talent profile', { error: error instanceof Error ? error.message : 'Unknown error' })
+    logError('Failed to create talent profile', {
+      correlationId,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      )
+    }
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -92,71 +137,68 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET /api/talent/profiles - List talent profiles with filtering
 export async function GET(request: NextRequest) {
+  const correlationId = `list-profiles-${Date.now()}`
+  
   try {
+    logRequest(request, { metadata: { correlationId } })
+
     const { searchParams } = new URL(request.url)
     const skills = searchParams.get('skills')
     const location = searchParams.get('location')
-    const minRate = searchParams.get('minRate')
-    const maxRate = searchParams.get('maxRate')
+    const availability = searchParams.get('availability')
+    const minRate = searchParams.get('minRate') ? parseInt(searchParams.get('minRate')!) : undefined
+    const maxRate = searchParams.get('maxRate') ? parseInt(searchParams.get('maxRate')!) : undefined
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
     const offset = (page - 1) * limit
 
-    // Build where clause
     const where: any = {
-      isAvailable: true
+      status: 'active',
+      isVisible: true
     }
 
     if (skills) {
-      const skillArray = skills.split(',').map(s => s.trim())
       where.skills = {
-        some: {
-          name: {
-            in: skillArray
-          }
-        }
+        path: ['$[*].name'],
+        array_contains: skills.split(',').map(s => s.trim())
       }
     }
 
     if (location) {
       where.location = {
-        path: ['city'],
-        string_contains: location
+        contains: location,
+        mode: 'insensitive'
       }
     }
 
-    if (minRate || maxRate) {
-      where.hourlyRate = {}
-      if (minRate) where.hourlyRate.gte = parseInt(minRate)
-      if (maxRate) where.hourlyRate.lte = parseInt(maxRate)
+    if (availability) {
+      where.availability = availability
     }
 
-    // Get profiles with pagination
-    const [profiles, totalCount] = await Promise.all([
+    if (minRate || maxRate) {
+      where.rateMin = {}
+      if (minRate) where.rateMin.gte = minRate
+      if (maxRate) where.rateMin.lte = maxRate
+    }
+
+    const [profiles, total] = await Promise.all([
       prisma.talentProfile.findMany({
         where,
         include: {
-          user: {
+          company: {
             select: {
               id: true,
-              name: true,
-              email: true,
-              avatar: true
+              name: true
             }
-          },
-          skills: true,
-          experience: true
+          }
         },
-        orderBy: { rating: 'desc' },
+        orderBy: { createdAt: 'desc' },
         skip: offset,
         take: limit
       }),
       prisma.talentProfile.count({ where })
     ])
-
-    const totalPages = Math.ceil(totalCount / limit)
 
     return NextResponse.json({
       success: true,
@@ -164,15 +206,24 @@ export async function GET(request: NextRequest) {
       pagination: {
         page,
         limit,
-        totalCount,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
+        total,
+        totalPages: Math.ceil(total / limit)
+      },
+      filters: {
+        skills,
+        location,
+        availability,
+        minRate,
+        maxRate
       }
     })
 
   } catch (error) {
-    logger.error('Failed to list talent profiles', { error: error instanceof Error ? error.message : 'Unknown error' })
+    logError('Failed to list talent profiles', {
+      correlationId,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

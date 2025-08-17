@@ -7,9 +7,9 @@ export interface AuditLogEntry {
   action: string
   resource: string
   resourceId: string
-  oldValues?: Record<string, any>
-  newValues?: Record<string, any>
-  metadata?: Record<string, any>
+  oldValues?: Record<string, unknown>
+  newValues?: Record<string, unknown>
+  metadata?: Record<string, unknown>
   ipAddress?: string
   userAgent?: string
   correlationId?: string
@@ -99,7 +99,7 @@ export class AuditLogger {
     offerId: string,
     seekerCompanyId: string,
     providerCompanyId: string,
-    offerData: any,
+    offerData: { rate: number; totalAmount: number; [key: string]: unknown },
     correlationId?: string
   ): Promise<void> {
     await this.log({
@@ -123,7 +123,7 @@ export class AuditLogger {
     offerId: string,
     providerCompanyId: string,
     response: 'accept' | 'decline' | 'counter',
-    responseData?: any,
+    responseData?: Record<string, unknown>,
     correlationId?: string
   ): Promise<void> {
     await this.log({
@@ -223,7 +223,7 @@ export class AuditLogger {
     action: string,
     resource: string,
     resourceId: string,
-    changes?: any,
+    changes?: Record<string, unknown>,
     correlationId?: string
   ): Promise<void> {
     await this.log({
@@ -241,7 +241,7 @@ export class AuditLogger {
    * Query audit logs
    */
   async query(query: AuditQuery): Promise<{
-    logs: any[]
+    logs: unknown[]
     total: number
     page: number
     totalPages: number
@@ -251,7 +251,17 @@ export class AuditLogger {
     const offset = (page - 1) * limit
 
     // Build where clause
-    const where: any = {}
+    const where: {
+      userId?: string;
+      companyId?: string;
+      action?: string;
+      resource?: string;
+      resourceId?: string;
+      timestamp?: {
+        gte?: Date;
+        lte?: Date;
+      };
+    } = {}
     
     if (query.userId) where.userId = query.userId
     if (query.companyId) where.companyId = query.companyId
@@ -298,7 +308,7 @@ export class AuditLogger {
     resource: string,
     resourceId: string,
     limit: number = 100
-  ): Promise<any[]> {
+  ): Promise<unknown[]> {
     return await prisma.auditLog.findMany({
       where: {
         resource,

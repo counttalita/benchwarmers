@@ -14,22 +14,22 @@ export interface EmailNotificationData {
   from: string
   subject: string
   html: string
-  text?: string
+  text: string
   replyTo?: string
-  attachments?: any[]
+  attachments?: { filename: string; content: string; contentType: string }[]
 }
 
 /**
  * Send email notification using Resend
  */
 export async function sendEmailNotification(
-  notification: any,
-  preferences: any,
+  notification: { id: string; type: string; title: string; message: string; data?: Record<string, unknown>; userId?: string },
+  preferences: { channels: string[]; email?: string },
   correlationId: string
 ): Promise<void> {
   try {
     // Get user email from notification data or preferences
-    const userEmail = notification.data?.userEmail || preferences.email
+    const userEmail = notification.data?.userEmail as string || preferences.email
     
     if (!userEmail) {
       logInfo('No email address found for notification', {
@@ -48,7 +48,7 @@ export async function sendEmailNotification(
       from: process.env.RESEND_FROM_EMAIL || 'notifications@benchwarmers.com',
       subject: template.subject,
       html: template.html,
-      text: template.text,
+      text: template.text || template.html,
       replyTo: process.env.RESEND_REPLY_TO_EMAIL || 'support@benchwarmers.com'
     }
 
@@ -77,7 +77,7 @@ export async function sendEmailNotification(
 /**
  * Generate email template based on notification type
  */
-function generateEmailTemplate(notification: any): EmailTemplate {
+function generateEmailTemplate(notification: { id: string; type: string; title: string; message: string; data?: Record<string, unknown> }): EmailTemplate {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://benchwarmers.com'
   
   switch (notification.type) {
@@ -93,7 +93,7 @@ function generateEmailTemplate(notification: any): EmailTemplate {
               <h3>Match Details:</h3>
               <p><strong>Project:</strong> ${notification.data?.requestTitle || 'Your Project'}</p>
               <p><strong>Match Score:</strong> ${notification.data?.score || 'N/A'}%</p>
-              <p><strong>Skills:</strong> ${notification.data?.skills?.join(', ') || 'N/A'}</p>
+              <p><strong>Skills:</strong> ${Array.isArray(notification.data?.skills) ? notification.data.skills.join(', ') : 'N/A'}</p>
             </div>
             
             <a href="${baseUrl}/matches/${notification.data?.matchId}" 
@@ -106,7 +106,7 @@ function generateEmailTemplate(notification: any): EmailTemplate {
             </p>
           </div>
         `,
-        text: `New Talent Match Found!\n\nProject: ${notification.data?.requestTitle || 'Your Project'}\nMatch Score: ${notification.data?.score || 'N/A'}%\nSkills: ${notification.data?.skills?.join(', ') || 'N/A'}\n\nView match: ${baseUrl}/matches/${notification.data?.matchId}`
+        text: `New Talent Match Found!\n\nProject: ${notification.data?.requestTitle || 'Your Project'}\nMatch Score: ${notification.data?.score || 'N/A'}%\nSkills: ${Array.isArray(notification.data?.skills) ? notification.data.skills.join(', ') : 'N/A'}\n\nView match: ${baseUrl}/matches/${notification.data?.matchId}`
       }
 
     case 'offer_received':
@@ -266,7 +266,7 @@ function generateEmailTemplate(notification: any): EmailTemplate {
 /**
  * Send custom email
  */
-export async function sendCustomEmail(data: EmailNotificationData): Promise<any> {
+export async function sendCustomEmail(data: EmailNotificationData): Promise<unknown> {
   try {
     const result = await resend.emails.send(data)
     
@@ -291,11 +291,11 @@ export async function sendCustomEmail(data: EmailNotificationData): Promise<any>
  * Send bulk email notifications
  */
 export async function sendBulkEmailNotifications(
-  notifications: any[],
+  notifications: { id: string; type: string; title: string; message: string; data?: Record<string, unknown>; userId?: string }[],
   correlationId: string
 ): Promise<void> {
   const promises = notifications.map(notification => 
-    sendEmailNotification(notification, {}, correlationId)
+    sendEmailNotification(notification, { channels: ['email'] }, correlationId)
   )
   
   await Promise.allSettled(promises)

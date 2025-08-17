@@ -6,7 +6,7 @@ export interface HealthCheckResult {
   status: 'healthy' | 'degraded' | 'unhealthy'
   responseTime: number
   message?: string
-  details?: Record<string, any>
+  details?: Record<string, unknown>
   timestamp: Date
 }
 
@@ -100,10 +100,15 @@ export class HealthChecker {
     
     try {
       // Mock Stripe health check - replace with actual Stripe API call
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000)
+      
       const response = await fetch('https://status.stripe.com/api/v2/status.json', {
         method: 'GET',
-        timeout: 5000
+        signal: controller.signal
       })
+      
+      clearTimeout(timeoutId)
       
       const responseTime = Date.now() - start
       

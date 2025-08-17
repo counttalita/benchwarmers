@@ -49,7 +49,7 @@ export const EVENTS = {
 export const triggerEvent = (
   channel: string,
   event: string,
-  data: any
+  data: unknown
 ) => {
   return pusher.trigger(channel, event, data)
 }
@@ -58,7 +58,7 @@ export const triggerEvent = (
 export const triggerUserNotification = (
   userId: string,
   event: string,
-  data: any
+  data: unknown
 ) => {
   return triggerEvent(CHANNELS.USER_NOTIFICATIONS(userId), event, data)
 }
@@ -67,7 +67,7 @@ export const triggerUserNotification = (
 export const triggerCompanyNotification = (
   companyId: string,
   event: string,
-  data: any
+  data: unknown
 ) => {
   return triggerEvent(CHANNELS.COMPANY_NOTIFICATIONS(companyId), event, data)
 }

@@ -1,15 +1,24 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 import { NextRequest } from 'next/server'
-import { createRequest, getRequest, listRequests, updateRequest } from '@/app/api/requests/talent-requests/route'
-import { runMatching } from '@/app/api/requests/matching/route'
+import { POST as createRequest, GET as listRequests } from '@/app/api/requests/talent-requests/route'
+import { GET as getRequest, PUT as updateRequest } from '@/app/api/requests/talent-requests/[id]/route'
 
-// Mock Appwrite
-jest.mock('@/lib/appwrite', () => ({
-  databases: {
-    createDocument: jest.fn(),
-    getDocument: jest.fn(),
-    updateDocument: jest.fn(),
-    listDocuments: jest.fn()
+// Mock Prisma
+jest.mock('@/lib/prisma', () => ({
+  prisma: {
+    talentRequest: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+      count: jest.fn()
+    },
+    company: {
+      findUnique: jest.fn()
+    },
+    talentProfile: {
+      findMany: jest.fn()
+    }
   }
 }))
 
@@ -34,25 +43,36 @@ describe('Talent Requests API', () => {
     it('should create a talent request with valid data', async () => {
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests', {
         method: 'POST',
+        headers: {
+          'x-company-id': 'company-123'
+        },
         body: JSON.stringify({
           title: 'Senior React Developer Needed',
           description: 'Looking for experienced React developer for 3-month project',
-          requiredSkills: ['React', 'TypeScript', 'Node.js'],
-          preferredSkills: ['GraphQL', 'AWS'],
-          budgetMin: 80,
-          budgetMax: 120,
-          currency: 'USD',
-          startDate: '2024-02-01',
-          durationWeeks: 12,
-          locationPreference: 'Remote'
+          requiredSkills: [
+            { name: 'React', level: 'senior', priority: 'required' },
+            { name: 'TypeScript', level: 'senior', priority: 'required' },
+            { name: 'Node.js', level: 'senior', priority: 'required' }
+          ],
+          budget: { min: 80, max: 120, currency: 'USD' },
+          duration: { value: 12, unit: 'weeks' },
+          startDate: '2024-02-01T00:00:00Z',
+          location: 'Remote',
+          remotePreference: 'remote'
         })
       })
 
-      // Mock authenticated user
-      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
-        id: 'user-123',
-        companyId: 'company-123'
-      })
+      // Mock Prisma responses
+      jest.mocked(require('@/lib/prisma').prisma.company.findUnique).mockResolvedValue({
+        id: 'company-123',
+        type: 'seeker'
+      } as any)
+
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.create).mockResolvedValue({
+        id: 'request-123',
+        title: 'Senior React Developer Needed',
+        status: 'open'
+      } as any)
 
       const response = await createRequest(request)
       const data = await response.json()
@@ -67,6 +87,9 @@ describe('Talent Requests API', () => {
     it('should validate required fields', async () => {
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests', {
         method: 'POST',
+        headers: {
+          'x-company-id': 'company-123'
+        },
         body: JSON.stringify({
           title: '',
           description: '',
@@ -78,24 +101,25 @@ describe('Talent Requests API', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data.errors).toBeDefined()
-      expect(data.errors.title).toBe('Title is required')
-      expect(data.errors.description).toBe('Description is required')
-      expect(data.errors.requiredSkills).toBe('At least one required skill is needed')
+      expect(data.error).toBeDefined()
+      expect(data.details).toBeDefined()
     })
 
     it('should validate budget range', async () => {
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests', {
         method: 'POST',
+        headers: {
+          'x-company-id': 'company-123'
+        },
         body: JSON.stringify({
           title: 'Developer Needed',
           description: 'Test description',
-          requiredSkills: ['JavaScript'],
-          budgetMin: 120,
-          budgetMax: 80, // Max less than min
-          startDate: '2024-02-01',
-          durationWeeks: 4,
-          locationPreference: 'Remote'
+          requiredSkills: [{ name: 'JavaScript', level: 'mid', priority: 'required' }],
+          budget: { min: 120, max: 80, currency: 'USD' }, // Max less than min
+          duration: { value: 4, unit: 'weeks' },
+          startDate: '2024-02-01T00:00:00Z',
+          location: 'Remote',
+          remotePreference: 'remote'
         })
       })
 
@@ -109,39 +133,44 @@ describe('Talent Requests API', () => {
     it('should require seeker company type', async () => {
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests', {
         method: 'POST',
+        headers: {
+          'x-company-id': 'company-123'
+        },
         body: JSON.stringify({
           title: 'Developer Needed',
           description: 'Test description',
-          requiredSkills: ['JavaScript'],
-          startDate: '2024-02-01',
-          durationWeeks: 4,
-          locationPreference: 'Remote'
+          requiredSkills: [{ name: 'JavaScript', level: 'mid', priority: 'required' }],
+          budget: { min: 80, max: 120, currency: 'USD' },
+          duration: { value: 4, unit: 'weeks' },
+          startDate: '2024-02-01T00:00:00Z',
+          location: 'Remote',
+          remotePreference: 'remote'
         })
       })
 
-      // Mock provider company user
-      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
-        id: 'user-123',
-        companyId: 'company-123'
-      })
-
-      // Mock company as provider only
-      jest.mocked(require('@/lib/appwrite').databases.getDocument).mockResolvedValue({
-        $id: 'company-123',
+      // Mock Prisma responses
+      jest.mocked(require('@/lib/prisma').prisma.company.findUnique).mockResolvedValue({
+        id: 'company-123',
         type: 'provider'
-      })
+      } as any)
 
       const response = await createRequest(request)
       const data = await response.json()
 
       expect(response.status).toBe(403)
-      expect(data.error).toBe('Only talent seekers can create requests')
+      expect(data.error).toBe('Only seeker companies can create talent requests')
     })
   })
 
   describe('GET /api/requests/talent-requests', () => {
     it('should list talent requests with filters', async () => {
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests?skills=React&location=Remote&status=open')
+
+      // Mock Prisma responses
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.findMany).mockResolvedValue([
+        { id: 'request-1', title: 'React Developer', company: { id: 'company-1', name: 'Company 1' } }
+      ] as any)
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.count).mockResolvedValue(1)
 
       const response = await listRequests(request)
       const data = await response.json()
@@ -154,6 +183,12 @@ describe('Talent Requests API', () => {
 
     it('should paginate results', async () => {
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests?page=2&limit=10')
+
+      // Mock Prisma responses
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.findMany).mockResolvedValue([
+        { id: 'request-2', title: 'Developer 2', company: { id: 'company-2', name: 'Company 2' } }
+      ] as any)
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.count).mockResolvedValue(15)
 
       const response = await listRequests(request)
       const data = await response.json()
@@ -169,12 +204,14 @@ describe('Talent Requests API', () => {
     it('should get a specific talent request', async () => {
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests/request-123')
 
-      // Mock existing request
-      jest.mocked(require('@/lib/appwrite').databases.getDocument).mockResolvedValue({
-        $id: 'request-123',
+      // Mock Prisma responses
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.findUnique).mockResolvedValue({
+        id: 'request-123',
         title: 'Senior React Developer Needed',
-        status: 'open'
-      })
+        status: 'open',
+        company: { id: 'company-123', name: 'Test Company' },
+        matches: []
+      } as any)
 
       const response = await getRequest(request, { params: { id: 'request-123' } })
       const data = await response.json()
@@ -187,14 +224,14 @@ describe('Talent Requests API', () => {
     it('should return 404 for non-existent request', async () => {
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests/non-existent')
 
-      // Mock non-existent request
-      jest.mocked(require('@/lib/appwrite').databases.getDocument).mockRejectedValue(new Error('Not found'))
+      // Mock Prisma responses
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.findUnique).mockResolvedValue(null)
 
       const response = await getRequest(request, { params: { id: 'non-existent' } })
       const data = await response.json()
 
       expect(response.status).toBe(404)
-      expect(data.error).toBe('Request not found')
+      expect(data.error).toBe('Talent request not found')
     })
   })
 
@@ -202,23 +239,28 @@ describe('Talent Requests API', () => {
     it('should update a talent request', async () => {
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests/request-123', {
         method: 'PUT',
+        headers: {
+          'x-company-id': 'company-123'
+        },
         body: JSON.stringify({
           title: 'Updated Title',
           budgetMax: 150
         })
       })
 
-      // Mock authenticated user and existing request
-      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
-        id: 'user-123',
-        companyId: 'company-123'
-      })
-
-      jest.mocked(require('@/lib/appwrite').databases.getDocument).mockResolvedValue({
-        $id: 'request-123',
+      // Mock Prisma responses
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.findUnique).mockResolvedValue({
+        id: 'request-123',
         companyId: 'company-123',
+        status: 'open',
+        company: { id: 'company-123', name: 'Test Company' }
+      } as any)
+
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.update).mockResolvedValue({
+        id: 'request-123',
+        title: 'Updated Title',
         status: 'open'
-      })
+      } as any)
 
       const response = await updateRequest(request, { params: { id: 'request-123' } })
       const data = await response.json()
@@ -231,28 +273,27 @@ describe('Talent Requests API', () => {
     it('should prevent updating closed requests', async () => {
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests/request-123', {
         method: 'PUT',
+        headers: {
+          'x-company-id': 'company-123'
+        },
         body: JSON.stringify({
           title: 'Updated Title'
         })
       })
 
-      // Mock authenticated user and closed request
-      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
-        id: 'user-123',
-        companyId: 'company-123'
-      })
-
-      jest.mocked(require('@/lib/appwrite').databases.getDocument).mockResolvedValue({
-        $id: 'request-123',
+      // Mock Prisma responses
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.findUnique).mockResolvedValue({
+        id: 'request-123',
         companyId: 'company-123',
-        status: 'closed'
-      })
+        status: 'closed',
+        company: { id: 'company-123', name: 'Test Company' }
+      } as any)
 
       const response = await updateRequest(request, { params: { id: 'request-123' } })
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data.error).toBe('Cannot update closed request')
+      expect(data.error).toBe('Cannot update closed requests')
     })
   })
 
@@ -260,6 +301,9 @@ describe('Talent Requests API', () => {
     it('should run matching algorithm for a request', async () => {
       const request = new NextRequest('http://localhost:3000/api/requests/matching', {
         method: 'POST',
+        headers: {
+          'x-company-id': 'company-123'
+        },
         body: JSON.stringify({
           requestId: 'request-123'
         })
@@ -271,25 +315,36 @@ describe('Talent Requests API', () => {
         companyId: 'company-123'
       })
 
-      // Mock matching results
-      jest.mocked(require('@/lib/matching').findMatches).mockResolvedValue([
-        { profileId: 'profile-1', score: 0.95 },
-        { profileId: 'profile-2', score: 0.87 }
-      ])
+      // Mock Prisma responses
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.findUnique).mockResolvedValue({
+        id: 'request-123',
+        title: 'Test Request',
+        requiredSkills: [{ name: 'React', level: 'senior', priority: 'required' }],
+        company: { id: 'company-123', name: 'Test Company' }
+      } as any)
 
+      jest.mocked(require('@/lib/prisma').prisma.talentProfile.findMany).mockResolvedValue([
+        { id: 'profile-1', company: { id: 'company-1', name: 'Provider 1' } },
+        { id: 'profile-2', company: { id: 'company-2', name: 'Provider 2' } }
+      ] as any)
+
+      const { POST: runMatching } = require('@/app/api/requests/matching/route')
       const response = await runMatching(request)
       const data = await response.json()
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
-      expect(data.matches).toBeDefined()
       expect(data.matches).toHaveLength(2)
-      expect(data.matches[0].score).toBe(0.95)
+      expect(data.matches[0].profileId).toBe('profile-1')
+      expect(data.matches[0].score).toBe(0.9)
     })
 
     it('should handle no matches found', async () => {
       const request = new NextRequest('http://localhost:3000/api/requests/matching', {
         method: 'POST',
+        headers: {
+          'x-company-id': 'company-123'
+        },
         body: JSON.stringify({
           requestId: 'request-123'
         })
@@ -301,16 +356,25 @@ describe('Talent Requests API', () => {
         companyId: 'company-123'
       })
 
-      // Mock no matches
-      jest.mocked(require('@/lib/matching').findMatches).mockResolvedValue([])
+      // Mock Prisma responses
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.findUnique).mockResolvedValue({
+        id: 'request-123',
+        title: 'Test Request',
+        requiredSkills: [{ name: 'React', level: 'senior', priority: 'required' }],
+        company: { id: 'company-123', name: 'Test Company' }
+      } as any)
 
+      jest.mocked(require('@/lib/prisma').prisma.talentProfile.findMany).mockResolvedValue([])
+
+      const { POST: runMatching } = require('@/app/api/requests/matching/route')
       const response = await runMatching(request)
       const data = await response.json()
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(data.matches).toHaveLength(0)
-      expect(data.message).toBe('No suitable matches found')
+      expect(data.message).toBe('No matching profiles found')
     })
   })
 })
+

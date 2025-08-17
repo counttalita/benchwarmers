@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     // Note: This assumes we add a Contract model to Prisma schema
     // For now, we'll return a mock response structure
-    const contracts = []
+    const contracts: any[] = []
     const total = 0
 
     logInfo('Contracts retrieved successfully', {

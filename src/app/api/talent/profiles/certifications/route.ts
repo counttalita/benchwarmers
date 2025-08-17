@@ -1,56 +1,90 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
+import { logRequest, logError } from '@/lib/logger'
+import { z } from 'zod'
 
-// POST /api/talent/profiles/certifications - Upload certification file
+const uploadCertificationSchema = z.object({
+  profileId: z.string(),
+  certificationName: z.string().min(1).max(200),
+  issuer: z.string().min(1).max(200),
+  year: z.number().min(1900).max(new Date().getFullYear()),
+  expiryDate: z.string().datetime().optional(),
+  file: z.any() // File object
+})
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+const ALLOWED_FILE_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/jpeg', 'image/png']
+
 export async function POST(request: NextRequest) {
+  const correlationId = `upload-certification-${Date.now()}`
+  
   try {
-    const formData = await request.formData()
-    const file = formData.get('file') as File
-    const profileId = formData.get('profileId') as string
-    const certificationName = formData.get('certificationName') as string
-    const issuer = formData.get('issuer') as string
-    const issueDate = formData.get('issueDate') as string
+    logRequest(request, { metadata: { correlationId } })
 
-    // Validate required fields
-    if (!file || !profileId || !certificationName || !issuer) {
+    // TODO: Get user from session/auth
+    const userId = request.headers.get('x-user-id') || 'test-user-id'
+    const companyId = request.headers.get('x-company-id')
+    
+    if (!companyId) {
       return NextResponse.json(
-        { error: 'Missing required fields: file, profileId, certificationName, issuer' },
+        { error: 'Company ID is required' },
         { status: 400 }
       )
     }
 
-    // Validate file size (10MB limit)
-    const maxSize = 10 * 1024 * 1024 // 10MB
-    if (file.size > maxSize) {
+    const formData = await request.formData()
+    const profileId = formData.get('profileId') as string
+    const certificationName = formData.get('certificationName') as string
+    const issuer = formData.get('issuer') as string
+    const year = parseInt(formData.get('year') as string)
+    const expiryDate = formData.get('expiryDate') as string
+    const file = formData.get('file') as File
+
+    // Validate required fields
+    if (!profileId || !certificationName || !issuer || !file) {
       return NextResponse.json(
-        { error: 'File size must be less than 10MB' },
+        { error: 'Missing required fields: profileId, certificationName, issuer, file' },
+        { status: 400 }
+      )
+    }
+
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: 'File size exceeds 10MB limit' },
         { status: 400 }
       )
     }
 
     // Validate file type
-    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']
-    if (!allowedTypes.includes(file.type)) {
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
       return NextResponse.json(
-        { error: 'File type not supported. Please upload PDF, JPEG, or PNG files' },
+        { error: 'Unsupported file type. Only PDF, DOC, DOCX, JPG, PNG allowed' },
         { status: 400 }
       )
     }
 
-    // Check if profile exists
+    // Verify profile exists and belongs to the company
     const profile = await prisma.talentProfile.findUnique({
-      where: { id: profileId }
+      where: { id: profileId },
+      include: { company: true }
     })
 
     if (!profile) {
       return NextResponse.json(
-        { error: 'Profile not found' },
+        { error: 'Talent profile not found' },
         { status: 404 }
       )
     }
 
-    // TODO: Upload file to cloud storage (AWS S3, etc.)
+    if (profile.companyId !== companyId) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
+      )
+    }
+
+    // TODO: Upload file to storage service (e.g., AWS S3, Cloudinary)
     // For now, we'll just store the file metadata
     const fileUrl = `https://storage.example.com/certifications/${profileId}/${file.name}`
 
@@ -59,7 +93,8 @@ export async function POST(request: NextRequest) {
       data: {
         name: certificationName,
         issuer,
-        issueDate: issueDate ? new Date(issueDate) : new Date(),
+        year,
+        expiryDate: expiryDate ? new Date(expiryDate) : null,
         fileUrl,
         fileName: file.name,
         fileSize: file.size,
@@ -68,24 +103,24 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    logger.info('Certification uploaded successfully', { 
-      certificationId: certification.id, 
-      profileId,
-      fileName: file.name,
-      fileSize: file.size
-    })
-
-    return NextResponse.json(
-      { 
-        success: true, 
-        certification,
-        message: 'Certification uploaded successfully'
-      },
-      { status: 201 }
-    )
+    return NextResponse.json({
+      success: true,
+      certification
+    }, { status: 201 })
 
   } catch (error) {
-    logger.error('Failed to upload certification', { error: error instanceof Error ? error.message : 'Unknown error' })
+    logError('Failed to upload certification', {
+      correlationId,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      )
+    }
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -117,7 +152,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    logger.error('Failed to get certifications', { error: error instanceof Error ? error.message : 'Unknown error' })
+    logError('Failed to get certifications', { error: error instanceof Error ? error.message : 'Unknown error' })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

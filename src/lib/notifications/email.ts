@@ -4,7 +4,7 @@ export interface EmailNotificationData {
   to: string
   subject: string
   template: string
-  data: Record<string, any>
+  data: Record<string, unknown>
 }
 
 export interface OfferNotificationData {

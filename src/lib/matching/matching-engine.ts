@@ -241,13 +241,13 @@ export class MatchingEngine {
     
     // Step 2: Calculate scores for each talent
     const scoredMatches = await Promise.all(
-      eligibleTalent.map(talent => this.calculateTalentScore(requirement, talent, options))
+      eligibleTalent.map((talent: TalentProfile) => this.calculateTalentScore(requirement, talent, options))
     )
     
     // Step 3: Sort by total score (descending)
     const rankedMatches = scoredMatches
       .sort((a, b) => b.totalScore - a.totalScore)
-      .map((match, index) => ({ ...match, rank: index + 1 }))
+      .map((match: MatchScore, index: number) => ({ ...match, rank: index + 1 }))
     
     // Step 4: Apply business rules and filters
     return this.applyBusinessRules(rankedMatches, requirement, options)
@@ -257,7 +257,7 @@ export class MatchingEngine {
     requirement: ProjectRequirement,
     talent: TalentProfile[]
   ): TalentProfile[] {
-    return talent.filter(t => {
+    return talent.filter((t: TalentProfile) => {
       // Must be available
       if (!t.isAvailable) return false
 
@@ -476,13 +476,13 @@ export class MatchingEngine {
     if (talent.experience.length === 0) return 50
 
     // Calculate average years of experience
-    const avgExperience = talent.experience.reduce((sum, exp) => {
+    const avgExperience = talent.experience.reduce((sum: number, exp: Experience) => {
       const years = this.parseDuration(exp.duration)
       return sum + years
     }, 0) / talent.experience.length
 
     // Industry experience bonus
-    const industryExperience = talent.experience.filter(exp => 
+    const industryExperience = talent.experience.filter((exp: Experience) => 
       exp.industry.toLowerCase() === requirement.clientIndustry.toLowerCase()
     ).length
 
@@ -621,7 +621,7 @@ export class MatchingEngine {
   }
 
   private getIndustryExperience(projectIndustry: string, experience: Experience[]): number {
-    const industryExp = experience.filter(exp => 
+    const industryExp = experience.filter((exp: Experience) => 
       exp.industry.toLowerCase() === projectIndustry.toLowerCase()
     ).length
 
@@ -695,8 +695,8 @@ export class MatchingEngine {
 
     if (scores.skillsScore >= 80) {
       const matchedSkills = requirement.requiredSkills
-        .filter(req => talent.skills.some(s => this.isSkillMatch(req.name, s.name)))
-        .map(req => req.name)
+        .filter((req: SkillRequirement) => talent.skills.some(s => this.isSkillMatch(req.name, s.name)))
+        .map((req: SkillRequirement) => req.name)
       reasons.push(`Perfect skill match for ${matchedSkills.join(', ')}`)
     }
 
@@ -717,7 +717,7 @@ export class MatchingEngine {
     }
 
     // Check for technology stack matches
-    const techStackMatches = Array.from(techStacks.entries()).filter(([stackName, stackSkills]) => {
+    const techStackMatches = Array.from(techStacks.entries()).filter(([stackName, stackSkills]: [string, string[]]) => {
       const hasStackSkill = talent.skills.some(skill => 
         stackSkills.some(stackSkill => this.isSkillMatch(stackSkill, skill.name))
       )
@@ -740,11 +740,11 @@ export class MatchingEngine {
       concerns.push(`Rate is ${Math.round((talent.hourlyRate / requirement.budget.max - 1) * 100)}% above budget`)
     }
 
-    const missingSkills = requirement.requiredSkills.filter(req => 
+    const missingSkills = requirement.requiredSkills.filter((req: SkillRequirement) => 
       !talent.skills.some(s => this.isSkillMatch(req.name, s.name))
     )
     if (missingSkills.length > 0) {
-      concerns.push(`Missing required skills: ${missingSkills.map(s => s.name).join(', ')}`)
+      concerns.push(`Missing required skills: ${missingSkills.map((s: SkillRequirement) => s.name).join(', ')}`)
     }
 
     if (talent.rating < 3.5) {
@@ -754,7 +754,7 @@ export class MatchingEngine {
     // Check availability concerns
     const projectStart = requirement.startDate
     const earliestAvailability = talent.availability
-      .map(avail => avail.startDate)
+      .map((avail: { startDate: Date; endDate: Date }) => avail.startDate)
       .sort((a, b) => a.getTime() - b.getTime())[0]
 
     if (earliestAvailability && earliestAvailability > projectStart) {
@@ -788,7 +788,7 @@ export class MatchingEngine {
 
     // Apply minimum score filter
     const minScore = options.minScore || 30
-    filteredMatches = filteredMatches.filter(match => match.totalScore >= minScore)
+    filteredMatches = filteredMatches.filter((match: MatchScore) => match.totalScore >= minScore)
 
     // Apply maximum results limit
     const maxResults = options.maxResults || 50

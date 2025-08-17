@@ -12,7 +12,7 @@ export interface CreateNotificationData {
         'milestone_reached' | 'dispute_created' | 'dispute_resolved' | 'system_alert'
   title: string
   message: string
-  data?: Record<string, any>
+  data?: Record<string, unknown>
   priority?: 'low' | 'medium' | 'high' | 'urgent'
   channels?: ('in_app' | 'email' | 'push')[]
   scheduledFor?: Date
@@ -107,11 +107,11 @@ export class NotificationService {
    * Send notification through enabled channels
    */
   private async sendNotification(
-    notification: any,
-    preferences: any,
+    notification: { id: string; type: string; title: string; message: string; data?: Record<string, unknown> },
+    preferences: { channels: string[] },
     correlationId: string
   ) {
-    const promises: Promise<any>[] = []
+    const promises: Promise<unknown>[] = []
 
     // Send in-app notification via Pusher
     if (preferences.channels.includes('in_app')) {
@@ -156,7 +156,7 @@ export class NotificationService {
     companyId?: string,
     type?: string
   ) {
-    const where: any = { userId }
+    const where: { userId: string; companyId?: string; type?: string } = { userId }
     if (companyId) where.companyId = companyId
     if (type) where.type = type
 
@@ -178,7 +178,7 @@ export class NotificationService {
   /**
    * Check if current time is in quiet hours
    */
-  private isInQuietHours(preferences: any): boolean {
+  private isInQuietHours(preferences: { quietHoursStart?: string | null; quietHoursEnd?: string | null; timezone?: string | null }): boolean {
     if (!preferences.quietHoursStart || !preferences.quietHoursEnd) {
       return false
     }
@@ -218,7 +218,7 @@ export class NotificationService {
       type?: string
     } = {}
   ) {
-    const where: any = { userId }
+    const where: { userId: string; status?: string; type?: string; createdAt?: { gte?: Date; lte?: Date } } = { userId }
     
     if (options.status) where.status = options.status
     if (options.type) where.type = options.type
@@ -234,37 +234,41 @@ export class NotificationService {
   /**
    * Mark notification as read
    */
-  async markAsRead(notificationId: string, userId: string) {
-    const notification = await prisma.notification.update({
-      where: {
-        id: notificationId,
-        userId // Ensure user owns the notification
-      },
-      data: {
-        status: 'read',
-        readAt: new Date()
-      }
-    })
+  async markAsRead(notificationId: string, userId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const notification = await prisma.notification.update({
+        where: {
+          id: notificationId,
+          userId // Ensure user owns the notification
+        },
+        data: {
+          status: 'read',
+          readAt: new Date()
+        }
+      })
 
-    // Trigger real-time update
-    await triggerUserNotification(
-      userId,
-      EVENTS.NOTIFICATION_UPDATED,
-      {
-        id: notification.id,
-        status: notification.status,
-        readAt: notification.readAt
-      }
-    )
+      // Trigger real-time update
+      await triggerUserNotification(
+        userId,
+        EVENTS.NOTIFICATION_UPDATED,
+        {
+          id: notification.id,
+          status: notification.status,
+          readAt: notification.readAt
+        }
+      )
 
-    return notification
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
   }
 
   /**
    * Mark all notifications as read for a user
    */
   async markAllAsRead(userId: string, type?: string) {
-    const where: any = { userId, status: 'unread' }
+    const where: { userId: string; status: string; type?: string } = { userId, status: 'unread' }
     if (type) where.type = type
 
     const notifications = await prisma.notification.updateMany({
@@ -289,36 +293,40 @@ export class NotificationService {
   }
 
   /**
-   * Archive notification
+   * Delete notification
    */
-  async archiveNotification(notificationId: string, userId: string) {
-    const notification = await prisma.notification.update({
-      where: {
-        id: notificationId,
-        userId
-      },
-      data: {
-        status: 'archived'
-      }
-    })
+  async deleteNotification(notificationId: string, userId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const notification = await prisma.notification.update({
+        where: {
+          id: notificationId,
+          userId
+        },
+        data: {
+          status: 'deleted'
+        }
+      })
 
-    // Trigger real-time update
-    await triggerUserNotification(
-      userId,
-      EVENTS.NOTIFICATION_UPDATED,
-      {
-        id: notification.id,
-        status: notification.status
-      }
-    )
+      // Trigger real-time update
+      await triggerUserNotification(
+        userId,
+        EVENTS.NOTIFICATION_UPDATED,
+        {
+          id: notification.id,
+          status: notification.status
+        }
+      )
 
-    return notification
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
   }
 
   /**
    * Get notification statistics for a user
    */
-  async getNotificationStats(userId: string) {
+  async getNotifications(userId: string, limit = 50): Promise<unknown[]> {
     const [total, unread, read, archived] = await Promise.all([
       prisma.notification.count({ where: { userId } }),
       prisma.notification.count({ where: { userId, status: 'unread' } }),

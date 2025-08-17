@@ -7,7 +7,7 @@ export interface NotificationTriggerData {
   type: string
   title: string
   message: string
-  data?: Record<string, any>
+  data?: Record<string, unknown>
   priority?: 'low' | 'medium' | 'high' | 'urgent'
 }
 

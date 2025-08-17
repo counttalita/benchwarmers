@@ -323,7 +323,7 @@ export class EscrowPaymentService {
   /**
    * Get payment status from Stripe
    */
-  async getPaymentStatus(escrowPaymentId: string): Promise<any> {
+  async getPaymentStatus(escrowPaymentId: string): Promise<{ status: string; amount?: number; currency?: string; error?: string }> {
     try {
       const escrowPayment = await prisma.escrowPayment.findUnique({
         where: { id: escrowPaymentId },

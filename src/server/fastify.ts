@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto'
 import rateLimit from '@fastify/rate-limit'
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
-import { createError, logError, logInfo } from '@/lib/errors'
+import { createError, logError, logInfo, AppError } from '@/lib/errors'
 
 // Types
 interface RequestContext {
@@ -35,8 +35,8 @@ export async function createServer(): Promise<FastifyInstance> {
         req: (request) => ({
           method: request.method,
           url: request.url,
-          correlationId: (request as any).context?.correlationId,
-          userId: (request as any).context?.userId,
+          correlationId: (request as { context?: { correlationId?: string } }).context?.correlationId,
+          userId: (request as { context?: { userId?: string } }).context?.userId,
         }),
         res: (reply) => ({
           statusCode: reply.statusCode,
@@ -290,7 +290,7 @@ async function registerRoutes(server: FastifyInstance) {
       // Update company
       server.patch('/companies/:id', async (request: FastifyRequest, reply: FastifyReply) => {
         const { id } = request.params as { id: string }
-        const updateData = request.body as any
+        const updateData = request.body as Record<string, unknown>
 
         // Users can only update their own company unless they're admin
         if (request.context.userRole !== 'admin' && request.context.companyId !== id) {
@@ -301,7 +301,7 @@ async function registerRoutes(server: FastifyInstance) {
         const allowedFields = ['name', 'type']
         const filteredData = Object.keys(updateData)
           .filter(key => allowedFields.includes(key))
-          .reduce((obj: any, key) => {
+          .reduce((obj: Record<string, unknown>, key) => {
             obj[key] = updateData[key]
             return obj
           }, {})
@@ -407,18 +407,18 @@ async function registerRoutes(server: FastifyInstance) {
 
 function registerErrorHandlers(server: FastifyInstance) {
   // Global error handler
-  server.setErrorHandler(async (error: any, request: FastifyRequest, reply: FastifyReply) => {
+  server.setErrorHandler(async (error: Error & { code?: string; statusCode?: number }, request: FastifyRequest, reply: FastifyReply) => {
     const correlationId = request.context?.correlationId || 'unknown'
     
     // Convert Fastify error to AppError for logging
-    const appError = error.name === 'AppError' ? error : createError.server(
+    const appError = error.name === 'AppError' ? error : createError.internal(
       error.code || 'INTERNAL_ERROR',
       error.message || 'An unexpected error occurred',
-      error.statusCode || 500
+      { statusCode: error.statusCode || 500 }
     )
     
     // Log the error
-    logError(appError, {
+    logError(appError as AppError, {
       correlationId,
       method: request.method,
       url: request.url,
@@ -428,7 +428,7 @@ function registerErrorHandlers(server: FastifyInstance) {
 
     // Handle different error types
     if (error.name === 'AppError') {
-      const appError = error as any
+      const appError = error as { code?: string; statusCode?: number; message: string }
       reply.code(appError.statusCode || 500)
       return {
         error: appError.code || 'UNKNOWN_ERROR',
@@ -440,7 +440,7 @@ function registerErrorHandlers(server: FastifyInstance) {
 
     // Handle Prisma errors
     if (error.name === 'PrismaClientKnownRequestError') {
-      const prismaError = error as any
+      const prismaError = error as { code: string; meta?: Record<string, unknown> }
       
       if (prismaError.code === 'P2002') {
         reply.code(409)

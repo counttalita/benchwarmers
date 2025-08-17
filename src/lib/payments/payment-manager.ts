@@ -405,7 +405,7 @@ export class PaymentManager {
   /**
    * Get payment history for an engagement
    */
-  async getPaymentHistory(engagementId: string): Promise<any[]> {
+  async getPaymentHistory(engagementId: string): Promise<unknown[]> {
     return await prisma.payment.findMany({
       where: { engagementId },
       orderBy: { createdAt: 'desc' },
@@ -418,7 +418,7 @@ export class PaymentManager {
   /**
    * Get pending payment releases
    */
-  async getPendingReleases(): Promise<any[]> {
+  async getPendingReleases(): Promise<unknown[]> {
     return await prisma.payment.findMany({
       where: { 
         status: 'processing',

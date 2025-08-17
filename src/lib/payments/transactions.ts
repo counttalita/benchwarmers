@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 
 export interface TransactionRecord {
   id: string
@@ -8,7 +8,7 @@ export interface TransactionRecord {
   currency: string
   status: 'pending' | 'completed' | 'failed' | 'cancelled'
   description: string
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
   createdAt: Date
   updatedAt: Date
 }
@@ -40,7 +40,7 @@ export class TransactionService {
     amount: number,
     currency: string,
     description: string,
-    metadata: Record<string, any> = {}
+    metadata: Record<string, unknown> = {}
   ): Promise<TransactionRecord> {
     try {
       const transaction = await prisma.transaction.create({
@@ -80,10 +80,10 @@ export class TransactionService {
   async updateTransactionStatus(
     transactionId: string,
     status: 'pending' | 'completed' | 'failed' | 'cancelled',
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<TransactionRecord> {
     try {
-      const updateData: any = {
+      const updateData: { status: string; updatedAt: Date; metadata?: Record<string, unknown> } = {
         status,
         updatedAt: new Date(),
       }
@@ -296,7 +296,7 @@ export class TransactionService {
     description: string,
     evidence: string[],
     raisedBy: string
-  ): Promise<any> {
+  ): Promise<{ success: boolean; disputeId?: string; error?: string }> {
     try {
       const dispute = await prisma.dispute.create({
         data: {
@@ -344,7 +344,7 @@ export class TransactionService {
     resolution: 'refund' | 'release' | 'partial_refund',
     amount?: number,
     reason: string
-  ): Promise<any> {
+  ): Promise<{ success: boolean; disputeId?: string; error?: string }> {
     try {
       const dispute = await prisma.dispute.findUnique({
         where: { id: disputeId },

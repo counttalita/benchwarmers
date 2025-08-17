@@ -11,7 +11,7 @@ export interface Message {
   recipientType: 'user' | 'system'
   content: string
   messageType: 'text' | 'file' | 'system' | 'offer' | 'contract'
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
   readAt?: Date
   createdAt?: Date
 }
@@ -25,7 +25,7 @@ export interface Conversation {
   contractId?: string
   offerId?: string
   status: 'active' | 'archived' | 'closed'
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
   createdAt?: Date
   updatedAt?: Date
 }
@@ -60,29 +60,21 @@ export class MessagingService {
 
       const conversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-      // In production, store in database
-      // const newConversation = await prisma.conversation.create({
-      //   data: {
-      //     id: conversationId,
-      //     participants: conversation.participants,
-      //     type: conversation.type,
-      //     subject: conversation.subject,
-      //     engagementId: conversation.engagementId,
-      //     contractId: conversation.contractId,
-      //     offerId: conversation.offerId,
-      //     status: conversation.status,
-      //     metadata: conversation.metadata ? JSON.stringify(conversation.metadata) : null,
-      //     createdAt: new Date(),
-      //     updatedAt: new Date()
-      //   }
-      // })
-
-      const newConversation: Conversation = {
-        id: conversationId,
-        ...conversation,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
+      const newConversation = await prisma.conversation.create({
+        data: {
+          id: conversationId,
+          participants: conversation.participants,
+          type: conversation.type,
+          subject: conversation.subject,
+          engagementId: conversation.engagementId,
+          contractId: conversation.contractId,
+          offerId: conversation.offerId,
+          status: conversation.status,
+          metadata: conversation.metadata ? JSON.stringify(conversation.metadata) : undefined,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      })
 
       // Log audit event
       await auditLogger.log({
@@ -102,7 +94,14 @@ export class MessagingService {
         conversationId
       })
 
-      return newConversation
+      return {
+        ...newConversation,
+        subject: newConversation.subject || undefined,
+        engagementId: newConversation.engagementId || undefined,
+        contractId: newConversation.contractId || undefined,
+        offerId: newConversation.offerId || undefined,
+        metadata: (newConversation.metadata as Record<string, unknown>) || undefined
+      }
 
     } catch (error) {
       logError(createError.internal('CONVERSATION_CREATE_ERROR', 'Failed to create conversation', {
@@ -132,41 +131,35 @@ export class MessagingService {
       const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
       // Validate conversation exists
-      // const conversation = await prisma.conversation.findUnique({
-      //   where: { id: message.conversationId }
-      // })
-      // 
-      // if (!conversation) {
-      //   throw createError.notFound('CONVERSATION_NOT_FOUND', 'Conversation not found')
-      // }
-
-      // In production, store in database
-      // const newMessage = await prisma.message.create({
-      //   data: {
-      //     id: messageId,
-      //     conversationId: message.conversationId,
-      //     senderId: message.senderId,
-      //     senderType: message.senderType,
-      //     recipientId: message.recipientId,
-      //     recipientType: message.recipientType,
-      //     content: message.content,
-      //     messageType: message.messageType,
-      //     metadata: message.metadata ? JSON.stringify(message.metadata) : null,
-      //     createdAt: new Date()
-      //   }
-      // })
-
-      const newMessage: Message = {
-        id: messageId,
-        ...message,
-        createdAt: new Date()
+      const conversation = await prisma.conversation.findUnique({
+        where: { id: message.conversationId }
+      })
+      
+      if (!conversation) {
+        throw createError.notFound('CONVERSATION_NOT_FOUND', 'Conversation not found')
       }
 
+      const newMessage = await prisma.message.create({
+        data: {
+          id: messageId,
+          conversationId: message.conversationId,
+          senderId: message.senderId,
+          senderType: message.senderType,
+          recipientId: message.recipientId,
+          recipientType: message.recipientType,
+          content: message.content,
+          messageType: message.messageType,
+          metadata: message.metadata ? JSON.stringify(message.metadata) : undefined,
+          createdAt: new Date()
+        }
+      })
+
+
       // Update conversation last activity
-      // await prisma.conversation.update({
-      //   where: { id: message.conversationId },
-      //   data: { updatedAt: new Date() }
-      // })
+      await prisma.conversation.update({
+        where: { id: message.conversationId },
+        data: { updatedAt: new Date() }
+      })
 
       // Log audit event
       await auditLogger.log({
@@ -191,7 +184,11 @@ export class MessagingService {
         conversationId: message.conversationId
       })
 
-      return newMessage
+      return {
+        ...newMessage,
+        metadata: (newMessage.metadata as Record<string, unknown>) || undefined,
+        readAt: newMessage.readAt || undefined
+      }
 
     } catch (error) {
       logError(createError.internal('MESSAGE_SEND_ERROR', 'Failed to send message', {
@@ -226,7 +223,14 @@ export class MessagingService {
       })
 
       // Build where clause
-      const where: any = {}
+      const where: {
+        conversationId?: string
+        senderId?: string
+        recipientId?: string
+        messageType?: string
+        readAt?: null
+        createdAt?: { gte?: Date; lte?: Date }
+      } = {}
       
       if (filter.conversationId) where.conversationId = filter.conversationId
       if (filter.senderId) where.senderId = filter.senderId
@@ -476,7 +480,7 @@ export class MessagingService {
     conversationId: string,
     content: string,
     messageType: 'system' | 'offer' | 'contract' = 'system',
-    metadata?: Record<string, any>,
+    metadata?: Record<string, unknown>,
     correlationId?: string
   ): Promise<Message> {
     return await this.sendMessage({

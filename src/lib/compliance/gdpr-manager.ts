@@ -40,7 +40,7 @@ export class GDPRManager {
       })
 
       const exportId = `export_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-      const exportData: any = {}
+      const exportData: Record<string, unknown> = {}
 
       // Export user data if requested
       if (request.userId) {
@@ -138,7 +138,7 @@ export class GDPRManager {
           limit: 1000
         })
         
-        exportData.auditLogs = auditLogs.logs.map(log => ({
+        exportData.auditLogs = auditLogs.logs.map((log: any) => ({
           id: log.id,
           action: log.action,
           resource: log.resource,

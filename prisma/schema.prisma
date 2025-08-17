@@ -103,6 +103,31 @@ enum NotificationPriority {
   urgent
 }
 
+enum ConversationType {
+  direct
+  group
+  support
+}
+
+enum ConversationStatus {
+  active
+  archived
+  closed
+}
+
+enum MessageType {
+  text
+  file
+  system
+  offer
+  contract
+}
+
+enum SenderType {
+  user
+  system
+}
+
 model Company {
   id                    String        @id @default(cuid())
   name                  String
@@ -325,10 +350,130 @@ model Engagement {
   updatedAt            DateTime          @updatedAt @map("updated_at")
 
   // Relations
-  offer   Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
-  reviews Review[]
+  offer           Offer           @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  reviews         Review[]
+  timesheetEntries TimesheetEntry[]
 
   @@map("engagements")
+}
+
+enum TimesheetStatus {
+  draft
+  submitted
+  approved
+  rejected
+}
+
+model TimesheetEntry {
+  id            String          @id @default(cuid())
+  engagementId  String          @map("engagement_id")
+  date          DateTime
+  hours         Decimal         @db.Decimal(4, 2)
+  description   String
+  status        TimesheetStatus @default(draft)
+  submittedAt   DateTime?       @map("submitted_at")
+  approvedAt    DateTime?       @map("approved_at")
+  rejectedAt    DateTime?       @map("rejected_at")
+  rejectionReason String?       @map("rejection_reason")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  engagement Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+
+  @@index([engagementId])
+  @@index([date])
+  @@index([status])
+  @@map("timesheet_entries")
+}
+
+enum TransactionStatus {
+  pending
+  completed
+  failed
+  cancelled
+}
+
+enum TransactionType {
+  payment
+  transfer
+  refund
+  fee
+}
+
+model Transaction {
+  id          String            @id @default(cuid())
+  type        TransactionType
+  amount      Decimal           @db.Decimal(10, 2)
+  currency    String            @default("USD")
+  status      TransactionStatus @default(pending)
+  description String
+  metadata    Json?
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@map("transactions")
+}
+
+enum EscrowStatus {
+  pending
+  held
+  released
+  refunded
+  disputed
+}
+
+model EscrowPayment {
+  id            String        @id @default(cuid())
+  engagementId  String        @map("engagement_id")
+  amount        Decimal       @db.Decimal(10, 2)
+  currency      String        @default("USD")
+  status        EscrowStatus  @default(pending)
+  stripePaymentIntentId String? @map("stripe_payment_intent_id")
+  releasedAt    DateTime?     @map("released_at")
+  refundedAt    DateTime?     @map("refunded_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  disputes      Dispute[]
+
+  @@index([engagementId])
+  @@index([status])
+  @@index([stripePaymentIntentId])
+  @@map("escrow_payments")
+}
+
+enum DisputeStatus {
+  open
+  in_review
+  resolved
+  closed
+}
+
+model Dispute {
+  id              String        @id @default(cuid())
+  escrowPaymentId String        @map("escrow_payment_id")
+  reason          String
+  description     String
+  evidence        String[]
+  raisedBy        String        @map("raised_by")
+  status          DisputeStatus @default(open)
+  resolution      String?
+  resolvedAt      DateTime?     @map("resolved_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  escrowPayment   EscrowPayment @relation(fields: [escrowPaymentId], references: [id], onDelete: Cascade)
+
+  @@index([escrowPaymentId])
+  @@index([status])
+  @@index([raisedBy])
+  @@map("disputes")
 }
 
 model Review {
@@ -402,4 +547,53 @@ model NotificationPreference {
   @@index([userId])
   @@index([companyId])
   @@map("notification_preferences")
+}
+
+model Conversation {
+  id           String             @id @default(cuid())
+  participants String[]           // Array of user IDs
+  type         ConversationType
+  subject      String?
+  engagementId String?            @map("engagement_id")
+  contractId   String?            @map("contract_id")
+  offerId      String?            @map("offer_id")
+  status       ConversationStatus @default(active)
+  metadata     Json?              // Additional context data
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  messages Message[]
+
+  @@index([status])
+  @@index([type])
+  @@index([engagementId])
+  @@index([contractId])
+  @@index([offerId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String      @map("conversation_id")
+  senderId       String      @map("sender_id")
+  senderType     SenderType  @map("sender_type")
+  recipientId    String      @map("recipient_id")
+  recipientType  SenderType  @map("recipient_type")
+  content        String
+  messageType    MessageType @map("message_type")
+  metadata       Json?       // Additional context data
+  readAt         DateTime?   @map("read_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([recipientId])
+  @@index([messageType])
+  @@index([readAt])
+  @@index([createdAt])
+  @@map("messages")
 }

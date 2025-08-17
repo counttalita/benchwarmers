@@ -1,4 +1,4 @@
-import { logInfo, logError, createError } from '@/lib/errors'
+import { logInfo, logError, createError, parseError } from '@/lib/errors'
 import { auditLogger } from '@/lib/audit/audit-logger'
 
 export interface SMSMessage {
@@ -6,7 +6,7 @@ export interface SMSMessage {
   message: string
   type: 'verification' | 'alert' | 'notification' | 'marketing'
   priority: 'low' | 'medium' | 'high' | 'critical'
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export interface SMSResult {
@@ -51,7 +51,7 @@ export class SMSService {
 
       // Validate configuration
       if (!this.accountSid || !this.authToken || !this.fromNumber) {
-        throw createError.internal(
+        throw createError.config(
           'SMS_CONFIG_ERROR',
           'Twilio configuration missing',
           { correlationId }
@@ -117,7 +117,7 @@ export class SMSService {
       }
 
     } catch (error) {
-      logError(createError.internal('SMS_SEND_ERROR', 'Failed to send SMS', {
+      logError(createError.config('SMS_SEND_ERROR', 'Failed to send SMS', {
         error,
         correlationId,
         to: this.maskPhoneNumber(message.to)
@@ -351,7 +351,7 @@ export class SMSService {
     type: string
     priority: string
     status: string
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
     correlationId?: string
   }): Promise<void> {
     try {
@@ -376,8 +376,8 @@ export class SMSService {
       })
 
     } catch (error) {
-      logError('Failed to store SMS record', {
-        error,
+      const appError = parseError(error)
+      logError(appError, {
         messageId: record.messageId,
         correlationId: record.correlationId
       })
@@ -403,7 +403,8 @@ export class SMSService {
       }
 
     } catch (error) {
-      logError('Failed to get SMS delivery status', { error, messageId })
+      const appError = parseError(error)
+      logError(appError, { messageId })
       return {
         status: 'failed',
         errorMessage: 'Failed to retrieve status'

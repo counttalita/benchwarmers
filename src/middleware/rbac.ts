@@ -134,7 +134,7 @@ export async function withRoleAuth(
     return { user, error: null }
 
   } catch (error) {
-    const appError = createError.server(
+    const appError = createError.internal(
       'AUTH_MIDDLEWARE_ERROR',
       'Authentication middleware failed'
     )

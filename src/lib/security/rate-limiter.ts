@@ -1,4 +1,5 @@
-import { logInfo, logError, createError } from '@/lib/errors'
+import { logInfo, logError } from '@/lib/errors'
+import { ApiError } from '@/lib/api-error'
 import { NextRequest } from 'next/server'
 
 export interface RateLimitConfig {
@@ -147,7 +148,8 @@ export class RateLimiter {
       const result = await this.checkLimit(request, config)
       
       if (!result.allowed) {
-        throw createError.tooManyRequests(
+        throw new ApiError(
+          429,
           'RATE_LIMIT_EXCEEDED',
           config.message || 'Too many requests',
           {
