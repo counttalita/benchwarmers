@@ -188,30 +188,13 @@ flowchart TD
 ### 4. Platform Health & Security
 
 #### 4.1 System Monitoring
-```mermaid
-dashboard
-    title "System Health Dashboard"
-    
-    card "API Response Time" {
-        value "245ms"
-        delta "avg last 24h"
-    }
-    
-    card "Error Rate" {
-        value "0.12%"
-        delta -0.03% "vs yesterday"
-    }
-    
-    card "Database Performance" {
-        value "98.7%"
-        delta "query success rate"
-    }
-    
-    card "Active Connections" {
-        value 1,847
-        delta "current users"
-    }
-```
+
+| Metric | Value | Status |
+|--------|-------|--------|
+| **API Response Time** | 245ms | avg last 24h |
+| **Error Rate** | 0.12% | -0.03% vs yesterday |
+| **Database Performance** | 98.7% | query success rate |
+| **Active Connections** | 1,847 | current users |
 
 **Monitoring Areas:**
 - **API Performance**: Response times, error rates
