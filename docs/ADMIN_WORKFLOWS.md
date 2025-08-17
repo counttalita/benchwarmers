@@ -6,30 +6,13 @@ This document details the administrative workflows and management interfaces for
 ## Admin Dashboard Overview
 
 ### Main Dashboard Metrics
-```mermaid
-dashboard
-    title "Admin Dashboard Overview"
-    
-    card "Active Companies" {
-        value 1247
-        delta +23 "vs last month"
-    }
-    
-    card "Active Engagements" {
-        value 89
-        delta +12 "vs last week"
-    }
-    
-    card "Monthly Revenue" {
-        value "$127,450"
-        delta +8.5% "vs last month"
-    }
-    
-    card "Platform Health" {
-        value 99.2%
-        delta "uptime"
-    }
-```
+
+| Metric | Value | Change |
+|--------|-------|--------|
+| **Active Companies** | 1,247 | +23 vs last month |
+| **Active Engagements** | 89 | +12 vs last week |
+| **Monthly Revenue** | $127,450 | +8.5% vs last month |
+| **Platform Health** | 99.2% | uptime |
 
 ### Key Performance Indicators (KPIs)
 - **Company Growth**: New registrations, verification rates
