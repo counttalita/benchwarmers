@@ -31,8 +31,8 @@ The BenchWarmers marketplace project has been successfully set up with all core 
 ## 📱 Twilio Integration
 
 ### Configuration
-- **Account SID**: `AC018a4ac24aa3396582e0d3f3008e14b1`
-- **Phone Number**: `+15856326252`
+- **Account SID**: Configured (secure)
+- **Phone Number**: Configured (secure)
 - **Auth Token**: Configured (secure)
 
 ### Features Implemented
@@ -89,9 +89,9 @@ APPWRITE_BUCKET_ID="68a16a550011a2d895dd"
 APPWRITE_API_KEY="[configured]"
 
 # Twilio
-TWILIO_ACCOUNT_SID="AC018a4ac24aa3396582e0d3f3008e14b1"
-TWILIO_AUTH_TOKEN="[configured]"
-TWILIO_PHONE_NUM="+15856326252"
+TWILIO_ACCOUNT_SID="your-twilio-account-sid"
+TWILIO_AUTH_TOKEN="your-twilio-auth-token"
+TWILIO_PHONE_NUM="your-twilio-phone-number"
 
 # Stripe (for Task 2)
 STRIPE_PUBLISHABLE_KEY="pk_test_placeholder"
