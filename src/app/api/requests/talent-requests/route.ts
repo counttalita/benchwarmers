@@ -1,111 +1,117 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
+import { logRequest, logError } from '@/lib/logger'
+import { z } from 'zod'
 
-// GET /api/requests/talent-requests - Get all talent requests with filtering
-export async function GET(request: NextRequest) {
-  const requestLogger = logger.child({ 
-    method: 'GET', 
-    path: '/api/requests/talent-requests',
-    requestId: crypto.randomUUID()
-  })
+const createRequestSchema = z.object({
+  title: z.string().min(1).max(200),
+  description: z.string().min(1).max(2000),
+  requiredSkills: z.array(z.object({
+    name: z.string(),
+    level: z.enum(['junior', 'mid', 'senior', 'lead', 'principal']),
+    priority: z.enum(['required', 'preferred']),
+    yearsRequired: z.number().optional()
+  })).min(1),
+  budget: z.object({
+    min: z.number().positive(),
+    max: z.number().positive(),
+    currency: z.string().default('USD')
+  }),
+  duration: z.object({
+    value: z.number().positive(),
+    unit: z.enum(['days', 'weeks', 'months'])
+  }),
+  startDate: z.string().datetime(),
+  location: z.string().optional(),
+  remotePreference: z.enum(['remote', 'hybrid', 'onsite']).default('remote'),
+  timezone: z.string().optional(),
+  urgency: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
+  projectType: z.string().optional(),
+  teamSize: z.number().positive().default(1),
+  industry: z.string().optional(),
+  companySize: z.enum(['startup', 'small', 'medium', 'enterprise']).optional(),
+  communicationStyle: z.string().optional()
+})
 
+export async function POST(request: NextRequest) {
+  const correlationId = `create-request-${Date.now()}`
+  
   try {
-    const { searchParams } = new URL(request.url)
-    const companyId = searchParams.get('companyId')
-    const status = searchParams.get('status')
-    const skills = searchParams.get('skills')?.split(',')
-    const minBudget = searchParams.get('minBudget') ? parseInt(searchParams.get('minBudget')!) : undefined
-    const maxBudget = searchParams.get('maxBudget') ? parseInt(searchParams.get('maxBudget')!) : undefined
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
-    const offset = (page - 1) * limit
+    logRequest(request, { correlationId })
 
-    // Build where clause for filtering
-    const where: any = {}
-
-    if (companyId) {
-      where.companyId = companyId
+    // TODO: Get user from session/auth
+    const userId = request.headers.get('x-user-id') || 'test-user-id'
+    const companyId = request.headers.get('x-company-id')
+    
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'Company ID is required' },
+        { status: 400 }
+      )
     }
 
-    if (status) {
-      where.status = status
+    const body = await request.json()
+    const validatedBody = createRequestSchema.parse(body)
+    
+    // Verify company is a seeker
+    const company = await prisma.company.findUnique({
+      where: { id: companyId }
+    })
+
+    if (!company) {
+      return NextResponse.json(
+        { error: 'Company not found' },
+        { status: 404 }
+      )
     }
 
-    if (skills && skills.length > 0) {
-      where.requiredSkills = {
-        some: {
-          name: {
-            in: skills
-          }
-        }
+    if (company.type !== 'seeker' && company.type !== 'both') {
+      return NextResponse.json(
+        { error: 'Only seeker companies can create talent requests' },
+        { status: 403 }
+      )
+    }
+
+    const talentRequest = await prisma.talentRequest.create({
+      data: {
+        title: validatedBody.title,
+        description: validatedBody.description,
+        requiredSkills: validatedBody.requiredSkills,
+        budget: validatedBody.budget,
+        duration: validatedBody.duration,
+        startDate: new Date(validatedBody.startDate),
+        location: validatedBody.location,
+        remotePreference: validatedBody.remotePreference,
+        timezone: validatedBody.timezone,
+        urgency: validatedBody.urgency,
+        projectType: validatedBody.projectType,
+        teamSize: validatedBody.teamSize,
+        industry: validatedBody.industry,
+        companySize: validatedBody.companySize,
+        communicationStyle: validatedBody.communicationStyle,
+        companyId,
+        status: 'open'
       }
-    }
-
-    if (minBudget || maxBudget) {
-      where.budget = {}
-      if (minBudget) where.budget.gte = minBudget
-      if (maxBudget) where.budget.lte = maxBudget
-    }
-
-    // Get talent requests with pagination
-    const [requests, total] = await Promise.all([
-      prisma.talentRequest.findMany({
-        where,
-        include: {
-          company: {
-            select: {
-              id: true,
-              name: true,
-              domain: true
-            }
-          },
-          requiredSkills: {
-            select: {
-              id: true,
-              name: true,
-              level: true
-            }
-          },
-          offers: {
-            select: {
-              id: true,
-              status: true,
-              proposedRate: true,
-              proposedDuration: true,
-              createdAt: true
-            }
-          }
-        },
-        orderBy: {
-          createdAt: 'desc'
-        },
-        skip: offset,
-        take: limit
-      }),
-      prisma.talentRequest.count({ where })
-    ])
-
-    requestLogger.info('Talent requests retrieved successfully', {
-      count: requests.length,
-      total,
-      page,
-      limit,
-      filters: { companyId, status, skills, minBudget, maxBudget }
     })
 
     return NextResponse.json({
-      requests,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit)
-      }
-    })
+      success: true,
+      request: talentRequest
+    }, { status: 201 })
 
   } catch (error) {
-    requestLogger.error('Failed to retrieve talent requests', error)
+    logError('Failed to create talent request', {
+      correlationId,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      )
+    }
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -113,110 +119,82 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/requests/talent-requests - Create new talent request
-export async function POST(request: NextRequest) {
-  const requestLogger = logger.child({ 
-    method: 'POST', 
-    path: '/api/requests/talent-requests',
-    requestId: crypto.randomUUID()
-  })
-
+export async function GET(request: NextRequest) {
+  const correlationId = `list-requests-${Date.now()}`
+  
   try {
-    const body = await request.json()
-    const {
-      companyId,
-      title,
-      description,
-      requiredSkills,
-      budget,
-      duration,
-      startDate,
-      location,
-      isRemote,
-      urgency,
-      additionalRequirements
-    } = body
+    logRequest(request, { correlationId })
 
-    if (!companyId || !title || !description) {
-      requestLogger.warn('Missing required fields in talent request creation')
-      return NextResponse.json(
-        { error: 'Company ID, title, and description are required' },
-        { status: 400 }
-      )
+    const { searchParams } = new URL(request.url)
+    const skills = searchParams.get('skills')
+    const location = searchParams.get('location')
+    const status = searchParams.get('status')
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '10')
+    const offset = (page - 1) * limit
+
+    const where: any = {
+      status: 'open'
     }
 
-    // Validate company exists
-    const company = await prisma.company.findUnique({
-      where: { id: companyId }
-    })
-
-    if (!company) {
-      requestLogger.warn('Company not found for talent request creation', { companyId })
-      return NextResponse.json(
-        { error: 'Company not found' },
-        { status: 404 }
-      )
+    if (skills) {
+      where.requiredSkills = {
+        path: ['$[*].name'],
+        array_contains: skills.split(',').map(s => s.trim())
+      }
     }
 
-    // Create talent request
-    const talentRequest = await prisma.talentRequest.create({
-      data: {
-        companyId,
-        title,
-        description,
-        budget,
-        duration,
-        startDate: startDate ? new Date(startDate) : undefined,
-        location,
-        isRemote: isRemote || false,
-        urgency: urgency || 'normal',
-        additionalRequirements,
-        status: 'open'
-      },
-      include: {
-        company: {
-          select: {
-            id: true,
-            name: true,
-            domain: true
+    if (location) {
+      where.location = {
+        contains: location,
+        mode: 'insensitive'
+      }
+    }
+
+    if (status) {
+      where.status = status
+    }
+
+    const [requests, total] = await Promise.all([
+      prisma.talentRequest.findMany({
+        where,
+        include: {
+          company: {
+            select: {
+              id: true,
+              name: true
+            }
           }
         },
-        requiredSkills: {
-          select: {
-            id: true,
-            name: true,
-            level: true
-          }
-        }
-      }
-    })
-
-    // Handle required skills if provided
-    if (requiredSkills && Array.isArray(requiredSkills)) {
-      for (const skill of requiredSkills) {
-        await prisma.requestSkill.create({
-          data: {
-            talentRequestId: talentRequest.id,
-            name: skill.name,
-            level: skill.level || 'intermediate'
-          }
-        })
-      }
-    }
-
-    requestLogger.info('Talent request created successfully', {
-      requestId: talentRequest.id,
-      companyId,
-      title
-    })
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit
+      }),
+      prisma.talentRequest.count({ where })
+    ])
 
     return NextResponse.json({
-      message: 'Talent request created successfully',
-      request: talentRequest
+      success: true,
+      requests,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      },
+      filters: {
+        skills,
+        location,
+        status
+      }
     })
 
   } catch (error) {
-    requestLogger.error('Failed to create talent request', error)
+    logError('Failed to list talent requests', {
+      correlationId,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -18,6 +18,21 @@ jest.mock('@/lib/notifications/notification-service', () => ({
   }
 }))
 
+// Mock the email service
+jest.mock('@/lib/notifications/email-service', () => ({
+  sendEmailNotification: jest.fn()
+}))
+
+// Mock Pusher
+jest.mock('@/lib/pusher/config', () => ({
+  triggerUserNotification: jest.fn(),
+  triggerCompanyNotification: jest.fn(),
+  EVENTS: {
+    NOTIFICATION_CREATED: 'notification-created',
+    NOTIFICATION_UPDATED: 'notification-updated'
+  }
+}))
+
 // Mock the logger
 jest.mock('@/lib/logger', () => ({
   logRequest: jest.fn(),
