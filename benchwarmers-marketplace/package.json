@@ -17,6 +17,9 @@
     "docker:logs": "docker-compose logs -f",
     "appwrite:setup": "tsx scripts/setup-appwrite-collections.ts",
     "appwrite:create": "tsx scripts/create-appwrite-collections.ts",
+    "appwrite:create-all": "tsx scripts/create-all-collections.ts",
+    "appwrite:create-remaining": "tsx scripts/create-remaining-collections.ts",
+    "appwrite:create-minimal": "tsx scripts/create-minimal-collections.ts",
     "setup": "npm run docker:up && sleep 5 && npm run db:push && npm run db:generate"
   },
   "dependencies": {
