@@ -1,84 +1,158 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { logRequest, logInfo, logPerformance } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
+import { performanceMonitor } from '@/lib/monitoring/performance'
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now()
-  const requestLogger = logRequest(request, startTime)
-
+  
   try {
     // Check database connectivity
-    const dbStartTime = Date.now()
-    await prisma.$queryRaw`SELECT 1`
-    const dbDuration = Date.now() - dbStartTime
-
-    logPerformance('Database health check', dbDuration, {
-      endpoint: '/api/health',
-      success: true
-    })
-
-    // Check environment variables
-    const requiredEnvVars = [
-      'DATABASE_URL',
-      'NEXTAUTH_SECRET',
-      'TWILIO_ACCOUNT_SID',
-      'TWILIO_AUTH_TOKEN',
-    ]
-
-    const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName])
-
-    if (missingEnvVars.length > 0) {
-      logInfo('Health check: Missing environment variables', {
-        missing: missingEnvVars
-      })
-    }
-
+    const dbStatus = await checkDatabaseHealth()
+    
+    // Check external services
+    const externalServices = await checkExternalServices()
+    
+    // Get system metrics
+    const metrics = performanceMonitor.getMetrics()
+    
+    const responseTime = Date.now() - startTime
+    
     const healthStatus = {
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment: process.env.NODE_ENV,
-      version: process.env.npm_package_version || '1.0.0',
+      responseTime,
       services: {
-        database: {
-          status: 'healthy',
-          responseTime: dbDuration,
-        },
-        environment: {
-          status: missingEnvVars.length === 0 ? 'healthy' : 'warning',
-          missingVariables: missingEnvVars,
-        },
+        database: dbStatus,
+        ...externalServices
       },
+      metrics: {
+        performance: {
+          averageResponseTime: performanceMonitor.getAverageResponseTime(),
+          successRate: performanceMonitor.getSuccessRate(),
+          totalOperations: metrics.performance.length
+        },
+        business: {
+          totalEvents: metrics.business.length,
+          recentEvents: metrics.business.slice(-10)
+        }
+      }
     }
 
-    logInfo('Health check completed', {
-      status: healthStatus.status,
-      dbDuration,
-      missingEnvVars: missingEnvVars.length
-    })
+    // Determine overall health status
+    const allHealthy = dbStatus.status === 'healthy' && 
+      Object.values(externalServices).every(service => service.status === 'healthy')
 
-    const totalDuration = Date.now() - startTime
-    logPerformance('Health check total', totalDuration, {
-      endpoint: '/api/health'
-    })
+    if (!allHealthy) {
+      healthStatus.status = 'degraded'
+    }
 
-    requestLogger.end(200)
-    return NextResponse.json(healthStatus)
+    return NextResponse.json(healthStatus, {
+      status: allHealthy ? 200 : 503
+    })
 
   } catch (error) {
-    logInfo('Health check failed', {
+    const responseTime = Date.now() - startTime
+    
+    return NextResponse.json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      responseTime,
       error: error instanceof Error ? error.message : 'Unknown error',
-      endpoint: '/api/health'
+      services: {
+        database: { status: 'unhealthy', error: 'Database check failed' },
+        stripe: { status: 'unknown', error: 'Service check failed' },
+        twilio: { status: 'unknown', error: 'Service check failed' },
+        pusher: { status: 'unknown', error: 'Service check failed' }
+      }
+    }, {
+      status: 503
     })
-
-    requestLogger.error(error as Error, 503)
-    return NextResponse.json(
-      {
-        status: 'unhealthy',
-        timestamp: new Date().toISOString(),
-        error: 'Service unavailable',
-      },
-      { status: 503 }
-    )
   }
+}
+
+async function checkDatabaseHealth() {
+  try {
+    // Test database connection
+    await prisma.$queryRaw`SELECT 1`
+    
+    // Check if we can perform basic operations
+    const userCount = await prisma.user.count()
+    const companyCount = await prisma.company.count()
+    
+    return {
+      status: 'healthy',
+      details: {
+        connection: 'connected',
+        userCount,
+        companyCount
+      }
+    }
+  } catch (error) {
+    return {
+      status: 'unhealthy',
+      error: error instanceof Error ? error.message : 'Database connection failed'
+    }
+  }
+}
+
+async function checkExternalServices() {
+  const services: Record<string, any> = {}
+  
+  // Check Stripe
+  try {
+    if (process.env.STRIPE_SECRET_KEY) {
+      const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
+      await stripe.paymentMethods.list({ limit: 1 })
+      services.stripe = { status: 'healthy' }
+    } else {
+      services.stripe = { status: 'not_configured' }
+    }
+  } catch (error) {
+    services.stripe = { 
+      status: 'unhealthy', 
+      error: error instanceof Error ? error.message : 'Stripe check failed' 
+    }
+  }
+  
+  // Check Twilio
+  try {
+    if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+      const twilio = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+      await twilio.api.accounts(process.env.TWILIO_ACCOUNT_SID).fetch()
+      services.twilio = { status: 'healthy' }
+    } else {
+      services.twilio = { status: 'not_configured' }
+    }
+  } catch (error) {
+    services.twilio = { 
+      status: 'unhealthy', 
+      error: error instanceof Error ? error.message : 'Twilio check failed' 
+    }
+  }
+  
+  // Check Pusher
+  try {
+    if (process.env.PUSHER_APP_ID && process.env.PUSHER_KEY && process.env.PUSHER_SECRET) {
+      const Pusher = require('pusher')
+      const pusher = new Pusher({
+        appId: process.env.PUSHER_APP_ID,
+        key: process.env.PUSHER_KEY,
+        secret: process.env.PUSHER_SECRET,
+        cluster: process.env.PUSHER_CLUSTER
+      })
+      
+      // Test Pusher connection by getting app info
+      await pusher.get({ path: '/apps' })
+      services.pusher = { status: 'healthy' }
+    } else {
+      services.pusher = { status: 'not_configured' }
+    }
+  } catch (error) {
+    services.pusher = { 
+      status: 'unhealthy', 
+      error: error instanceof Error ? error.message : 'Pusher check failed' 
+    }
+  }
+  
+  return services
 }

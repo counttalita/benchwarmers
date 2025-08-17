@@ -128,10 +128,10 @@ jobs:
     if: always()
     
     steps:
-      - name: Notify deployment status
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          channel: '#deployments'
-          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
-        if: always()
+      - name: Deployment completed
+        run: echo "Deployment to production completed successfully"
+        if: success()
+      
+      - name: Deployment failed
+        run: echo "Deployment to production failed"
+        if: failure()
