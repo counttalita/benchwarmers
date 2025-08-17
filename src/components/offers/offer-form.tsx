@@ -18,7 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { offerSchema, type OfferFormData } from "@/lib/validations/offers"
 import { apiClient } from "@/lib/api/client"
-import { createError, AppError } from "@/lib/errors"
+import { createError, AppError, AppErrorImpl } from "@/lib/errors"
 import { ErrorAlert, SuccessAlert } from "@/components/error"
 
 interface OfferFormProps {
@@ -109,7 +109,7 @@ export function OfferForm({
         onOfferCreated(response.data.offer.id)
       }
     } catch (err) {
-      const appError = err instanceof AppError ? err : createError.validation(
+      const appError = err instanceof AppErrorImpl ? err : createError.validation(
         'OFFER_CREATION_FAILED',
         err instanceof Error ? err.message : 'Failed to create offer'
       )
