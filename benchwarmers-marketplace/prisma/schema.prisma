@@ -1,0 +1,280 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CompanyType {
+  provider
+  seeker
+  both
+}
+
+enum CompanyStatus {
+  pending
+  active
+  suspended
+}
+
+enum UserRole {
+  admin
+  member
+}
+
+enum SeniorityLevel {
+  junior
+  mid
+  senior
+  lead
+  principal
+}
+
+enum PaymentStatus {
+  pending
+  held_in_escrow
+  released
+  refunded
+}
+
+enum EngagementStatus {
+  active
+  completed
+  terminated
+  disputed
+}
+
+enum OfferStatus {
+  pending
+  accepted
+  declined
+  countered
+}
+
+enum MatchStatus {
+  pending
+  viewed
+  interested
+  not_interested
+}
+
+enum RequestStatus {
+  open
+  matching
+  closed
+}
+
+model Company {
+  id              String        @id @default(cuid())
+  name            String
+  domain          String        @unique
+  type            CompanyType
+  status          CompanyStatus @default(pending)
+  stripeAccountId String?       @map("stripe_account_id")
+  verifiedAt      DateTime?     @map("verified_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  users           User[]
+  talentProfiles  TalentProfile[]
+  talentRequests  TalentRequest[]
+  sentOffers      Offer[]       @relation("SeekerOffers")
+  receivedOffers  Offer[]       @relation("ProviderOffers")
+
+  @@map("companies")
+}
+
+model User {
+  id               String    @id @default(cuid())
+  companyId        String    @map("company_id")
+  phoneNumber      String    @unique @map("phone_number")
+  email            String?   // Optional, only for transaction notifications
+  name             String
+  role             UserRole
+  phoneVerified    Boolean   @default(false) @map("phone_verified")
+  phoneVerifiedAt  DateTime? @map("phone_verified_at")
+  lastLoginAt      DateTime? @map("last_login_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  otpCodes OTPCode[]
+
+  @@map("users")
+}
+
+model OTPCode {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  phoneNumber String   @map("phone_number")
+  code        String
+  expiresAt   DateTime @map("expires_at")
+  verified    Boolean  @default(false)
+  attempts    Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("otp_codes")
+}
+
+model TalentProfile {
+  id                   String         @id @default(cuid())
+  companyId            String         @map("company_id")
+  name                 String
+  title                String
+  seniorityLevel       SeniorityLevel @map("seniority_level")
+  skills               Json
+  certifications       Json?
+  location             String
+  remotePreference     String         @map("remote_preference")
+  rateMin              Decimal?       @map("rate_min") @db.Decimal(10, 2)
+  rateMax              Decimal?       @map("rate_max") @db.Decimal(10, 2)
+  currency             String         @default("USD")
+  availabilityCalendar Json?          @map("availability_calendar")
+  isVisible            Boolean        @default(true) @map("is_visible")
+  rating               Decimal        @default(0) @db.Decimal(3, 2)
+  reviewCount          Int            @default(0) @map("review_count")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  matches Match[]
+  reviews Review[] @relation("ProfileReviews")
+
+  @@map("talent_profiles")
+}
+
+model TalentRequest {
+  id                 String        @id @default(cuid())
+  companyId          String        @map("company_id")
+  title              String
+  description        String
+  requiredSkills     Json          @map("required_skills")
+  preferredSkills    Json?         @map("preferred_skills")
+  budgetMin          Decimal?      @map("budget_min") @db.Decimal(10, 2)
+  budgetMax          Decimal?      @map("budget_max") @db.Decimal(10, 2)
+  currency           String        @default("USD")
+  startDate          DateTime      @map("start_date")
+  durationWeeks      Int           @map("duration_weeks")
+  locationPreference String        @map("location_preference")
+  status             RequestStatus @default(open)
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  matches Match[]
+
+  @@map("talent_requests")
+}
+
+model Match {
+  id             String      @id @default(cuid())
+  requestId      String      @map("request_id")
+  profileId      String      @map("profile_id")
+  score          Decimal     @db.Decimal(5, 2)
+  scoreBreakdown Json        @map("score_breakdown")
+  status         MatchStatus @default(pending)
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  request TalentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  profile TalentProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  offers  Offer[]
+
+  @@map("matches")
+}
+
+model Offer {
+  id             String      @id @default(cuid())
+  matchId        String      @map("match_id")
+  seekerCompanyId String     @map("seeker_company_id")
+  providerCompanyId String   @map("provider_company_id")
+  rate           Decimal     @db.Decimal(10, 2)
+  currency       String      @default("USD")
+  startDate      DateTime    @map("start_date")
+  durationWeeks  Int         @map("duration_weeks")
+  terms          String?
+  totalAmount    Decimal     @map("total_amount") @db.Decimal(10, 2)
+  platformFee    Decimal     @map("platform_fee") @db.Decimal(10, 2)
+  providerAmount Decimal     @map("provider_amount") @db.Decimal(10, 2)
+  status         OfferStatus @default(pending)
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  match           Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  seekerCompany   Company     @relation("SeekerOffers", fields: [seekerCompanyId], references: [id])
+  providerCompany Company     @relation("ProviderOffers", fields: [providerCompanyId], references: [id])
+  payments        Payment[]
+  engagements     Engagement[]
+
+  @@map("offers")
+}
+
+model Payment {
+  id                     String        @id @default(cuid())
+  offerId                String        @map("offer_id")
+  stripePaymentIntentId  String?       @unique @map("stripe_payment_intent_id")
+  amount                 Decimal       @db.Decimal(10, 2)
+  currency               String        @default("USD")
+  platformFeeAmount      Decimal       @map("platform_fee_amount") @db.Decimal(10, 2)
+  providerAmount         Decimal       @map("provider_amount") @db.Decimal(10, 2)
+  status                 PaymentStatus @default(pending)
+  heldAt                 DateTime?     @map("held_at")
+  releasedAt             DateTime?     @map("released_at")
+  createdAt              DateTime      @default(now()) @map("created_at")
+  updatedAt              DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  offer Offer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model Engagement {
+  id                   String            @id @default(cuid())
+  offerId              String            @map("offer_id")
+  status               EngagementStatus  @default(active)
+  startDate            DateTime          @map("start_date")
+  endDate              DateTime?         @map("end_date")
+  totalHours           Decimal?          @map("total_hours") @db.Decimal(8, 2)
+  totalAmount          Decimal           @map("total_amount") @db.Decimal(10, 2)
+  completionVerified   Boolean           @default(false) @map("completion_verified")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  offer   Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  reviews Review[]
+
+  @@map("engagements")
+}
+
+model Review {
+  id           String  @id @default(cuid())
+  engagementId String  @map("engagement_id")
+  profileId    String  @map("profile_id")
+  rating       Int
+  comment      String?
+  isPublic     Boolean @default(true) @map("is_public")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  engagement Engagement    @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  profile    TalentProfile @relation("ProfileReviews", fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+}
