@@ -1167,7 +1167,7 @@ describe('Company Registration API', () => {
         })
 
         jest.mocked(require('@/lib/prisma').prisma.company.findUnique).mockResolvedValue(null)
-        jest.mocked(require('@/lib/prisma').prisma.user.findUnique).mockRejectedValue(new Error('Database connection failed'))
+        jest.mocked(require('@/lib/prisma').prisma.user.findFirst).mockRejectedValue(new Error('Database connection failed'))
 
         const response = await registerCompany(request)
         const data = await response.json()
@@ -1189,8 +1189,8 @@ describe('Company Registration API', () => {
         })
 
         jest.mocked(require('@/lib/prisma').prisma.company.findUnique).mockResolvedValue(null)
-        jest.mocked(require('@/lib/prisma').prisma.user.findUnique).mockResolvedValue(null)
-        jest.mocked(require('@/lib/prisma').prisma.company.create).mockRejectedValue(new Error('Database connection failed'))
+        jest.mocked(require('@/lib/prisma').prisma.user.findFirst).mockResolvedValue(null)
+        jest.mocked(require('@/lib/prisma').prisma.$transaction).mockRejectedValue(new Error('Database connection failed'))
 
         const response = await registerCompany(request)
         const data = await response.json()
@@ -1212,15 +1212,25 @@ describe('Company Registration API', () => {
         })
 
         jest.mocked(require('@/lib/prisma').prisma.company.findUnique).mockResolvedValue(null)
-        jest.mocked(require('@/lib/prisma').prisma.user.findUnique).mockResolvedValue(null)
-        jest.mocked(require('@/lib/prisma').prisma.company.create).mockResolvedValue({
-          id: 'company-123',
-          name: 'Test Company',
-          domain: 'test.com',
-          type: 'provider',
-          status: 'pending'
+        jest.mocked(require('@/lib/prisma').prisma.user.findFirst).mockResolvedValue(null)
+        jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback) => {
+          // Simulate transaction that fails during user creation
+          const mockTx = {
+            company: {
+              create: jest.fn().mockResolvedValue({
+                id: 'company-123',
+                name: 'Test Company',
+                domain: 'test.com',
+                type: 'provider',
+                status: 'pending'
+              })
+            },
+            user: {
+              create: jest.fn().mockRejectedValue(new Error('Database connection failed'))
+            }
+          }
+          return callback(mockTx)
         })
-        jest.mocked(require('@/lib/prisma').prisma.user.create).mockRejectedValue(new Error('Database connection failed'))
 
         const response = await registerCompany(request)
         const data = await response.json()
@@ -1300,23 +1310,40 @@ describe('Company Registration API', () => {
           })
         })
 
-        // Mock successful creation
+        // Mock successful database operations
         jest.mocked(require('@/lib/prisma').prisma.company.findUnique).mockResolvedValue(null)
-        jest.mocked(require('@/lib/prisma').prisma.user.findUnique).mockResolvedValue(null)
-        jest.mocked(require('@/lib/prisma').prisma.company.create).mockResolvedValue({
-          id: 'company-123',
-          name: 'Test Company',
-          domain: 'test.com',
-          type: 'provider',
-          status: 'pending'
-        })
-        jest.mocked(require('@/lib/prisma').prisma.user.create).mockResolvedValue({
-          id: 'user-123',
-          name: 'John Doe',
-          email: 'test@test.com',
-          phoneNumber: '+1234567890',
-          role: 'admin',
-          companyId: 'company-123'
+        jest.mocked(require('@/lib/prisma').prisma.user.findFirst).mockResolvedValue(null)
+
+        // Mock transaction
+        const mockTx = {
+          company: {
+            create: jest.fn().mockResolvedValue({
+              id: 'company-123',
+              name: 'Test Company',
+              domain: 'test.com',
+              type: 'provider',
+              status: 'pending',
+              domainVerificationToken: 'token-123',
+              createdAt: new Date(),
+              updatedAt: new Date()
+            })
+          },
+          user: {
+            create: jest.fn().mockResolvedValue({
+              id: 'user-123',
+              name: 'John Doe',
+              email: 'test@test.com',
+              phoneNumber: '+1234567890',
+              role: 'admin',
+              companyId: 'company-123',
+              phoneVerified: false,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            })
+          }
+        }
+        jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback) => {
+          return callback(mockTx)
         })
 
         const response = await registerCompany(request)

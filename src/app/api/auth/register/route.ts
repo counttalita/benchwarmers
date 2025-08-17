@@ -11,7 +11,30 @@ export async function POST(request: NextRequest) {
   const requestLogger = logRequest(request, startTime)
 
   try {
-    const body = await request.json()
+    let body
+    try {
+      body = await request.json()
+    } catch (jsonError) {
+      logError('Company registration failed: Invalid JSON', jsonError, {
+        requestBody: 'malformed'
+      })
+      requestLogger.end(400)
+      return NextResponse.json(
+        { error: 'Invalid input data' },
+        { status: 400 }
+      )
+    }
+
+    if (!body) {
+      logError('Company registration failed: Missing request body', null, {
+        requestBody: 'missing'
+      })
+      requestLogger.end(400)
+      return NextResponse.json(
+        { error: 'Invalid input data' },
+        { status: 400 }
+      )
+    }
     
     // Validate input data
     const validationResult = registrationSchema.safeParse(body)
