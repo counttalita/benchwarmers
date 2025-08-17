@@ -352,7 +352,7 @@ export class MatchingEngine {
   }
 
   private isLevelSufficient(required: string, actual: string): boolean {
-    const levels = { 'junior': 1, 'mid': 2, 'senior': 3, 'expert': 4 }
+    const levels: { [key: string]: number } = { 'junior': 1, 'mid': 2, 'senior': 3, 'expert': 4 }
     return (levels[actual] || 1) >= (levels[required] || 1)
   }
 
@@ -384,50 +384,306 @@ export class MatchingEngine {
     }
   }
 
-  // Placeholder methods for scoring functions
   private calculateSkillsScore(requirement: ProjectRequirement, talent: TalentProfile): number {
-    // Implementation will be added
-    return 80
+    let totalScore = 0
+    let maxPossibleScore = 0
+
+    // Score required skills (higher weight)
+    for (const reqSkill of requirement.requiredSkills) {
+      maxPossibleScore += reqSkill.weight * 2 // Required skills count double
+      
+      const matchingSkill = this.findMatchingSkill(reqSkill, talent.skills)
+      if (matchingSkill) {
+        const levelScore = this.calculateLevelScore(reqSkill.level, matchingSkill.level)
+        const experienceScore = this.calculateSkillExperienceScore(reqSkill, matchingSkill)
+        const skillScore = (levelScore + experienceScore) / 2
+        
+        totalScore += skillScore * reqSkill.weight * 2
+      }
+    }
+
+    // Score preferred skills (normal weight)
+    for (const prefSkill of requirement.preferredSkills) {
+      maxPossibleScore += prefSkill.weight
+      
+      const matchingSkill = this.findMatchingSkill(prefSkill, talent.skills)
+      if (matchingSkill) {
+        const levelScore = this.calculateLevelScore(prefSkill.level, matchingSkill.level)
+        const experienceScore = this.calculateSkillExperienceScore(prefSkill, matchingSkill)
+        const skillScore = (levelScore + experienceScore) / 2
+        
+        totalScore += skillScore * prefSkill.weight
+      }
+    }
+
+    return maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0
+  }
+
+  private findMatchingSkill(reqSkill: SkillRequirement, talentSkills: Skill[]): Skill | null {
+    // Direct match
+    let match = talentSkills.find(s => 
+      s.name.toLowerCase() === reqSkill.name.toLowerCase()
+    )
+    
+    if (match) return match
+
+    // Synonym match
+    const synonyms = skillSynonyms.get(reqSkill.name.toLowerCase()) || []
+    match = talentSkills.find(s => 
+      synonyms.some(synonym => 
+        s.name.toLowerCase().includes(synonym) || 
+        synonym.includes(s.name.toLowerCase())
+      )
+    )
+
+    if (match) return match
+
+    // Technology stack expansion
+    for (const [stackName, stackSkills] of techStacks.entries()) {
+      if (reqSkill.name.toLowerCase() === stackName.toLowerCase()) {
+        match = talentSkills.find(s => 
+          stackSkills.some(stackSkill => 
+            s.name.toLowerCase().includes(stackSkill.toLowerCase()) ||
+            stackSkill.toLowerCase().includes(s.name.toLowerCase())
+          )
+        )
+        if (match) return match
+      }
+    }
+
+    return null
+  }
+
+  private calculateLevelScore(required: string, actual: string): number {
+    return levelCompatibility[required]?.[actual] || 50
+  }
+
+  private calculateSkillExperienceScore(reqSkill: SkillRequirement, talentSkill: Skill): number {
+    if (!reqSkill.yearsRequired) return 100
+
+    const yearsDiff = talentSkill.yearsOfExperience - reqSkill.yearsRequired
+
+    if (yearsDiff >= 0) {
+      // Bonus for more experience
+      return 100 + Math.min(yearsDiff * 10, 50)
+    } else {
+      // Penalty for less experience
+      return Math.max(0, 100 + yearsDiff * 20)
+    }
   }
 
   private calculateExperienceScore(requirement: ProjectRequirement, talent: TalentProfile): number {
-    // Implementation will be added
-    return 75
+    if (talent.experience.length === 0) return 50
+
+    // Calculate average years of experience
+    const avgExperience = talent.experience.reduce((sum, exp) => {
+      const years = this.parseDuration(exp.duration)
+      return sum + years
+    }, 0) / talent.experience.length
+
+    // Industry experience bonus
+    const industryExperience = talent.experience.filter(exp => 
+      exp.industry.toLowerCase() === requirement.clientIndustry.toLowerCase()
+    ).length
+
+    const industryBonus = industryExperience > 0 ? 30 : 0
+
+    return Math.min(100, avgExperience * 10 + industryBonus)
   }
 
   private calculateAvailabilityScore(requirement: ProjectRequirement, talent: TalentProfile): number {
-    // Implementation will be added
-    return 90
+    const projectStart = requirement.startDate
+    const projectEnd = new Date(projectStart.getTime() + requirement.duration.weeks * 7 * 24 * 60 * 60 * 1000)
+
+    let bestScore = 0
+
+    for (const availability of talent.availability) {
+      const overlap = this.calculateOverlap(
+        { start: projectStart, end: projectEnd },
+        { start: availability.startDate, end: availability.endDate }
+      )
+
+      if (overlap.percentage > 0) {
+        let score = overlap.percentage
+
+        // Bonus for immediate availability
+        if (availability.startDate <= projectStart) {
+          score += 20
+        }
+
+        // Bonus for full availability during project
+        if (overlap.percentage === 100) {
+          score += 30
+        }
+
+        // Consider talent's capacity (not overbooked)
+        const capacityScore = Math.max(0, 100 - availability.capacity)
+        score = (score + capacityScore) / 2
+
+        bestScore = Math.max(bestScore, score)
+      }
+    }
+
+    return Math.min(bestScore, 100)
   }
 
   private calculateBudgetScore(requirement: ProjectRequirement, talent: TalentProfile): number {
-    // Implementation will be added
-    return 85
+    const talentRate = talent.hourlyRate
+    const budgetMin = requirement.budget.min
+    const budgetMax = requirement.budget.max
+    const budgetMid = (budgetMin + budgetMax) / 2
+
+    // Perfect score if rate is within budget range
+    if (talentRate >= budgetMin && talentRate <= budgetMax) {
+      // Bonus for being closer to the middle of the range
+      const distanceFromMid = Math.abs(talentRate - budgetMid)
+      const maxDistance = (budgetMax - budgetMin) / 2
+      return 100 - (distanceFromMid / maxDistance) * 20
+    }
+
+    // Penalty for being outside budget
+    if (talentRate < budgetMin) {
+      // May indicate lower quality, but could be a bargain
+      const underBudgetPenalty = ((budgetMin - talentRate) / budgetMin) * 50
+      return Math.max(20, 100 - underBudgetPenalty)
+    } else {
+      // Over budget - significant penalty
+      const overBudgetPenalty = ((talentRate - budgetMax) / budgetMax) * 100
+      return Math.max(0, 100 - overBudgetPenalty)
+    }
   }
 
   private calculateLocationScore(requirement: ProjectRequirement, talent: TalentProfile): number {
-    // Implementation will be added
-    return 80
+    // Timezone compatibility
+    const timezoneScore = this.calculateTimezoneScore(requirement.location, talent.location)
+    
+    // Remote work preference alignment
+    const remoteScore = this.calculateRemoteWorkScore(requirement.location, talent.location)
+
+    return (timezoneScore + remoteScore) / 2
+  }
+
+  private calculateTimezoneScore(requirement: LocationRequirement, talent: Location): number {
+    if (!requirement.timezone || !talent.timezone) return 50
+
+    const timezoneDiff = Math.abs(
+      this.getTimezoneOffset(requirement.timezone) - this.getTimezoneOffset(talent.timezone)
+    )
+
+    if (timezoneDiff <= 2) return 100
+    if (timezoneDiff <= 4) return 80
+    if (timezoneDiff <= 6) return 60
+    if (timezoneDiff <= 8) return 40
+    return 20
+  }
+
+  private calculateRemoteWorkScore(requirement: LocationRequirement, talent: Location): number {
+    if (requirement.type === talent.remotePreference) return 100
+    if (requirement.type === 'hybrid' || talent.remotePreference === 'hybrid') return 70
+    return 30
+  }
+
+  private getTimezoneOffset(timezone: string): number {
+    // Simplified timezone offset calculation
+    const offsets: { [key: string]: number } = {
+      'UTC': 0, 'EST': -5, 'CST': -6, 'MST': -7, 'PST': -8,
+      'GMT': 0, 'CET': 1, 'EET': 2, 'JST': 9, 'AEST': 10
+    }
+    return offsets[timezone] || 0
   }
 
   private async calculateCultureScore(requirement: ProjectRequirement, talent: TalentProfile): Promise<number> {
-    // Implementation will be added
-    return 70
+    // Company size compatibility
+    const companySizeScore = this.getCompanySizeCompatibility(
+      requirement.companySize, 
+      talent.preferences.preferredCompanySize
+    )
+
+    // Industry experience
+    const industryScore = this.getIndustryExperience(
+      requirement.clientIndustry,
+      talent.experience
+    )
+
+    // Working style compatibility  
+    const workStyleScore = this.getWorkStyleCompatibility(
+      requirement.workStyle,
+      talent.preferences.workStyle
+    )
+
+    return (companySizeScore + industryScore + workStyleScore) / 3
+  }
+
+  private getCompanySizeCompatibility(projectSize: string, talentPreference: string): number {
+    if (projectSize === talentPreference) return 100
+    if (projectSize === 'medium' || talentPreference === 'medium') return 70
+    return 40
+  }
+
+  private getIndustryExperience(projectIndustry: string, experience: Experience[]): number {
+    const industryExp = experience.filter(exp => 
+      exp.industry.toLowerCase() === projectIndustry.toLowerCase()
+    ).length
+
+    return industryExp > 0 ? 100 : 0
+  }
+
+  private getWorkStyleCompatibility(projectStyle: string, talentStyle: string): number {
+    if (projectStyle === talentStyle) return 100
+    if (projectStyle === 'hybrid' || talentStyle === 'hybrid') return 70
+    return 40
   }
 
   private calculateVelocityScore(talent: TalentProfile): number {
-    // Implementation will be added
-    return 75
+    // Based on rating and reviews - higher rating indicates faster delivery
+    return talent.rating * 20 // Convert 1-5 to 0-100
   }
 
   private calculateReliabilityScore(talent: TalentProfile): number {
-    // Implementation will be added
-    return 80
+    if (talent.totalReviews === 0) return 50 // Default score
+
+    const avgRating = talent.rating
+    const totalReviews = talent.totalReviews
+
+    // Weight by number of reviews
+    const reviewWeight = Math.min(totalReviews / 10, 1) // Cap at 10 reviews
+    const baseScore = avgRating * 20 // Convert 1-5 to 0-100
+
+    return baseScore * reviewWeight + (1 - reviewWeight) * 50
   }
 
   private calculateSuccessProbability(requirement: ProjectRequirement, talent: TalentProfile): number {
-    // Implementation will be added
-    return 0.85
+    // Calculate success probability based on multiple factors
+    const skillsMatch = this.calculateSkillsScore(requirement, talent) / 100
+    const experienceMatch = this.calculateExperienceScore(requirement, talent) / 100
+    const availabilityMatch = this.calculateAvailabilityScore(requirement, talent) / 100
+    const reliabilityMatch = this.calculateReliabilityScore(talent) / 100
+
+    // Weighted average of key success factors
+    const successProbability = 
+      (skillsMatch * 0.4) +
+      (experienceMatch * 0.3) +
+      (availabilityMatch * 0.2) +
+      (reliabilityMatch * 0.1)
+
+    return Math.min(1, Math.max(0, successProbability))
+  }
+
+  private parseDuration(duration: string): number {
+    // Simple duration parser - can be enhanced
+    const match = duration.match(/(\d+)\s*(year|month|week|day)/i)
+    if (!match) return 0
+    
+    const value = parseInt(match[1])
+    const unit = match[2].toLowerCase()
+    
+    switch (unit) {
+      case 'year': return value * 12
+      case 'month': return value
+      case 'week': return value / 4
+      case 'day': return value / 30
+      default: return 0
+    }
   }
 
   private generateMatchReasons(
@@ -435,18 +691,92 @@ export class MatchingEngine {
     talent: TalentProfile, 
     scores: { skillsScore: number, experienceScore: number, availabilityScore: number, budgetScore: number }
   ): string[] {
-    // Implementation will be added
-    return ['Good skill match', 'Available for project']
+    const reasons: string[] = []
+
+    if (scores.skillsScore >= 80) {
+      const matchedSkills = requirement.requiredSkills
+        .filter(req => talent.skills.some(s => this.isSkillMatch(req.name, s.name)))
+        .map(req => req.name)
+      reasons.push(`Perfect skill match for ${matchedSkills.join(', ')}`)
+    }
+
+    if (scores.experienceScore >= 80) {
+      reasons.push(`Strong experience in ${requirement.clientIndustry} industry`)
+    }
+
+    if (scores.availabilityScore >= 90) {
+      reasons.push('Available immediately for your project')
+    }
+
+    if (scores.budgetScore >= 90) {
+      reasons.push(`Rate is within your budget range`)
+    }
+
+    if (talent.rating >= 4.5) {
+      reasons.push(`Excellent track record with ${talent.rating}/5 rating`)
+    }
+
+    // Check for technology stack matches
+    const techStackMatches = Array.from(techStacks.entries()).filter(([stackName, stackSkills]) => {
+      const hasStackSkill = talent.skills.some(skill => 
+        stackSkills.some(stackSkill => this.isSkillMatch(stackSkill, skill.name))
+      )
+      return hasStackSkill && requirement.requiredSkills.some(req => 
+        req.name.toLowerCase() === stackName.toLowerCase()
+      )
+    })
+
+    if (techStackMatches.length > 0) {
+      reasons.push(`Technology stack perfectly matches your requirements`)
+    }
+
+    return reasons
   }
 
   private generateConcerns(requirement: ProjectRequirement, talent: TalentProfile): string[] {
-    // Implementation will be added
-    return []
+    const concerns: string[] = []
+
+    if (talent.hourlyRate > requirement.budget.max * 1.2) {
+      concerns.push(`Rate is ${Math.round((talent.hourlyRate / requirement.budget.max - 1) * 100)}% above budget`)
+    }
+
+    const missingSkills = requirement.requiredSkills.filter(req => 
+      !talent.skills.some(s => this.isSkillMatch(req.name, s.name))
+    )
+    if (missingSkills.length > 0) {
+      concerns.push(`Missing required skills: ${missingSkills.map(s => s.name).join(', ')}`)
+    }
+
+    if (talent.rating < 3.5) {
+      concerns.push('Below average performance rating')
+    }
+
+    // Check availability concerns
+    const projectStart = requirement.startDate
+    const earliestAvailability = talent.availability
+      .map(avail => avail.startDate)
+      .sort((a, b) => a.getTime() - b.getTime())[0]
+
+    if (earliestAvailability && earliestAvailability > projectStart) {
+      const daysDiff = Math.ceil((earliestAvailability.getTime() - projectStart.getTime()) / (1000 * 60 * 60 * 24))
+      concerns.push(`Available in ${daysDiff} days (project starts in ${Math.ceil((projectStart.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days)`)
+    }
+
+    return concerns
   }
 
   private calculateConfidence(talent: TalentProfile, requirement: ProjectRequirement): number {
-    // Implementation will be added
-    return 0.8
+    // Calculate confidence based on data completeness and consistency
+    let confidence = 0.5 // Base confidence
+
+    // More reviews = higher confidence
+    confidence += Math.min(talent.totalReviews / 20, 0.3)
+
+    // Complete profile = higher confidence
+    if (talent.skills.length > 0) confidence += 0.1
+    if (talent.experience.length > 0) confidence += 0.1
+
+    return Math.min(confidence, 1.0)
   }
 
   private applyBusinessRules(

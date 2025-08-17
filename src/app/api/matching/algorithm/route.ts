@@ -1,256 +1,118 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { MatchingEngine, ProjectRequirement, TalentProfile, MatchScore } from '@/lib/matching/matching-engine'
 import { logger } from '@/lib/logger'
 
-// POST /api/matching/algorithm - Find talent matches for a request
-export async function POST(request: NextRequest) {
-  const requestLogger = logger.child({ 
-    method: 'POST', 
-    path: '/api/matching/algorithm',
-    requestId: crypto.randomUUID()
-  })
+const matchingEngine = new MatchingEngine()
 
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const {
-      requestId,
-      requiredSkills,
-      budget,
-      location,
-      duration,
-      isRemote
-    } = body
-
-    if (!requestId) {
-      requestLogger.warn('Missing requestId in matching algorithm')
+    
+    // Validate request body
+    if (!body.projectRequirement || !body.availableTalent) {
       return NextResponse.json(
-        { error: 'Request ID is required' },
+        { error: 'Missing required fields: projectRequirement and availableTalent' },
         { status: 400 }
       )
     }
 
-    // Validate talent request exists
-    const talentRequest = await prisma.talentRequest.findUnique({
-      where: { id: requestId },
-      include: {
-        requiredSkills: true
-      }
-    })
+    const { projectRequirement, availableTalent, options = {} } = body
 
-    if (!talentRequest) {
-      requestLogger.warn('Talent request not found for matching', { requestId })
+    // Validate project requirement structure
+    if (!projectRequirement.id || !projectRequirement.requiredSkills || !projectRequirement.budget) {
       return NextResponse.json(
-        { error: 'Talent request not found' },
-        { status: 404 }
+        { error: 'Invalid project requirement structure' },
+        { status: 400 }
       )
     }
 
-    // Build matching criteria
-    const matchingCriteria = {
-      requiredSkills: requiredSkills || talentRequest.requiredSkills.map(s => s.name),
-      budget: budget || talentRequest.budget,
-      location: location || talentRequest.location,
-      duration: duration || talentRequest.duration,
-      isRemote: isRemote !== undefined ? isRemote : talentRequest.isRemote
+    // Validate talent profiles
+    if (!Array.isArray(availableTalent) || availableTalent.length === 0) {
+      return NextResponse.json(
+        { error: 'Available talent must be a non-empty array' },
+        { status: 400 }
+      )
     }
 
-    // Find matching talent profiles
-    const matchingProfiles = await prisma.talentProfile.findMany({
-      where: {
-        user: {
-          role: 'talent',
-          isActive: true
-        },
-        // Skill matching
-        skills: {
-          some: {
-            name: {
-              in: matchingCriteria.requiredSkills
-            }
-          }
-        },
-        // Budget matching (within 20% range)
-        hourlyRate: {
-          gte: matchingCriteria.budget * 0.8,
-          lte: matchingCriteria.budget * 1.2
-        },
-        // Location matching (if not remote)
-        ...(matchingCriteria.isRemote ? {} : {
-          location: {
-            contains: matchingCriteria.location,
-            mode: 'insensitive'
-          }
-        }),
-        // Availability matching
-        availability: {
-          in: ['available', 'part_time']
-        }
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phoneNumber: true,
-            avatar: true,
-            rating: true,
-            totalReviews: true
-          }
-        },
-        skills: {
-          select: {
-            id: true,
-            name: true,
-            level: true
-          }
-        },
-        company: {
-          select: {
-            id: true,
-            name: true,
-            domain: true
-          }
-        }
+    // Convert dates from strings to Date objects
+    const processedRequirement: ProjectRequirement = {
+      ...projectRequirement,
+      startDate: new Date(projectRequirement.startDate),
+      duration: {
+        ...projectRequirement.duration,
+        startDate: new Date(projectRequirement.duration.startDate),
+        endDate: new Date(projectRequirement.duration.endDate)
       }
-    })
+    }
 
-    // Calculate match scores
-    const scoredMatches = matchingProfiles.map(profile => {
-      let score = 0
-      const maxScore = 100
+    const processedTalent: TalentProfile[] = availableTalent.map(talent => ({
+      ...talent,
+      availability: talent.availability.map(avail => ({
+        ...avail,
+        startDate: new Date(avail.startDate),
+        endDate: new Date(avail.endDate)
+      }))
+    }))
 
-      // Skill match (40 points)
-      const profileSkills = profile.skills.map(s => s.name)
-      const skillMatches = matchingCriteria.requiredSkills.filter(skill => 
-        profileSkills.includes(skill)
-      )
-      score += (skillMatches.length / matchingCriteria.requiredSkills.length) * 40
+    // Find matches using the matching engine
+    const matches = await matchingEngine.findMatches(
+      processedRequirement,
+      processedTalent,
+      options
+    )
 
-      // Budget match (25 points)
-      const budgetDiff = Math.abs(profile.hourlyRate - matchingCriteria.budget)
-      const budgetScore = Math.max(0, 25 - (budgetDiff / matchingCriteria.budget) * 25)
-      score += budgetScore
-
-      // Location match (20 points)
-      if (matchingCriteria.isRemote) {
-        score += 20 // Full points for remote work
-      } else if (profile.location && matchingCriteria.location) {
-        const locationMatch = profile.location.toLowerCase().includes(matchingCriteria.location.toLowerCase())
-        score += locationMatch ? 20 : 10
-      }
-
-      // Rating match (15 points)
-      if (profile.user.rating) {
-        score += (profile.user.rating / 5) * 15
-      }
-
-      return {
-        ...profile,
-        matchScore: Math.round(score),
-        skillMatches: skillMatches.length,
-        totalRequiredSkills: matchingCriteria.requiredSkills.length
-      }
-    })
-
-    // Sort by match score (descending)
-    scoredMatches.sort((a, b) => b.matchScore - a.matchScore)
-
-    // Take top 10 matches
-    const topMatches = scoredMatches.slice(0, 10)
-
-    requestLogger.info('Matching algorithm completed', {
-      requestId,
-      totalMatches: matchingProfiles.length,
-      topMatches: topMatches.length,
-      criteria: matchingCriteria
+    logger.info('Matching algorithm completed', {
+      projectId: processedRequirement.id,
+      talentCount: processedTalent.length,
+      matchCount: matches.length,
+      topScore: matches[0]?.totalScore || 0
     })
 
     return NextResponse.json({
-      message: 'Matches found successfully',
-      matches: topMatches,
-      totalMatches: matchingProfiles.length,
-      criteria: matchingCriteria
+      success: true,
+      matches,
+      metadata: {
+        totalTalent: processedTalent.length,
+        matchedTalent: matches.length,
+        algorithmVersion: '1.0.0',
+        processingTime: Date.now() - request.headers.get('x-request-start') || Date.now()
+      }
     })
 
   } catch (error) {
-    requestLogger.error('Failed to run matching algorithm', error)
+    logger.error('Matching algorithm error', { error: error instanceof Error ? error.message : 'Unknown error' })
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error during matching process' },
       { status: 500 }
     )
   }
 }
 
-// GET /api/matching/algorithm - Get matching statistics
 export async function GET(request: NextRequest) {
-  const requestLogger = logger.child({ 
-    method: 'GET', 
-    path: '/api/matching/algorithm',
-    requestId: crypto.randomUUID()
-  })
-
   try {
     const { searchParams } = new URL(request.url)
-    const requestId = searchParams.get('requestId')
+    const projectId = searchParams.get('projectId')
 
-    if (!requestId) {
-      requestLogger.warn('Missing requestId in matching statistics request')
+    if (!projectId) {
       return NextResponse.json(
-        { error: 'Request ID is required' },
+        { error: 'Project ID is required' },
         { status: 400 }
       )
     }
 
-    // Get matching statistics
-    const [totalTalent, availableTalent, skillMatches] = await Promise.all([
-      prisma.user.count({
-        where: {
-          role: 'talent',
-          isActive: true
-        }
-      }),
-      prisma.talentProfile.count({
-        where: {
-          user: {
-            role: 'talent',
-            isActive: true
-          },
-          availability: {
-            in: ['available', 'part_time']
-          }
-        }
-      }),
-      prisma.talentSkill.count({
-        where: {
-          talentProfile: {
-            user: {
-              role: 'talent',
-              isActive: true
-            }
-          }
-        }
-      })
-    ])
-
-    requestLogger.info('Matching statistics retrieved', {
-      requestId,
-      totalTalent,
-      availableTalent,
-      skillMatches
-    })
-
+    // For GET requests, we would typically fetch the project requirement and available talent from the database
+    // For now, return a placeholder response
     return NextResponse.json({
-      statistics: {
-        totalTalent,
-        availableTalent,
-        skillMatches,
-        availabilityRate: totalTalent > 0 ? (availableTalent / totalTalent) * 100 : 0
-      }
+      success: true,
+      message: 'GET endpoint for matching algorithm - use POST for actual matching',
+      projectId,
+      note: 'This endpoint would fetch project requirements and available talent from database'
     })
 
   } catch (error) {
-    requestLogger.error('Failed to get matching statistics', error)
+    logger.error('Matching algorithm GET error', { error: error instanceof Error ? error.message : 'Unknown error' })
+    
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
