@@ -2,140 +2,35 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
-// GET /api/reviews - Get reviews with filtering
-export async function GET(request: NextRequest) {
-  const requestLogger = logger.child({ 
-    method: 'GET', 
-    path: '/api/reviews',
-    requestId: crypto.randomUUID()
-  })
-
-  try {
-    const { searchParams } = new URL(request.url)
-    const talentId = searchParams.get('talentId')
-    const companyId = searchParams.get('companyId')
-    const rating = searchParams.get('rating') ? parseInt(searchParams.get('rating')!) : undefined
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
-    const offset = (page - 1) * limit
-
-    // Build where clause for filtering
-    const where: any = {}
-
-    if (talentId) {
-      where.talentId = talentId
-    }
-
-    if (companyId) {
-      where.companyId = companyId
-    }
-
-    if (rating) {
-      where.rating = rating
-    }
-
-    // Get reviews with pagination
-    const [reviews, total] = await Promise.all([
-      prisma.review.findMany({
-        where,
-        include: {
-          talent: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              avatar: true
-            }
-          },
-          company: {
-            select: {
-              id: true,
-              name: true,
-              domain: true
-            }
-          },
-          engagement: {
-            select: {
-              id: true,
-              startDate: true,
-              endDate: true,
-              rate: true
-            }
-          }
-        },
-        orderBy: {
-          createdAt: 'desc'
-        },
-        skip: offset,
-        take: limit
-      }),
-      prisma.review.count({ where })
-    ])
-
-    requestLogger.info('Reviews retrieved successfully', {
-      count: reviews.length,
-      total,
-      page,
-      limit,
-      filters: { talentId, companyId, rating }
-    })
-
-    return NextResponse.json({
-      reviews,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit)
-      }
-    })
-
-  } catch (error) {
-    requestLogger.error('Failed to retrieve reviews', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
-}
-
-// POST /api/reviews - Submit a review
+// POST /api/reviews - Create a new review
 export async function POST(request: NextRequest) {
-  const requestLogger = logger.child({ 
-    method: 'POST', 
-    path: '/api/reviews',
-    requestId: crypto.randomUUID()
-  })
-
   try {
     const body = await request.json()
-    const {
-      engagementId,
-      reviewerId,
-      rating,
-      comment,
-      categories
-    } = body
+    const { engagementId, rating, review, reviewerId } = body
 
-    if (!engagementId || !reviewerId || !rating || rating < 1 || rating > 5) {
-      requestLogger.warn('Invalid review data submitted')
+    // Validate required fields
+    if (!engagementId || !rating || !review || !reviewerId) {
       return NextResponse.json(
-        { error: 'Engagement ID, reviewer ID, and valid rating (1-5) are required' },
+        { error: 'Missing required fields: engagementId, rating, review, reviewerId' },
         { status: 400 }
       )
     }
 
-    // Validate engagement exists and is completed
+    // Validate rating range
+    if (rating < 1 || rating > 5) {
+      return NextResponse.json(
+        { error: 'Rating must be between 1 and 5' },
+        { status: 400 }
+      )
+    }
+
+    // Check if engagement exists and is completed
     const engagement = await prisma.engagement.findUnique({
       where: { id: engagementId },
-      include: {
-        talent: true,
-        company: true
-      }
+      include: { participants: true }
     })
 
     if (!engagement) {
-      requestLogger.warn('Engagement not found for review submission', { engagementId })
       return NextResponse.json(
         { error: 'Engagement not found' },
         { status: 404 }
@@ -143,26 +38,22 @@ export async function POST(request: NextRequest) {
     }
 
     if (engagement.status !== 'completed') {
-      requestLogger.warn('Engagement not completed for review', { engagementId, status: engagement.status })
       return NextResponse.json(
-        { error: 'Engagement must be completed to submit a review' },
+        { error: 'Can only review completed engagements' },
         { status: 400 }
       )
     }
 
-    // Determine if reviewer is talent or company
-    const isTalentReview = reviewerId === engagement.talentId
-    const isCompanyReview = reviewerId === engagement.companyId
-
-    if (!isTalentReview && !isCompanyReview) {
-      requestLogger.warn('Reviewer not associated with engagement', { reviewerId, engagementId })
+    // Check if user participated in the engagement
+    const isParticipant = engagement.participants.some(p => p.userId === reviewerId)
+    if (!isParticipant) {
       return NextResponse.json(
-        { error: 'Reviewer must be associated with the engagement' },
+        { error: 'You can only review engagements you participated in' },
         { status: 403 }
       )
     }
 
-    // Check if review already exists
+    // Check for duplicate reviews
     const existingReview = await prisma.review.findFirst({
       where: {
         engagementId,
@@ -171,88 +62,128 @@ export async function POST(request: NextRequest) {
     })
 
     if (existingReview) {
-      requestLogger.warn('Review already exists for this engagement and reviewer', { engagementId, reviewerId })
       return NextResponse.json(
-        { error: 'Review already exists for this engagement' },
+        { error: 'You have already reviewed this engagement' },
         { status: 409 }
       )
     }
 
-    // Create review
-    const review = await prisma.review.create({
+    // Create the review
+    const newReview = await prisma.review.create({
       data: {
         engagementId,
-        talentId: engagement.talentId,
-        companyId: engagement.companyId,
-        reviewerId,
         rating,
-        comment,
-        categories: categories || [],
-        isTalentReview
+        review,
+        reviewerId,
+        status: 'active'
+      }
+    })
+
+    logger.info('Review created successfully', { reviewId: newReview.id, engagementId })
+
+    return NextResponse.json(
+      { 
+        success: true, 
+        review: newReview,
+        message: 'Review created successfully'
       },
-      include: {
-        talent: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            avatar: true
-          }
-        },
-        company: {
-          select: {
-            id: true,
-            name: true,
-            domain: true
-          }
-        },
-        engagement: {
-          select: {
-            id: true,
-            startDate: true,
-            endDate: true,
-            rate: true
+      { status: 201 }
+    )
+
+  } catch (error) {
+    logger.error('Failed to create review', { error: error instanceof Error ? error.message : 'Unknown error' })
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+// GET /api/reviews - List reviews with filtering and pagination
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const profileId = searchParams.get('profileId')
+    const rating = searchParams.get('rating')
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '10')
+    const offset = (page - 1) * limit
+
+    // Build where clause
+    const where: any = {
+      status: 'active'
+    }
+
+    if (profileId) {
+      where.engagement = {
+        participants: {
+          some: {
+            user: {
+              talentProfile: {
+                id: profileId
+              }
+            }
           }
         }
       }
-    })
+    }
 
-    // Update user rating statistics
-    const userToUpdate = isTalentReview ? engagement.companyId : engagement.talentId
-    const userReviews = await prisma.review.findMany({
-      where: {
-        OR: [
-          { talentId: userToUpdate },
-          { companyId: userToUpdate }
-        ]
-      }
-    })
+    if (rating) {
+      where.rating = parseInt(rating)
+    }
 
-    const averageRating = userReviews.reduce((sum, r) => sum + r.rating, 0) / userReviews.length
+    // Get reviews with pagination
+    const [reviews, totalCount] = await Promise.all([
+      prisma.review.findMany({
+        where,
+        include: {
+          engagement: {
+            include: {
+              participants: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                      avatar: true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          reviewer: {
+            select: {
+              id: true,
+              name: true,
+              avatar: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit
+      }),
+      prisma.review.count({ where })
+    ])
 
-    await prisma.user.update({
-      where: { id: userToUpdate },
-      data: {
-        rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal place
-        totalReviews: userReviews.length
-      }
-    })
-
-    requestLogger.info('Review submitted successfully', {
-      reviewId: review.id,
-      engagementId,
-      reviewerId,
-      rating,
-      isTalentReview
-    })
+    const totalPages = Math.ceil(totalCount / limit)
 
     return NextResponse.json({
-      message: 'Review submitted successfully',
-      review
+      success: true,
+      reviews,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
     })
 
   } catch (error) {
-    requestLogger.error('Failed to submit review', error)
+    logger.error('Failed to list reviews', { error: error instanceof Error ? error.message : 'Unknown error' })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

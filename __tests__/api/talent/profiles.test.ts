@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 import { NextRequest } from 'next/server'
-import { createProfile, updateProfile, getProfile, listProfiles } from '@/app/api/talent/profiles/route'
-import { uploadCertification } from '@/app/api/talent/profiles/certifications/route'
+import { POST as createProfile, GET as listProfiles } from '@/app/api/talent/profiles/route'
+import { PUT as updateProfile } from '@/app/api/talent/profiles/[id]/route'
+import { POST as uploadCertification } from '@/app/api/talent/profiles/certifications/route'
 
 // Mock Appwrite
 jest.mock('@/lib/appwrite', () => ({

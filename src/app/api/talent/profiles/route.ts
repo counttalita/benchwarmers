@@ -2,38 +2,119 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
-// GET /api/talent/profiles - Get all talent profiles with filtering
-export async function GET(request: NextRequest) {
-  const requestLogger = logger.child({ 
-    method: 'GET', 
-    path: '/api/talent/profiles',
-    requestId: crypto.randomUUID()
-  })
+// POST /api/talent/profiles - Create a talent profile
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { 
+      name, 
+      skills, 
+      experience, 
+      hourlyRate, 
+      location, 
+      availability,
+      preferences,
+      userId 
+    } = body
 
+    // Validate required fields
+    if (!name || !skills || !hourlyRate || !location || !userId) {
+      return NextResponse.json(
+        { error: 'Missing required fields: name, skills, hourlyRate, location, userId' },
+        { status: 400 }
+      )
+    }
+
+    // Validate hourly rate
+    if (hourlyRate < 10 || hourlyRate > 1000) {
+      return NextResponse.json(
+        { error: 'Hourly rate must be between $10 and $1000' },
+        { status: 400 }
+      )
+    }
+
+    // Check if user already has a profile
+    const existingProfile = await prisma.talentProfile.findFirst({
+      where: { userId }
+    })
+
+    if (existingProfile) {
+      return NextResponse.json(
+        { error: 'User already has a talent profile' },
+        { status: 409 }
+      )
+    }
+
+    // Create the talent profile
+    const profile = await prisma.talentProfile.create({
+      data: {
+        name,
+        skills: skills || [],
+        experience: experience || [],
+        hourlyRate,
+        location,
+        availability: availability || [],
+        preferences: preferences || {},
+        userId,
+        isAvailable: true,
+        rating: 0,
+        totalReviews: 0
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            avatar: true
+          }
+        }
+      }
+    })
+
+    logger.info('Talent profile created successfully', { profileId: profile.id, userId })
+
+    return NextResponse.json(
+      { 
+        success: true, 
+        profile,
+        message: 'Talent profile created successfully'
+      },
+      { status: 201 }
+    )
+
+  } catch (error) {
+    logger.error('Failed to create talent profile', { error: error instanceof Error ? error.message : 'Unknown error' })
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+// GET /api/talent/profiles - List talent profiles with filtering
+export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const skills = searchParams.get('skills')?.split(',')
+    const skills = searchParams.get('skills')
     const location = searchParams.get('location')
-    const minRate = searchParams.get('minRate') ? parseInt(searchParams.get('minRate')!) : undefined
-    const maxRate = searchParams.get('maxRate') ? parseInt(searchParams.get('maxRate')!) : undefined
-    const availability = searchParams.get('availability')
+    const minRate = searchParams.get('minRate')
+    const maxRate = searchParams.get('maxRate')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
     const offset = (page - 1) * limit
 
-    // Build where clause for filtering
+    // Build where clause
     const where: any = {
-      user: {
-        role: 'talent',
-        isActive: true
-      }
+      isAvailable: true
     }
 
-    if (skills && skills.length > 0) {
+    if (skills) {
+      const skillArray = skills.split(',').map(s => s.trim())
       where.skills = {
         some: {
           name: {
-            in: skills
+            in: skillArray
           }
         }
       }
@@ -41,23 +122,19 @@ export async function GET(request: NextRequest) {
 
     if (location) {
       where.location = {
-        contains: location,
-        mode: 'insensitive'
+        path: ['city'],
+        string_contains: location
       }
     }
 
     if (minRate || maxRate) {
       where.hourlyRate = {}
-      if (minRate) where.hourlyRate.gte = minRate
-      if (maxRate) where.hourlyRate.lte = maxRate
+      if (minRate) where.hourlyRate.gte = parseInt(minRate)
+      if (maxRate) where.hourlyRate.lte = parseInt(maxRate)
     }
 
-    if (availability) {
-      where.availability = availability
-    }
-
-    // Get talent profiles with pagination
-    const [profiles, total] = await Promise.all([
+    // Get profiles with pagination
+    const [profiles, totalCount] = await Promise.all([
       prisma.talentProfile.findMany({
         where,
         include: {
@@ -66,243 +143,36 @@ export async function GET(request: NextRequest) {
               id: true,
               name: true,
               email: true,
-              phoneNumber: true,
-              avatar: true,
-              rating: true,
-              totalReviews: true
+              avatar: true
             }
           },
-          skills: {
-            select: {
-              id: true,
-              name: true,
-              level: true
-            }
-          },
-          company: {
-            select: {
-              id: true,
-              name: true,
-              domain: true
-            }
-          }
+          skills: true,
+          experience: true
         },
-        orderBy: {
-          rating: 'desc'
-        },
+        orderBy: { rating: 'desc' },
         skip: offset,
         take: limit
       }),
       prisma.talentProfile.count({ where })
     ])
 
-    requestLogger.info('Talent profiles retrieved successfully', {
-      count: profiles.length,
-      total,
-      page,
-      limit,
-      filters: { skills, location, minRate, maxRate, availability }
-    })
+    const totalPages = Math.ceil(totalCount / limit)
 
     return NextResponse.json({
+      success: true,
       profiles,
       pagination: {
         page,
         limit,
-        total,
-        totalPages: Math.ceil(total / limit)
+        totalCount,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
       }
     })
 
   } catch (error) {
-    requestLogger.error('Failed to retrieve talent profiles', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
-}
-
-// POST /api/talent/profiles - Create or update talent profile
-export async function POST(request: NextRequest) {
-  const requestLogger = logger.child({ 
-    method: 'POST', 
-    path: '/api/talent/profiles',
-    requestId: crypto.randomUUID()
-  })
-
-  try {
-    const body = await request.json()
-    const {
-      userId,
-      title,
-      bio,
-      skills,
-      experience,
-      education,
-      hourlyRate,
-      location,
-      availability,
-      portfolio,
-      certifications
-    } = body
-
-    if (!userId) {
-      requestLogger.warn('Missing userId in talent profile creation')
-      return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      )
-    }
-
-    // Validate user exists and is a talent
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: { company: true }
-    })
-
-    if (!user) {
-      requestLogger.warn('User not found for talent profile creation', { userId })
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      )
-    }
-
-    if (user.role !== 'talent') {
-      requestLogger.warn('User is not a talent', { userId, role: user.role })
-      return NextResponse.json(
-        { error: 'User must be a talent to create profile' },
-        { status: 403 }
-      )
-    }
-
-    // Check if profile already exists
-    const existingProfile = await prisma.talentProfile.findUnique({
-      where: { userId }
-    })
-
-    let profile
-    if (existingProfile) {
-      // Update existing profile
-      profile = await prisma.talentProfile.update({
-        where: { userId },
-        data: {
-          title,
-          bio,
-          experience,
-          education,
-          hourlyRate,
-          location,
-          availability,
-          portfolio,
-          certifications,
-          updatedAt: new Date()
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phoneNumber: true,
-              avatar: true,
-              rating: true,
-              totalReviews: true
-            }
-          },
-          skills: {
-            select: {
-              id: true,
-              name: true,
-              level: true
-            }
-          },
-          company: {
-            select: {
-              id: true,
-              name: true,
-              domain: true
-            }
-          }
-        }
-      })
-
-      requestLogger.info('Talent profile updated successfully', { userId })
-    } else {
-      // Create new profile
-      profile = await prisma.talentProfile.create({
-        data: {
-          userId,
-          title,
-          bio,
-          experience,
-          education,
-          hourlyRate,
-          location,
-          availability,
-          portfolio,
-          certifications,
-          companyId: user.companyId
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phoneNumber: true,
-              avatar: true,
-              rating: true,
-              totalReviews: true
-            }
-          },
-          skills: {
-            select: {
-              id: true,
-              name: true,
-              level: true
-            }
-          },
-          company: {
-            select: {
-              id: true,
-              name: true,
-              domain: true
-            }
-          }
-        }
-      })
-
-      requestLogger.info('Talent profile created successfully', { userId })
-    }
-
-    // Handle skills if provided
-    if (skills && Array.isArray(skills)) {
-      // Remove existing skills
-      await prisma.talentSkill.deleteMany({
-        where: { talentProfileId: profile.id }
-      })
-
-      // Add new skills
-      for (const skill of skills) {
-        await prisma.talentSkill.create({
-          data: {
-            talentProfileId: profile.id,
-            name: skill.name,
-            level: skill.level || 'intermediate'
-          }
-        })
-      }
-    }
-
-    return NextResponse.json({
-      message: existingProfile ? 'Profile updated successfully' : 'Profile created successfully',
-      profile
-    })
-
-  } catch (error) {
-    requestLogger.error('Failed to create/update talent profile', error)
+    logger.error('Failed to list talent profiles', { error: error instanceof Error ? error.message : 'Unknown error' })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

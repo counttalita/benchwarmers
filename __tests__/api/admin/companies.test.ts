@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from '@jest/globals'
 import { NextRequest } from 'next/server'
 import { GET as getCompanies, POST as companyAction } from '@/app/api/admin/companies/route'
 import { prisma } from '@/lib/prisma'
-import { createTestCompany, createTestUser, cleanupTestData } from '@/test/helpers/test-helpers'
+import { createTestCompany, createTestUser, cleanupTestData } from '../../utils/test-helpers'
 
 describe('Admin Companies API', () => {
   let pendingCompany: any

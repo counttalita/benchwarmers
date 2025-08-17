@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 import { NextRequest } from 'next/server'
-import { createReview, getReview, listReviews, updateReview } from '@/app/api/reviews/route'
-import { getProfileReviews } from '@/app/api/reviews/profile/route'
+import { POST as createReview, GET as listReviews } from '@/app/api/reviews/route'
+import { GET as getProfileReviews } from '@/app/api/reviews/profile/route'
+import { PUT as updateReview } from '@/app/api/reviews/[id]/route'
 
 // Mock Appwrite
 jest.mock('@/lib/appwrite', () => ({

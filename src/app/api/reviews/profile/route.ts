@@ -4,81 +4,86 @@ import { logger } from '@/lib/logger'
 
 // GET /api/reviews/profile - Get reviews for a specific profile
 export async function GET(request: NextRequest) {
-  const requestLogger = logger.child({ 
-    method: 'GET', 
-    path: '/api/reviews/profile',
-    requestId: crypto.randomUUID()
-  })
-
   try {
     const { searchParams } = new URL(request.url)
     const profileId = searchParams.get('profileId')
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
 
     if (!profileId) {
-      requestLogger.warn('Missing profileId in reviews request')
       return NextResponse.json(
         { error: 'Profile ID is required' },
         { status: 400 }
       )
     }
 
-    const skip = (page - 1) * limit
-
-    const [reviews, total] = await Promise.all([
-      prisma.review.findMany({
-        where: { talentProfileId: profileId },
-        include: {
-          reviewer: {
-            select: {
-              id: true,
-              name: true,
-              company: {
-                select: {
-                  name: true
+    // Get reviews for the profile
+    const reviews = await prisma.review.findMany({
+      where: {
+        engagement: {
+          participants: {
+            some: {
+              user: {
+                talentProfile: {
+                  id: profileId
                 }
               }
             }
           }
         },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit
-      }),
-      prisma.review.count({
-        where: { talentProfileId: profileId }
-      })
-    ])
-
-    const averageRating = await prisma.review.aggregate({
-      where: { talentProfileId: profileId },
-      _avg: { rating: true }
+        status: 'active'
+      },
+      include: {
+        engagement: {
+          include: {
+            participants: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    avatar: true
+                  }
+                }
+              }
+            }
+          }
+        },
+        reviewer: {
+          select: {
+            id: true,
+            name: true,
+            avatar: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
     })
 
-    requestLogger.info('Profile reviews retrieved successfully', {
-      profileId,
-      count: reviews.length,
-      total,
-      averageRating: averageRating._avg.rating
-    })
+    // Calculate profile statistics
+    const totalReviews = reviews.length
+    const averageRating = totalReviews > 0 
+      ? reviews.reduce((sum, review) => sum + review.rating, 0) / totalReviews 
+      : 0
+
+    const ratingDistribution = {
+      1: reviews.filter(r => r.rating === 1).length,
+      2: reviews.filter(r => r.rating === 2).length,
+      3: reviews.filter(r => r.rating === 3).length,
+      4: reviews.filter(r => r.rating === 4).length,
+      5: reviews.filter(r => r.rating === 5).length
+    }
 
     return NextResponse.json({
+      success: true,
       reviews,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
-      },
       statistics: {
-        averageRating: averageRating._avg.rating || 0,
-        totalReviews: total
+        totalReviews,
+        averageRating: Math.round(averageRating * 10) / 10,
+        ratingDistribution
       }
     })
 
   } catch (error) {
-    requestLogger.error('Failed to retrieve profile reviews', error)
+    logger.error('Failed to get profile reviews', { error: error instanceof Error ? error.message : 'Unknown error' })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

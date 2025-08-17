@@ -19,8 +19,10 @@ jest.mock('@/lib/auth', () => ({
 }))
 
 // Mock matching algorithm
-jest.mock('@/lib/matching', () => ({
-  findMatches: jest.fn()
+jest.mock('@/lib/matching/matching-engine', () => ({
+  MatchingEngine: jest.fn().mockImplementation(() => ({
+    findMatches: jest.fn()
+  }))
 }))
 
 describe('Talent Requests API', () => {

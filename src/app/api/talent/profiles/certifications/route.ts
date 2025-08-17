@@ -2,42 +2,90 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
-// GET /api/talent/profiles/certifications - Get certifications for a talent profile
-export async function GET(request: NextRequest) {
-  const requestLogger = logger.child({ 
-    method: 'GET', 
-    path: '/api/talent/profiles/certifications',
-    requestId: crypto.randomUUID()
-  })
-
+// POST /api/talent/profiles/certifications - Upload certification file
+export async function POST(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const profileId = searchParams.get('profileId')
+    const formData = await request.formData()
+    const file = formData.get('file') as File
+    const profileId = formData.get('profileId') as string
+    const certificationName = formData.get('certificationName') as string
+    const issuer = formData.get('issuer') as string
+    const issueDate = formData.get('issueDate') as string
 
-    if (!profileId) {
-      requestLogger.warn('Missing profileId in certifications request')
+    // Validate required fields
+    if (!file || !profileId || !certificationName || !issuer) {
       return NextResponse.json(
-        { error: 'Profile ID is required' },
+        { error: 'Missing required fields: file, profileId, certificationName, issuer' },
         { status: 400 }
       )
     }
 
-    const certifications = await prisma.certification.findMany({
-      where: { talentProfileId: profileId },
-      orderBy: { issueDate: 'desc' }
+    // Validate file size (10MB limit)
+    const maxSize = 10 * 1024 * 1024 // 10MB
+    if (file.size > maxSize) {
+      return NextResponse.json(
+        { error: 'File size must be less than 10MB' },
+        { status: 400 }
+      )
+    }
+
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']
+    if (!allowedTypes.includes(file.type)) {
+      return NextResponse.json(
+        { error: 'File type not supported. Please upload PDF, JPEG, or PNG files' },
+        { status: 400 }
+      )
+    }
+
+    // Check if profile exists
+    const profile = await prisma.talentProfile.findUnique({
+      where: { id: profileId }
     })
 
-    requestLogger.info('Certifications retrieved successfully', {
+    if (!profile) {
+      return NextResponse.json(
+        { error: 'Profile not found' },
+        { status: 404 }
+      )
+    }
+
+    // TODO: Upload file to cloud storage (AWS S3, etc.)
+    // For now, we'll just store the file metadata
+    const fileUrl = `https://storage.example.com/certifications/${profileId}/${file.name}`
+
+    // Create certification record
+    const certification = await prisma.certification.create({
+      data: {
+        name: certificationName,
+        issuer,
+        issueDate: issueDate ? new Date(issueDate) : new Date(),
+        fileUrl,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        profileId
+      }
+    })
+
+    logger.info('Certification uploaded successfully', { 
+      certificationId: certification.id, 
       profileId,
-      count: certifications.length
+      fileName: file.name,
+      fileSize: file.size
     })
 
-    return NextResponse.json({
-      certifications
-    })
+    return NextResponse.json(
+      { 
+        success: true, 
+        certification,
+        message: 'Certification uploaded successfully'
+      },
+      { status: 201 }
+    )
 
   } catch (error) {
-    requestLogger.error('Failed to retrieve certifications', error)
+    logger.error('Failed to upload certification', { error: error instanceof Error ? error.message : 'Unknown error' })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -45,59 +93,31 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/talent/profiles/certifications - Add certification to talent profile
-export async function POST(request: NextRequest) {
-  const requestLogger = logger.child({ 
-    method: 'POST', 
-    path: '/api/talent/profiles/certifications',
-    requestId: crypto.randomUUID()
-  })
-
+// GET /api/talent/profiles/certifications - Get certifications for a profile
+export async function GET(request: NextRequest) {
   try {
-    const body = await request.json()
-    const {
-      talentProfileId,
-      name,
-      issuer,
-      issueDate,
-      expiryDate,
-      credentialId,
-      credentialUrl
-    } = body
+    const { searchParams } = new URL(request.url)
+    const profileId = searchParams.get('profileId')
 
-    if (!talentProfileId || !name || !issuer) {
-      requestLogger.warn('Missing required fields in certification creation')
+    if (!profileId) {
       return NextResponse.json(
-        { error: 'Profile ID, name, and issuer are required' },
+        { error: 'Profile ID is required' },
         { status: 400 }
       )
     }
 
-    const certification = await prisma.certification.create({
-      data: {
-        talentProfileId,
-        name,
-        issuer,
-        issueDate: issueDate ? new Date(issueDate) : new Date(),
-        expiryDate: expiryDate ? new Date(expiryDate) : null,
-        credentialId,
-        credentialUrl
-      }
-    })
-
-    requestLogger.info('Certification created successfully', {
-      certificationId: certification.id,
-      talentProfileId,
-      name
+    const certifications = await prisma.certification.findMany({
+      where: { profileId },
+      orderBy: { issueDate: 'desc' }
     })
 
     return NextResponse.json({
-      message: 'Certification added successfully',
-      certification
+      success: true,
+      certifications
     })
 
   } catch (error) {
-    requestLogger.error('Failed to create certification', error)
+    logger.error('Failed to get certifications', { error: error instanceof Error ? error.message : 'Unknown error' })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
