@@ -14,6 +14,25 @@ global.TransformStream = TransformStream
 // Polyfill for Web APIs needed by Next.js
 require('whatwg-fetch')
 
+// Mock crypto
+global.crypto = {
+  randomUUID: jest.fn(() => 'test-uuid'),
+  getRandomValues: jest.fn((arr) => {
+    for (let i = 0; i < arr.length; i++) {
+      arr[i] = Math.floor(Math.random() * 256)
+    }
+    return arr
+  })
+}
+
+// Mock crypto module
+jest.mock('crypto', () => ({
+  randomBytes: jest.fn(() => Buffer.from('test-iv')),
+  createCipher: jest.fn(),
+  createDecipher: jest.fn(),
+  randomUUID: jest.fn(() => 'test-uuid')
+}))
+
 // Mock Prisma globally
 jest.mock('@/lib/prisma', () => ({
   prisma: {
@@ -25,6 +44,7 @@ jest.mock('@/lib/prisma', () => ({
       update: jest.fn(),
       delete: jest.fn(),
       deleteMany: jest.fn(),
+      count: jest.fn(),
     },
             user: {
           create: jest.fn(),
@@ -110,19 +130,28 @@ jest.mock('@/lib/prisma', () => ({
       update: jest.fn(),
       delete: jest.fn(),
     },
-    escrowPayment: {
-      create: jest.fn(),
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
+            escrowPayment: {
+          create: jest.fn(),
+          findUnique: jest.fn(),
+          findMany: jest.fn(),
+          update: jest.fn(),
+          delete: jest.fn(),
+                 },
+         payment: {
+           create: jest.fn(),
+           findUnique: jest.fn(),
+           findMany: jest.fn(),
+           update: jest.fn(),
+           delete: jest.fn(),
+           count: jest.fn(),
+         },
     transaction: {
       create: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      count: jest.fn(),
     },
     dispute: {
       create: jest.fn(),
@@ -157,6 +186,7 @@ jest.mock('@/lib/prisma', () => ({
           update: jest.fn(),
           delete: jest.fn(),
           deleteMany: jest.fn(),
+          count: jest.fn(),
         },
         user: {
           create: jest.fn(),
@@ -203,6 +233,7 @@ jest.mock('@/lib/prisma', () => ({
           findMany: jest.fn(),
           update: jest.fn(),
           delete: jest.fn(),
+          count: jest.fn(),
         },
         dispute: {
           create: jest.fn(),
@@ -210,6 +241,15 @@ jest.mock('@/lib/prisma', () => ({
           findMany: jest.fn(),
           update: jest.fn(),
           delete: jest.fn(),
+        },
+        transaction: {
+          create: jest.fn(),
+          findUnique: jest.fn(),
+          findFirst: jest.fn(),
+          findMany: jest.fn(),
+          update: jest.fn(),
+          delete: jest.fn(),
+          count: jest.fn(),
         }
       }
       return callback(mockTx)
@@ -433,3 +473,19 @@ jest.mock('stripe', () => {
     },
   }))
 })
+
+// Mock uuid
+jest.mock('uuid', () => ({
+  v4: jest.fn(() => 'test-uuid'),
+  v1: jest.fn(() => 'test-uuid')
+}))
+
+// Mock @sentry/nextjs
+jest.mock('@sentry/nextjs', () => ({
+  captureException: jest.fn(),
+  captureMessage: jest.fn(),
+  setUser: jest.fn(),
+  setTag: jest.fn(),
+  setContext: jest.fn(),
+  init: jest.fn()
+}))

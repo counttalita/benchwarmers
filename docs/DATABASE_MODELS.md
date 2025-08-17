@@ -1,7 +1,7 @@
 # Database Models & Schema
 
 ## Overview
-This document details all database models, relationships, and schema design for the Benchwarmers B2B Influencer Marketplace platform.
+This document details all database models, relationships, and schema design for Talent Brew, a B2B talent marketplace connecting companies with benched professionals to organisations seeking specialised skills.
 
 ## Entity Relationship Diagram
 

@@ -1,4 +1,4 @@
-# Benchwarmers B2B Influencer Marketplace - System Overview
+# Talent Brew - System Overview
 
 ## Table of Contents
 1. [System Architecture](#system-architecture)

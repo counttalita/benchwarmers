@@ -109,8 +109,15 @@ export async function PUT(
     logInfo('Updating talent request', { correlationId, requestId: params.id })
 
     // TODO: Get user from session/auth
-    const userId = request.headers.get('x-user-id') || 'test-user-id'
+    const userId = request.headers.get('x-user-id')
     const companyId = request.headers.get('x-company-id')
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
     
     if (!companyId) {
       return NextResponse.json(
@@ -202,6 +209,83 @@ export async function PUT(
         { status: 400 }
       )
     }
+
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const correlationId = `delete-request-${Date.now()}`
+  
+  try {
+    const requestLogger = logRequest(request)
+    logInfo('Deleting talent request', { correlationId, requestId: params.id })
+
+    // TODO: Get user from session/auth
+    const userId = request.headers.get('x-user-id')
+    const companyId = request.headers.get('x-company-id')
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+    
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'Company ID is required' },
+        { status: 400 }
+      )
+    }
+
+    // Get the existing request
+    const existingRequest = await prisma.talentRequest.findUnique({
+      where: { id: params.id },
+      include: { company: true }
+    })
+
+    if (!existingRequest) {
+      return NextResponse.json(
+        { error: 'Talent request not found' },
+        { status: 404 }
+      )
+    }
+
+    // Check if user can delete this request
+    if (existingRequest.companyId !== companyId) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
+      )
+    }
+
+    // Prevent deleting requests with active matches
+    if (existingRequest.status === 'matching') {
+      return NextResponse.json(
+        { error: 'Cannot delete request with active matches' },
+        { status: 400 }
+      )
+    }
+
+    await prisma.talentRequest.delete({
+      where: { id: params.id }
+    })
+
+    return new NextResponse(null, { status: 204 })
+
+  } catch (error) {
+    logError('Failed to delete talent request', {
+      correlationId,
+      requestId: params.id,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
 
     return NextResponse.json(
       { error: 'Internal server error' },

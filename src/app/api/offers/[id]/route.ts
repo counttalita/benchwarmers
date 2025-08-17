@@ -1,371 +1,285 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { logError, logInfo, createError, parseError } from '@/lib/errors'
-import { v4 as uuidv4 } from 'uuid'
+import { logger } from '@/lib/logger'
+import { getCurrentUser } from '@/lib/auth'
 
-// Validation schemas
-const updateOfferStatusSchema = z.object({
-  status: z.enum(['pending', 'accepted', 'declined', 'countered']),
-  counterOffer: z.object({
-    rate: z.number().positive().optional(),
-    startDate: z.string().transform(str => new Date(str)).optional(),
-    durationWeeks: z.number().positive().optional(),
-    terms: z.string().optional(),
-    message: z.string().optional()
-  }).optional(),
-  declineReason: z.string().optional(),
-  message: z.string().optional()
+const updateOfferSchema = z.object({
+  amount: z.number().min(10, 'Amount must be at least $10').optional(),
+  message: z.string().max(1000, 'Message must be less than 1000 characters').optional(),
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
+  terms: z.string().max(2000, 'Terms must be less than 2000 characters').optional(),
+  status: z.enum(['pending', 'accepted', 'declined', 'expired']).optional()
 })
 
-// GET /api/offers/[id] - Get specific offer details
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const correlationId = uuidv4()
-  
   try {
-    const { id } = params
-    
-    logInfo('Fetching offer details', {
-      correlationId,
-      offerId: id
-    })
+    // Authentication check
+    const user = await getCurrentUser(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
+    const { id } = params
+
+    // Validate UUID
+    if (!z.string().uuid().safeParse(id).success) {
+      return NextResponse.json({ error: 'Invalid offer ID' }, { status: 400 })
+    }
+
+    // Get offer with related data
     const offer = await prisma.offer.findUnique({
       where: { id },
       include: {
-        match: {
+        talentRequest: {
           include: {
-            profile: {
-              select: {
-                id: true,
-                name: true,
-                title: true,
-                rating: true,
-                reviewCount: true,
-                location: true,
-                skills: true
-              }
-            },
-            request: {
-              select: {
-                id: true,
-                title: true,
-                description: true,
-                budgetMin: true,
-                budgetMax: true,
-                durationWeeks: true,
-                requiredSkills: true,
-                startDate: true
-              }
-            }
+            company: true
           }
         },
-        seekerCompany: {
-          select: {
-            id: true,
-            name: true,
-            domain: true
+        talentProfile: {
+          include: {
+            user: true
           }
         },
-        providerCompany: {
-          select: {
-            id: true,
-            name: true,
-            domain: true
-          }
-        },
-        payments: {
-          select: {
-            id: true,
-            amount: true,
-            status: true,
-            createdAt: true
-          }
-        }
+        company: true
       }
     })
 
     if (!offer) {
-      return NextResponse.json({
-        success: false,
-        error: 'Offer not found',
-        correlationId
-      }, { status: 404 })
+      return NextResponse.json({ error: 'Offer not found' }, { status: 404 })
     }
 
-    logInfo('Successfully fetched offer details', {
-      correlationId,
-      offerId: id,
-      status: offer.status
-    })
+    // Check if user has access to this offer
+    const hasAccess = 
+      user.role === 'admin' ||
+      (user.role === 'company' && offer.companyId === user.companyId) ||
+      (user.role === 'talent' && offer.talentProfile.userId === user.id)
+
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
 
     return NextResponse.json({
       success: true,
-      data: offer,
-      correlationId
+      offer: {
+        id: offer.id,
+        amount: offer.amount,
+        message: offer.message,
+        status: offer.status,
+        startDate: offer.startDate,
+        endDate: offer.endDate,
+        terms: offer.terms,
+        expiresAt: offer.expiresAt,
+        createdAt: offer.createdAt,
+        updatedAt: offer.updatedAt,
+        talentRequest: {
+          id: offer.talentRequest.id,
+          title: offer.talentRequest.title,
+          description: offer.talentRequest.description,
+          company: {
+            id: offer.talentRequest.company.id,
+            name: offer.talentRequest.company.name
+          }
+        },
+        talentProfile: {
+          id: offer.talentProfile.id,
+          title: offer.talentProfile.title,
+          user: {
+            id: offer.talentProfile.user.id,
+            name: offer.talentProfile.user.name
+          }
+        },
+        company: {
+          id: offer.company.id,
+          name: offer.company.name
+        }
+      }
     })
 
   } catch (error) {
-    const appError = parseError(error)
-    logError(appError, { correlationId, operation: 'get_offer_details' })
-    
-    return NextResponse.json({
-      success: false,
-      error: 'Failed to fetch offer details',
-      correlationId
-    }, { status: 500 })
+    logger.error(error as Error, 'Failed to get offer')
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// PATCH /api/offers/[id] - Update offer status (accept/decline/counter)
-export async function PATCH(
+export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const correlationId = uuidv4()
-  
   try {
+    // Authentication check
+    const user = await getCurrentUser(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { id } = params
+
+    // Validate UUID
+    if (!z.string().uuid().safeParse(id).success) {
+      return NextResponse.json({ error: 'Invalid offer ID' }, { status: 400 })
+    }
+
     const body = await request.json()
-    
-    logInfo('Updating offer status', {
-      correlationId,
-      offerId: id,
-      requestBody: body
-    })
+    const validatedData = updateOfferSchema.parse(body)
 
-    // Validate request data
-    const validatedData = updateOfferStatusSchema.parse(body)
-
-    // Check if offer exists
-    const existingOffer = await prisma.offer.findUnique({
+    // Get the offer
+    const offer = await prisma.offer.findUnique({
       where: { id },
       include: {
-        match: {
-          include: {
-            request: {
-              select: {
-                companyId: true,
-                title: true
-              }
-            },
-            profile: {
-              select: {
-                companyId: true,
-                name: true
-              }
-            }
-          }
-        }
+        talentProfile: true
       }
     })
 
-    if (!existingOffer) {
-      return NextResponse.json({
-        success: false,
-        error: 'Offer not found',
-        correlationId
-      }, { status: 404 })
+    if (!offer) {
+      return NextResponse.json({ error: 'Offer not found' }, { status: 404 })
     }
 
-    // Check if offer is still pending
-    if (existingOffer.status !== 'pending') {
-      return NextResponse.json({
-        success: false,
-        error: `Cannot update offer with status: ${existingOffer.status}`,
-        correlationId
-      }, { status: 400 })
+    // Check if user can update this offer
+    const canUpdate = 
+      user.role === 'admin' ||
+      (user.role === 'company' && offer.companyId === user.companyId) ||
+      (user.role === 'talent' && offer.talentProfile.userId === user.id)
+
+    if (!canUpdate) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    let updatedOffer
+    // Only allow updates if offer is pending
+    if (offer.status !== 'pending') {
+      return NextResponse.json({ error: 'Cannot update non-pending offer' }, { status: 400 })
+    }
 
-    if (validatedData.status === 'accepted') {
-      // Accept the offer - trigger payment collection
-      updatedOffer = await prisma.offer.update({
-        where: { id },
-        data: {
-          status: 'accepted',
-          updatedAt: new Date()
-        },
-        include: {
-          match: {
-            include: {
-              profile: true,
-              request: true
-            }
+    // Prepare update data
+    const updateData: any = {}
+    
+    if (validatedData.amount !== undefined) updateData.amount = validatedData.amount
+    if (validatedData.message !== undefined) updateData.message = validatedData.message
+    if (validatedData.startDate !== undefined) updateData.startDate = new Date(validatedData.startDate)
+    if (validatedData.endDate !== undefined) updateData.endDate = new Date(validatedData.endDate)
+    if (validatedData.terms !== undefined) updateData.terms = validatedData.terms
+    if (validatedData.status !== undefined) updateData.status = validatedData.status
+
+    // Update the offer
+    const updatedOffer = await prisma.offer.update({
+      where: { id },
+      data: updateData,
+      include: {
+        talentRequest: {
+          include: {
+            company: true
           }
-        }
-      })
-
-      // TODO: Trigger Stripe payment collection
-      // await collectPaymentForOffer(updatedOffer)
-      
-      logInfo('Offer accepted - payment collection triggered', {
-        correlationId,
-        offerId: id,
-        totalAmount: updatedOffer.totalAmount
-      })
-
-    } else if (validatedData.status === 'declined') {
-      // Decline the offer
-      updatedOffer = await prisma.offer.update({
-        where: { id },
-        data: {
-          status: 'declined',
-          updatedAt: new Date()
-        }
-      })
-
-      logInfo('Offer declined', {
-        correlationId,
-        offerId: id,
-        reason: validatedData.declineReason
-      })
-
-    } else if (validatedData.status === 'countered' && validatedData.counterOffer) {
-      // Create counter offer
-      const counterOffer = validatedData.counterOffer
-      
-      // Calculate new totals if rate changed
-      let newTotalAmount = existingOffer.totalAmount
-      let newPlatformFee = existingOffer.platformFee
-      let newProviderAmount = existingOffer.providerAmount
-
-      if (counterOffer.rate) {
-        const durationWeeks = counterOffer.durationWeeks || existingOffer.durationWeeks
-        newTotalAmount = counterOffer.rate * durationWeeks * 40 // Assuming 40 hours/week
-        newPlatformFee = newTotalAmount * 0.15
-        newProviderAmount = newTotalAmount - newPlatformFee
+        },
+        talentProfile: {
+          include: {
+            user: true
+          }
+        },
+        company: true
       }
+    })
 
-      updatedOffer = await prisma.offer.update({
-        where: { id },
-        data: {
-          status: 'countered',
-          rate: counterOffer.rate || existingOffer.rate,
-          startDate: counterOffer.startDate || existingOffer.startDate,
-          durationWeeks: counterOffer.durationWeeks || existingOffer.durationWeeks,
-          terms: counterOffer.terms || existingOffer.terms,
-          totalAmount: newTotalAmount,
-          platformFee: newPlatformFee,
-          providerAmount: newProviderAmount,
-          updatedAt: new Date()
-        }
-      })
-
-      logInfo('Counter offer created', {
-        correlationId,
-        offerId: id,
-        newRate: counterOffer.rate,
-        newTotalAmount
-      })
-    }
-
-    // TODO: Send notifications to relevant parties
-    // await sendOfferStatusNotification(updatedOffer, validatedData.status)
+    logger.info('Offer updated', { offerId: id, userId: user.id })
 
     return NextResponse.json({
       success: true,
-      data: updatedOffer,
-      message: `Offer ${validatedData.status} successfully`,
-      correlationId
+      offer: {
+        id: updatedOffer.id,
+        amount: updatedOffer.amount,
+        message: updatedOffer.message,
+        status: updatedOffer.status,
+        startDate: updatedOffer.startDate,
+        endDate: updatedOffer.endDate,
+        terms: updatedOffer.terms,
+        expiresAt: updatedOffer.expiresAt,
+        createdAt: updatedOffer.createdAt,
+        updatedAt: updatedOffer.updatedAt,
+        talentRequest: {
+          id: updatedOffer.talentRequest.id,
+          title: updatedOffer.talentRequest.title,
+          description: updatedOffer.talentRequest.description,
+          company: {
+            id: updatedOffer.talentRequest.company.id,
+            name: updatedOffer.talentRequest.company.name
+          }
+        },
+        talentProfile: {
+          id: updatedOffer.talentProfile.id,
+          title: updatedOffer.talentProfile.title,
+          user: {
+            id: updatedOffer.talentProfile.user.id,
+            name: updatedOffer.talentProfile.user.name
+          }
+        },
+        company: {
+          id: updatedOffer.company.id,
+          name: updatedOffer.company.name
+        }
+      }
     })
 
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const validationError = createError.validation(
-        'OFFER_UPDATE_VALIDATION_ERROR',
-        'Validation error updating offer',
-        { zodErrors: error.errors, correlationId }
-      )
-      logError(validationError)
-      
-      return NextResponse.json({
-        success: false,
-        error: 'Validation failed',
-        details: error.errors,
-        correlationId
-      }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid request data', details: error.errors }, { status: 400 })
     }
 
-    const appError = parseError(error)
-    logError(appError, { correlationId, operation: 'update_offer_status' })
-    
-    return NextResponse.json({
-      success: false,
-      error: 'Failed to update offer status',
-      correlationId
-    }, { status: 500 })
+    logger.error(error as Error, 'Failed to update offer')
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// DELETE /api/offers/[id] - Cancel/withdraw offer
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const correlationId = uuidv4()
-  
   try {
-    const { id } = params
-    
-    logInfo('Cancelling offer', {
-      correlationId,
-      offerId: id
-    })
+    // Authentication check
+    const user = await getCurrentUser(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-    // Check if offer exists and can be cancelled
-    const existingOffer = await prisma.offer.findUnique({
+    const { id } = params
+
+    // Validate UUID
+    if (!z.string().uuid().safeParse(id).success) {
+      return NextResponse.json({ error: 'Invalid offer ID' }, { status: 400 })
+    }
+
+    // Get the offer
+    const offer = await prisma.offer.findUnique({
       where: { id }
     })
 
-    if (!existingOffer) {
-      return NextResponse.json({
-        success: false,
-        error: 'Offer not found',
-        correlationId
-      }, { status: 404 })
+    if (!offer) {
+      return NextResponse.json({ error: 'Offer not found' }, { status: 404 })
     }
 
-    if (existingOffer.status === 'accepted') {
-      return NextResponse.json({
-        success: false,
-        error: 'Cannot cancel accepted offer',
-        correlationId
-      }, { status: 400 })
+    // Only the company that created the offer can delete it
+    if (user.role !== 'admin' && (user.role !== 'company' || offer.companyId !== user.companyId)) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Soft delete by updating status
-    await prisma.offer.update({
-      where: { id },
-      data: {
-        status: 'declined',
-        updatedAt: new Date()
-      }
+    // Only allow deletion if offer is pending
+    if (offer.status !== 'pending') {
+      return NextResponse.json({ error: 'Cannot delete non-pending offer' }, { status: 400 })
+    }
+
+    // Delete the offer
+    await prisma.offer.delete({
+      where: { id }
     })
 
-    logInfo('Successfully cancelled offer', {
-      correlationId,
-      offerId: id
-    })
+    logger.info('Offer deleted', { offerId: id, userId: user.id })
 
-    return NextResponse.json({
-      success: true,
-      message: 'Offer cancelled successfully',
-      correlationId
-    })
+    return NextResponse.json({ success: true }, { status: 204 })
 
   } catch (error) {
-    const appError = parseError(error)
-    logError(appError, { correlationId, operation: 'cancel_offer' })
-    
-    return NextResponse.json({
-      success: false,
-      error: 'Failed to cancel offer',
-      correlationId
-    }, { status: 500 })
+    logger.error(error as Error, 'Failed to delete offer')
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

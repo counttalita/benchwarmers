@@ -7,11 +7,7 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 
 // POST /api/auth/send-domain-verification
 export async function POST(request: NextRequest) {
-  const requestLogger = logger.child({ 
-    method: 'POST', 
-    path: '/api/auth/send-domain-verification',
-    requestId: crypto.randomUUID()
-  })
+        const requestLogger = logger
 
   try {
     const body = await request.json()

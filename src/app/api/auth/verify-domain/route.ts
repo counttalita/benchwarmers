@@ -4,11 +4,7 @@ import { logger } from '@/lib/logger'
 
 // GET /api/auth/verify-domain?token=<token>
 export async function GET(request: NextRequest) {
-  const requestLogger = logger.child({ 
-    method: 'GET', 
-    path: '/api/auth/verify-domain',
-    requestId: crypto.randomUUID()
-  })
+        const requestLogger = logger
 
   try {
     const { searchParams } = new URL(request.url)
@@ -61,11 +57,7 @@ export async function GET(request: NextRequest) {
 
 // POST /api/auth/verify-domain
 export async function POST(request: NextRequest) {
-  const requestLogger = logger.child({ 
-    method: 'POST', 
-    path: '/api/auth/verify-domain',
-    requestId: crypto.randomUUID()
-  })
+        const requestLogger = logger
 
   try {
     const body = await request.json()

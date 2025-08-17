@@ -1,5 +1,4 @@
 import Pusher from 'pusher'
-import PusherClient from 'pusher-js'
 
 // Server-side Pusher instance
 export const pusher = new Pusher({
@@ -9,14 +8,6 @@ export const pusher = new Pusher({
   cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'us2',
   useTLS: true,
 })
-
-// Client-side Pusher instance
-export const pusherClient = new PusherClient(
-  process.env.NEXT_PUBLIC_PUSHER_KEY || 'test-key',
-  {
-    cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'us2',
-  }
-)
 
 // Channel names
 export const CHANNELS = {

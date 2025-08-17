@@ -1,72 +1,117 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { escrowPaymentService } from '@/lib/payments/escrow'
 import { logger } from '@/lib/logger'
+import Stripe from 'stripe'
 
-// POST /api/payments/process - Process payment and hold in escrow
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+  apiVersion: '2023-10-16'
+})
+
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const { escrowPaymentId, paymentMethodId } = body
+  const requestLogger = logger
 
-    if (!escrowPaymentId || !paymentMethodId) {
+  try {
+    const userId = request.headers.get('x-user-id')
+    if (!userId) {
       return NextResponse.json(
-        { error: 'Escrow payment ID and payment method ID are required' },
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    const body = await request.json()
+    const { engagementId, amount, milestoneId, paymentMethodId } = body
+
+    if (!engagementId || !amount || !milestoneId || !paymentMethodId) {
+      return NextResponse.json(
+        { error: 'Engagement ID, amount, milestone ID, and payment method ID are required' },
         { status: 400 }
       )
     }
 
-    // Get escrow payment with engagement details
-    const escrowPayment = await prisma.escrowPayment.findUnique({
-      where: { id: escrowPaymentId },
-      include: {
-        engagement: {
-          include: {
-            seekerCompany: true,
-            providerCompany: true,
-          },
-        },
-      },
+    if (amount <= 0) {
+      return NextResponse.json(
+        { error: 'Amount must be greater than 0' },
+        { status: 400 }
+      )
+    }
+
+    // Validate engagement exists and is active
+    const engagement = await prisma.engagement.findUnique({
+      where: { id: engagementId }
     })
 
-    if (!escrowPayment) {
+    if (!engagement) {
       return NextResponse.json(
-        { error: 'Escrow payment not found' },
+        { error: 'Engagement not found' },
         { status: 404 }
       )
     }
 
-    if (escrowPayment.status !== 'pending') {
+    if (engagement.status !== 'active') {
       return NextResponse.json(
-        { error: 'Payment already processed' },
+        { error: 'Engagement must be active for payment' },
         { status: 400 }
       )
     }
 
-    // Process payment and hold in escrow
-    const processedPayment = await escrowPaymentService.processPayment(
-      escrowPaymentId,
-      escrowPayment.engagement.seekerCompanyId,
-      escrowPayment.engagement.providerCompanyId,
-      paymentMethodId
-    )
+    // Create Stripe payment intent
+    let paymentIntent
+    try {
+      paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(amount * 100), // Convert to cents
+        currency: 'usd',
+        payment_method: paymentMethodId,
+        confirm: true,
+        return_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/payments/success`
+      })
+    } catch (stripeError) {
+      return NextResponse.json(
+        { error: 'Payment failed' },
+        { status: 400 }
+      )
+    }
 
-    logger.info('Payment processed and held in escrow', {
-      escrowPaymentId,
-      engagementId: escrowPayment.engagementId,
-      amount: escrowPayment.amount,
+    if (paymentIntent.status !== 'succeeded') {
+      return NextResponse.json(
+        { error: 'Payment failed' },
+        { status: 400 }
+      )
+    }
+
+    // Create transaction record
+    const transaction = await prisma.transaction.create({
+      data: {
+        engagementId,
+        amount,
+        currency: 'usd',
+        status: 'completed',
+        type: 'milestone',
+        stripePaymentIntentId: paymentIntent.id,
+        milestoneId,
+        processedAt: new Date()
+      }
+    })
+
+    requestLogger.info('Payment processed successfully', {
+      transactionId: transaction.id,
+      engagementId,
+      amount,
+      stripePaymentIntentId: paymentIntent.id
     })
 
     return NextResponse.json({
-      success: true,
-      escrowPayment: processedPayment,
       message: 'Payment processed successfully',
+      transaction: {
+        id: transaction.id,
+        status: transaction.status,
+        amount: transaction.amount,
+        stripePaymentIntentId: transaction.stripePaymentIntentId
+      }
     })
 
   } catch (error) {
-    logger.error('Failed to process payment', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+    requestLogger.error(error as Error, 500)
     return NextResponse.json(
       { error: 'Failed to process payment' },
       { status: 500 }

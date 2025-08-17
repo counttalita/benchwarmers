@@ -1,99 +1,113 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { escrowPaymentService } from '@/lib/payments/escrow'
 import { logger } from '@/lib/logger'
+import Stripe from 'stripe'
 
-// POST /api/payments/release - Release payment to provider
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+  apiVersion: '2023-10-16'
+})
+
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const { escrowPaymentId, userId } = body
+  const requestLogger = logger
 
-    if (!escrowPaymentId || !userId) {
+  try {
+    const userId = request.headers.get('x-user-id')
+    if (!userId) {
       return NextResponse.json(
-        { error: 'Escrow payment ID and user ID are required' },
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    const body = await request.json()
+    const { transactionId, providerAccountId } = body
+
+    if (!transactionId || !providerAccountId) {
+      return NextResponse.json(
+        { error: 'Transaction ID and provider account ID are required' },
         { status: 400 }
       )
     }
 
-    // Get escrow payment with engagement details
-    const escrowPayment = await prisma.escrowPayment.findUnique({
-      where: { id: escrowPaymentId },
-      include: {
-        engagement: {
-          include: {
-            seekerCompany: true,
-            providerCompany: true,
-            participants: true,
-          },
-        },
-      },
+    // Get transaction and validate it's in escrowed status
+    const transaction = await prisma.transaction.findUnique({
+      where: { id: transactionId }
     })
 
-    if (!escrowPayment) {
+    if (!transaction) {
       return NextResponse.json(
-        { error: 'Escrow payment not found' },
+        { error: 'Transaction not found' },
         { status: 404 }
       )
     }
 
-    if (escrowPayment.status !== 'held') {
+    if (transaction.status !== 'escrowed') {
       return NextResponse.json(
-        { error: 'Payment not held in escrow' },
+        { error: 'Transaction is not in escrowed status' },
         { status: 400 }
       )
     }
 
-    // Check if user is authorized to release payment
-    const isSeekerParticipant = escrowPayment.engagement.participants.some(
-      p => p.userId === userId && p.role === 'seeker'
-    )
+    // Calculate platform fee (15%)
+    const platformFee = Math.round(transaction.amount * 0.15)
+    const providerAmount = transaction.amount - platformFee
 
-    if (!isSeekerParticipant) {
+    // Create Stripe transfer to provider
+    let transfer
+    try {
+      transfer = await stripe.transfers.create({
+        amount: Math.round(providerAmount * 100), // Convert to cents
+        currency: 'usd',
+        destination: providerAccountId,
+        description: `Payment for engagement ${transaction.engagementId}`,
+        metadata: {
+          transactionId: transaction.id,
+          engagementId: transaction.engagementId,
+          platformFee: platformFee.toString()
+        }
+      })
+    } catch (stripeError) {
       return NextResponse.json(
-        { error: 'Only the seeker can release payment' },
-        { status: 403 }
+        { error: 'Failed to create transfer' },
+        { status: 500 }
       )
     }
 
-    // Check if engagement is completed
-    if (escrowPayment.engagement.status !== 'completed') {
-      return NextResponse.json(
-        { error: 'Engagement must be completed to release payment' },
-        { status: 400 }
-      )
-    }
-
-    // Release payment to provider
-    const releasedPayment = await escrowPaymentService.releasePayment(escrowPaymentId)
-
-    // Update engagement payment status
-    await prisma.engagement.update({
-      where: { id: escrowPayment.engagementId },
+    // Update transaction status
+    const updatedTransaction = await prisma.transaction.update({
+      where: { id: transactionId },
       data: {
-        paymentStatus: 'released',
-        updatedAt: new Date(),
-      },
+        status: 'released',
+        releasedAt: new Date(),
+        stripeTransferId: transfer.id,
+        platformFee,
+        providerAmount
+      }
     })
 
-    logger.info('Payment released to provider', {
-      escrowPaymentId,
-      engagementId: escrowPayment.engagementId,
-      providerAmount: escrowPayment.providerAmount,
-      platformFee: escrowPayment.platformFee,
-      releasedBy: userId,
+    requestLogger.info('Payment released successfully', {
+      transactionId: transaction.id,
+      engagementId: transaction.engagementId,
+      amount: transaction.amount,
+      platformFee,
+      providerAmount,
+      stripeTransferId: transfer.id
     })
 
     return NextResponse.json({
-      success: true,
-      escrowPayment: releasedPayment,
       message: 'Payment released successfully',
+      transaction: {
+        id: updatedTransaction.id,
+        status: updatedTransaction.status,
+        amount: updatedTransaction.amount,
+        platformFee: updatedTransaction.platformFee,
+        providerAmount: updatedTransaction.providerAmount,
+        stripeTransferId: updatedTransaction.stripeTransferId
+      }
     })
 
   } catch (error) {
-    logger.error('Failed to release payment', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+    requestLogger.error(error as Error, 500)
     return NextResponse.json(
       { error: 'Failed to release payment' },
       { status: 500 }

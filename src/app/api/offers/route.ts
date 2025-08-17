@@ -1,313 +1,254 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { logError, logInfo, createError, parseError } from '@/lib/errors'
-import { v4 as uuidv4 } from 'uuid'
+import { logger } from '@/lib/logger'
+import { getCurrentUser } from '@/lib/auth'
 
-// Validation schemas
 const createOfferSchema = z.object({
-  matchId: z.string().min(1, 'Match ID is required'),
-  rate: z.number().positive('Rate must be positive'),
-  currency: z.string().default('USD'),
-  startDate: z.string().transform(str => new Date(str)),
-  durationWeeks: z.number().positive('Duration must be positive'),
-  terms: z.string().optional(),
-  totalAmount: z.number().positive('Total amount must be positive'),
-  platformFee: z.number().min(0, 'Platform fee cannot be negative'),
-  providerAmount: z.number().positive('Provider amount must be positive')
+  talentRequestId: z.string().uuid(),
+  talentProfileId: z.string().uuid(),
+  amount: z.number().min(10, 'Amount must be at least $10'),
+  message: z.string().max(1000, 'Message must be less than 1000 characters').optional(),
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
+  terms: z.string().max(2000, 'Terms must be less than 2000 characters').optional()
 })
 
-// GET /api/offers - Get all offers with filtering
-export async function GET(request: NextRequest) {
-  const correlationId = uuidv4()
+const listOffersSchema = z.object({
+  status: z.enum(['pending', 'accepted', 'declined', 'expired']).optional(),
+  talentRequestId: z.string().uuid().optional(),
+  talentProfileId: z.string().uuid().optional(),
+  page: z.number().min(1).optional().default(1),
+  limit: z.number().min(1).max(100).optional().default(20)
+})
 
+export async function POST(request: NextRequest) {
   try {
+    // Authentication check
+    const user = await getCurrentUser(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Only companies can create offers
+    if (user.role !== 'company') {
+      return NextResponse.json({ error: 'Only companies can create offers' }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const validatedData = createOfferSchema.parse(body)
+
+    // Verify talent request exists and belongs to user's company
+    const talentRequest = await prisma.talentRequest.findUnique({
+      where: { id: validatedData.talentRequestId },
+      include: { company: true }
+    })
+
+    if (!talentRequest) {
+      return NextResponse.json({ error: 'Talent request not found' }, { status: 404 })
+    }
+
+    if (talentRequest.companyId !== user.companyId) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    // Verify talent profile exists
+    const talentProfile = await prisma.talentProfile.findUnique({
+      where: { id: validatedData.talentProfileId }
+    })
+
+    if (!talentProfile) {
+      return NextResponse.json({ error: 'Talent profile not found' }, { status: 404 })
+    }
+
+    // Check if offer already exists
+    const existingOffer = await prisma.offer.findFirst({
+      where: {
+        talentRequestId: validatedData.talentRequestId,
+        talentProfileId: validatedData.talentProfileId,
+        status: { in: ['pending', 'accepted'] }
+      }
+    })
+
+    if (existingOffer) {
+      return NextResponse.json({ error: 'Offer already exists for this match' }, { status: 400 })
+    }
+
+    // Create the offer
+    const offer = await prisma.offer.create({
+      data: {
+        talentRequestId: validatedData.talentRequestId,
+        talentProfileId: validatedData.talentProfileId,
+        companyId: user.companyId!,
+        amount: validatedData.amount,
+        message: validatedData.message,
+        startDate: validatedData.startDate ? new Date(validatedData.startDate) : null,
+        endDate: validatedData.endDate ? new Date(validatedData.endDate) : null,
+        terms: validatedData.terms,
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+      },
+      include: {
+        talentRequest: true,
+        talentProfile: {
+          include: {
+            user: true
+          }
+        },
+        company: true
+      }
+    })
+
+    logger.info('Offer created', { offerId: offer.id, companyId: user.companyId })
+
+    return NextResponse.json({
+      success: true,
+      offer: {
+        id: offer.id,
+        amount: offer.amount,
+        message: offer.message,
+        status: offer.status,
+        expiresAt: offer.expiresAt,
+        createdAt: offer.createdAt,
+        talentRequest: {
+          id: offer.talentRequest.id,
+          title: offer.talentRequest.title
+        },
+        talentProfile: {
+          id: offer.talentProfile.id,
+          title: offer.talentProfile.title,
+          user: {
+            id: offer.talentProfile.user.id,
+            name: offer.talentProfile.user.name
+          }
+        },
+        company: {
+          id: offer.company.id,
+          name: offer.company.name
+        }
+      }
+    }, { status: 201 })
+
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Invalid request data', details: error.errors }, { status: 400 })
+    }
+
+    logger.error(error as Error, 'Failed to create offer')
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    // Authentication check
+    const user = await getCurrentUser(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
-    const matchId = searchParams.get('matchId')
-    const seekerCompanyId = searchParams.get('seekerCompanyId')
-    const providerCompanyId = searchParams.get('providerCompanyId')
-    const status = searchParams.get('status')
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
-    const offset = (page - 1) * limit
-
-    // Build where clause for filtering
-    const where: any = {}
-
-    if (matchId) {
-      where.matchId = matchId
+    const query = Object.fromEntries(searchParams.entries())
+    
+    // Convert string values to appropriate types
+    const parsedQuery = {
+      ...query,
+      page: query.page ? parseInt(query.page) : 1,
+      limit: query.limit ? parseInt(query.limit) : 20
     }
 
-    if (seekerCompanyId) {
-      where.seekerCompanyId = seekerCompanyId
+    const validatedQuery = listOffersSchema.parse(parsedQuery)
+
+    // Build where clause based on user role
+    let whereClause: any = {}
+
+    if (user.role === 'company') {
+      whereClause.companyId = user.companyId
+    } else if (user.role === 'talent') {
+      whereClause.talentProfile = {
+        userId: user.id
+      }
     }
 
-    if (providerCompanyId) {
-      where.providerCompanyId = providerCompanyId
+    if (validatedQuery.status) {
+      whereClause.status = validatedQuery.status
     }
 
-    if (status) {
-      where.status = status
+    if (validatedQuery.talentRequestId) {
+      whereClause.talentRequestId = validatedQuery.talentRequestId
+    }
+
+    if (validatedQuery.talentProfileId) {
+      whereClause.talentProfileId = validatedQuery.talentProfileId
     }
 
     // Get offers with pagination
     const [offers, total] = await Promise.all([
       prisma.offer.findMany({
-        where,
+        where: whereClause,
         include: {
-          match: {
-            include: {
-              profile: {
+          talentRequest: {
+            select: {
+              id: true,
+              title: true,
+              description: true
+            }
+          },
+          talentProfile: {
+            select: {
+              id: true,
+              title: true,
+              user: {
                 select: {
                   id: true,
-                  name: true,
-                  title: true,
-                  rating: true,
-                  reviewCount: true,
-                  location: true
-                }
-              },
-              request: {
-                select: {
-                  id: true,
-                  title: true,
-                  description: true,
-                  budgetMin: true,
-                  budgetMax: true,
-                  durationWeeks: true
+                  name: true
                 }
               }
             }
           },
-          seekerCompany: {
+          company: {
             select: {
               id: true,
-              name: true,
-              domain: true
-            }
-          },
-          providerCompany: {
-            select: {
-              id: true,
-              name: true,
-              domain: true
+              name: true
             }
           }
         },
-        orderBy: {
-          createdAt: 'desc'
-        },
-        skip: offset,
-        take: limit
+        orderBy: { createdAt: 'desc' },
+        skip: (validatedQuery.page - 1) * validatedQuery.limit,
+        take: validatedQuery.limit
       }),
-      prisma.offer.count({ where })
+      prisma.offer.count({ where: whereClause })
     ])
 
-    logInfo('Offers retrieved successfully', {
-      correlationId,
-      count: offers.length,
-      total,
-      page,
-      limit,
-      filters: { matchId, seekerCompanyId, providerCompanyId, status }
-    })
+    const totalPages = Math.ceil(total / validatedQuery.limit)
 
     return NextResponse.json({
       success: true,
-      data: offers,
+      offers: offers.map(offer => ({
+        id: offer.id,
+        amount: offer.amount,
+        message: offer.message,
+        status: offer.status,
+        expiresAt: offer.expiresAt,
+        createdAt: offer.createdAt,
+        talentRequest: offer.talentRequest,
+        talentProfile: offer.talentProfile,
+        company: offer.company
+      })),
       pagination: {
-        page,
-        limit,
+        page: validatedQuery.page,
+        limit: validatedQuery.limit,
         total,
-        totalPages: Math.ceil(total / limit)
-      },
-      correlationId
-    })
-
-  } catch (error) {
-    const appError = parseError(error)
-    logError(appError, { correlationId, operation: 'get_offers' })
-    return NextResponse.json(
-      { 
-        success: false,
-        error: 'Failed to retrieve offers', 
-        correlationId 
-      },
-      { status: 500 }
-    )
-  }
-}
-
-// POST /api/offers - Create new offer
-export async function POST(request: NextRequest) {
-  const correlationId = uuidv4()
-
-  try {
-    const body = await request.json()
-    
-    logInfo('Creating new offer', {
-      correlationId,
-      requestBody: body
-    })
-
-    // Validate request data
-    const validatedData = createOfferSchema.parse(body)
-
-    // Validate match exists and get related data
-    const match = await prisma.match.findUnique({
-      where: { id: validatedData.matchId },
-      include: {
-        profile: {
-          select: {
-            id: true,
-            companyId: true,
-            name: true
-          }
-        },
-        request: {
-          select: {
-            id: true,
-            companyId: true,
-            title: true,
-            budgetMin: true,
-            budgetMax: true
-          }
-        }
+        totalPages
       }
-    })
-
-    if (!match) {
-      return NextResponse.json(
-        { 
-          success: false,
-          error: 'Match not found',
-          correlationId 
-        },
-        { status: 404 }
-      )
-    }
-
-    // Check if offer already exists for this match
-    const existingOffer = await prisma.offer.findFirst({
-      where: {
-        matchId: validatedData.matchId
-      }
-    })
-
-    if (existingOffer) {
-      return NextResponse.json(
-        { 
-          success: false,
-          error: 'Offer already exists for this match',
-          correlationId 
-        },
-        { status: 409 }
-      )
-    }
-
-    // Calculate platform fee (15% as per requirements)
-    const platformFeeRate = 0.15
-    const calculatedPlatformFee = validatedData.totalAmount * platformFeeRate
-    const calculatedProviderAmount = validatedData.totalAmount - calculatedPlatformFee
-
-    // Create offer
-    const offer = await prisma.offer.create({
-      data: {
-        matchId: validatedData.matchId,
-        seekerCompanyId: match.request.companyId,
-        providerCompanyId: match.profile.companyId,
-        rate: validatedData.rate,
-        currency: validatedData.currency,
-        startDate: validatedData.startDate,
-        durationWeeks: validatedData.durationWeeks,
-        terms: validatedData.terms,
-        totalAmount: validatedData.totalAmount,
-        platformFee: calculatedPlatformFee,
-        providerAmount: calculatedProviderAmount,
-        status: 'pending'
-      },
-      include: {
-        match: {
-          include: {
-            profile: {
-              select: {
-                id: true,
-                name: true,
-                title: true,
-                rating: true,
-                reviewCount: true
-              }
-            },
-            request: {
-              select: {
-                id: true,
-                title: true,
-                description: true,
-                budgetMin: true,
-                budgetMax: true
-              }
-            }
-          }
-        },
-        seekerCompany: {
-          select: {
-            id: true,
-            name: true,
-            domain: true
-          }
-        },
-        providerCompany: {
-          select: {
-            id: true,
-            name: true,
-            domain: true
-          }
-        }
-      }
-    })
-
-    logInfo('Offer created successfully', {
-      correlationId,
-      offerId: offer.id,
-      matchId: validatedData.matchId,
-      totalAmount: validatedData.totalAmount,
-      platformFee: calculatedPlatformFee
-    })
-
-    return NextResponse.json({
-      success: true,
-      data: offer,
-      message: 'Offer created successfully',
-      correlationId
     })
 
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const validationError = createError.validation(
-        'OFFER_VALIDATION_ERROR',
-        'Validation error creating offer',
-        { zodErrors: error.errors, correlationId }
-      )
-      logError(validationError)
-      
-      return NextResponse.json({
-        success: false,
-        error: 'Validation failed',
-        details: error.errors,
-        correlationId
-      }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid query parameters', details: error.errors }, { status: 400 })
     }
 
-    const appError = parseError(error)
-    logError(appError, { correlationId, operation: 'create_offer' })
-    
-    return NextResponse.json(
-      { 
-        success: false,
-        error: 'Failed to create offer',
-        correlationId 
-      },
-      { status: 500 }
-    )
+    logger.error(error as Error, 'Failed to list offers')
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

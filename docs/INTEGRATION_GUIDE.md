@@ -1,7 +1,7 @@
 # Integration Guide
 
 ## Overview
-This document provides comprehensive integration guidance for external services and APIs used in the Benchwarmers B2B Influencer Marketplace platform.
+This document provides comprehensive integration guidance for external services and APIs used in Talent Brew, a B2B talent marketplace connecting companies with benched professionals to organisations seeking specialised skills.
 
 ## Table of Contents
 1. [DocuSign E-signature Integration](#docusign-e-signature-integration)

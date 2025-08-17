@@ -43,8 +43,15 @@ export async function POST(request: NextRequest) {
     logInfo('Creating talent request', { correlationId })
 
     // TODO: Get user from session/auth
-    const userId = request.headers.get('x-user-id') || 'test-user-id'
+    const userId = request.headers.get('x-user-id')
     const companyId = request.headers.get('x-company-id')
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
     
     if (!companyId) {
       return NextResponse.json(

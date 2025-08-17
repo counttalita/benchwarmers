@@ -39,7 +39,7 @@ const customJestConfig = {
     '^.+\\.(ts|tsx)$': ['babel-jest', { presets: ['next/babel'] }]
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(next|@next)/)'
+    'node_modules/(?!(next|@next|uuid|@sentry)/)'
   ]
 }
 

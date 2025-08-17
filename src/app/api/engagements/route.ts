@@ -1,366 +1,304 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { logError, logInfo, createError, parseError } from '@/lib/errors'
-import { v4 as uuidv4 } from 'uuid'
+import { logger } from '@/lib/logger'
+import { getCurrentUser } from '@/lib/auth'
 
-// GET /api/engagements - Get engagements with filtering
-export async function GET(request: NextRequest) {
-  const correlationId = uuidv4()
+const createEngagementSchema = z.object({
+  offerId: z.string().uuid(),
+  startDate: z.string().datetime(),
+  endDate: z.string().datetime().optional(),
+  milestones: z.array(z.object({
+    title: z.string().min(1, 'Milestone title is required'),
+    description: z.string().optional(),
+    dueDate: z.string().datetime(),
+    amount: z.number().min(1, 'Milestone amount must be at least $1')
+  })).optional()
+})
 
+const listEngagementsSchema = z.object({
+  status: z.enum(['active', 'completed', 'cancelled', 'disputed']).optional(),
+  companyId: z.string().uuid().optional(),
+  talentProfileId: z.string().uuid().optional(),
+  page: z.number().min(1).optional().default(1),
+  limit: z.number().min(1).max(100).optional().default(20)
+})
+
+export async function POST(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const talentId = searchParams.get('talentId')
-    const companyId = searchParams.get('companyId')
-    const status = searchParams.get('status')
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
-    const offset = (page - 1) * limit
+    // Authentication check
+    const user = await getCurrentUser(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-    // Build where clause for filtering
-    const where: any = {}
+    const body = await request.json()
+    const validatedData = createEngagementSchema.parse(body)
 
-    if (talentId) {
-      where.offer = {
-        match: {
-          profileId: talentId
+    // Verify offer exists and is accepted
+    const offer = await prisma.offer.findUnique({
+      where: { id: validatedData.offerId },
+      include: {
+        talentRequest: {
+          include: {
+            company: true
+          }
+        },
+        talentProfile: {
+          include: {
+            user: true
+          }
+        },
+        company: true
+      }
+    })
+
+    if (!offer) {
+      return NextResponse.json({ error: 'Offer not found' }, { status: 404 })
+    }
+
+    if (offer.status !== 'accepted') {
+      return NextResponse.json({ error: 'Offer must be accepted to create engagement' }, { status: 400 })
+    }
+
+    // Verify user belongs to the company that created the offer
+    if (user.role !== 'admin' && (user.role !== 'company' || offer.companyId !== user.companyId)) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    // Check if engagement already exists for this offer
+    const existingEngagement = await prisma.engagement.findFirst({
+      where: { offerId: validatedData.offerId }
+    })
+
+    if (existingEngagement) {
+      return NextResponse.json({ error: 'Engagement already exists for this offer' }, { status: 400 })
+    }
+
+    // Create engagement
+    const engagement = await prisma.engagement.create({
+      data: {
+        offerId: validatedData.offerId,
+        companyId: offer.companyId,
+        talentProfileId: offer.talentProfileId,
+        talentRequestId: offer.talentRequestId,
+        startDate: new Date(validatedData.startDate),
+        endDate: validatedData.endDate ? new Date(validatedData.endDate) : null,
+        status: 'active',
+        totalAmount: offer.amount,
+        platformFee: offer.amount * 0.15, // 15% platform fee
+        providerAmount: offer.amount * 0.85 // 85% to provider
+      },
+      include: {
+        offer: {
+          include: {
+            talentRequest: true,
+            talentProfile: {
+              include: {
+                user: true
+              }
+            },
+            company: true
+          }
         }
       }
+    })
+
+    // Create milestones if provided
+    if (validatedData.milestones && validatedData.milestones.length > 0) {
+      const milestones = await Promise.all(
+        validatedData.milestones.map(milestone =>
+          prisma.milestone.create({
+            data: {
+              engagementId: engagement.id,
+              title: milestone.title,
+              description: milestone.description,
+              dueDate: new Date(milestone.dueDate),
+              amount: milestone.amount,
+              status: 'pending'
+            }
+          })
+        )
+      )
+
+      logger.info('Engagement created with milestones', { 
+        engagementId: engagement.id, 
+        milestoneCount: milestones.length 
+      })
     }
 
-    if (companyId) {
-      where.offer = {
-        ...where.offer,
-        OR: [
-          { seekerCompanyId: companyId },
-          { providerCompanyId: companyId }
-        ]
+    logger.info('Engagement created', { engagementId: engagement.id, companyId: user.companyId })
+
+    return NextResponse.json({
+      success: true,
+      engagement: {
+        id: engagement.id,
+        status: engagement.status,
+        startDate: engagement.startDate,
+        endDate: engagement.endDate,
+        totalAmount: engagement.totalAmount,
+        platformFee: engagement.platformFee,
+        providerAmount: engagement.providerAmount,
+        createdAt: engagement.createdAt,
+        offer: {
+          id: engagement.offer.id,
+          amount: engagement.offer.amount,
+          message: engagement.offer.message,
+          talentRequest: {
+            id: engagement.offer.talentRequest.id,
+            title: engagement.offer.talentRequest.title
+          },
+          talentProfile: {
+            id: engagement.offer.talentProfile.id,
+            title: engagement.offer.talentProfile.title,
+            user: {
+              id: engagement.offer.talentProfile.user.id,
+              name: engagement.offer.talentProfile.user.name
+            }
+          },
+          company: {
+            id: engagement.offer.company.id,
+            name: engagement.offer.company.name
+          }
+        }
+      }
+    }, { status: 201 })
+
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Invalid request data', details: error.errors }, { status: 400 })
+    }
+
+    logger.error(error as Error, 'Failed to create engagement')
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    // Authentication check
+    const user = await getCurrentUser(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const query = Object.fromEntries(searchParams.entries())
+    
+    // Convert string values to appropriate types
+    const parsedQuery = {
+      ...query,
+      page: query.page ? parseInt(query.page) : 1,
+      limit: query.limit ? parseInt(query.limit) : 20
+    }
+
+    const validatedQuery = listEngagementsSchema.parse(parsedQuery)
+
+    // Build where clause based on user role
+    let whereClause: any = {}
+
+    if (user.role === 'company') {
+      whereClause.companyId = user.companyId
+    } else if (user.role === 'talent') {
+      whereClause.talentProfile = {
+        userId: user.id
       }
     }
 
-    if (status) {
-      where.status = status
+    if (validatedQuery.status) {
+      whereClause.status = validatedQuery.status
+    }
+
+    if (validatedQuery.companyId) {
+      whereClause.companyId = validatedQuery.companyId
+    }
+
+    if (validatedQuery.talentProfileId) {
+      whereClause.talentProfileId = validatedQuery.talentProfileId
     }
 
     // Get engagements with pagination
     const [engagements, total] = await Promise.all([
       prisma.engagement.findMany({
-        where,
+        where: whereClause,
         include: {
           offer: {
             include: {
-              match: {
-                include: {
-                  profile: {
+              talentRequest: {
+                select: {
+                  id: true,
+                  title: true,
+                  description: true
+                }
+              },
+              talentProfile: {
+                select: {
+                  id: true,
+                  title: true,
+                  user: {
                     select: {
                       id: true,
-                      name: true,
-                      title: true,
-                      rating: true,
-                      reviewCount: true
-                    }
-                  },
-                  request: {
-                    select: {
-                      id: true,
-                      title: true,
-                      description: true,
-                      budgetMin: true,
-                      budgetMax: true,
-                      durationWeeks: true
+                      name: true
                     }
                   }
                 }
               },
-              seekerCompany: {
+              company: {
                 select: {
                   id: true,
-                  name: true,
-                  domain: true
-                }
-              },
-              providerCompany: {
-                select: {
-                  id: true,
-                  name: true,
-                  domain: true
-                }
-              },
-              payments: {
-                select: {
-                  id: true,
-                  amount: true,
-                  status: true,
-                  createdAt: true
-                },
-                orderBy: {
-                  createdAt: 'desc'
+                  name: true
                 }
               }
             }
           },
-          reviews: {
+          milestones: {
             select: {
               id: true,
-              rating: true,
-              comment: true,
-              createdAt: true
+              title: true,
+              status: true,
+              amount: true,
+              dueDate: true
             }
           }
         },
-        orderBy: {
-          createdAt: 'desc'
-        },
-        skip: offset,
-        take: limit
+        orderBy: { createdAt: 'desc' },
+        skip: (validatedQuery.page - 1) * validatedQuery.limit,
+        take: validatedQuery.limit
       }),
-      prisma.engagement.count({ where })
+      prisma.engagement.count({ where: whereClause })
     ])
 
-    logInfo('Engagements retrieved successfully', {
-      correlationId,
-      count: engagements.length,
-      total,
-      page,
-      limit,
-      filters: { talentId, companyId, status }
-    })
+    const totalPages = Math.ceil(total / validatedQuery.limit)
 
     return NextResponse.json({
       success: true,
-      data: engagements,
+      engagements: engagements.map(engagement => ({
+        id: engagement.id,
+        status: engagement.status,
+        startDate: engagement.startDate,
+        endDate: engagement.endDate,
+        totalAmount: engagement.totalAmount,
+        platformFee: engagement.platformFee,
+        providerAmount: engagement.providerAmount,
+        createdAt: engagement.createdAt,
+        updatedAt: engagement.updatedAt,
+        offer: engagement.offer,
+        milestones: engagement.milestones
+      })),
       pagination: {
-        page,
-        limit,
+        page: validatedQuery.page,
+        limit: validatedQuery.limit,
         total,
-        totalPages: Math.ceil(total / limit)
-      },
-      correlationId
-    })
-
-  } catch (error) {
-    const appError = parseError(error)
-    logError(appError, { correlationId, operation: 'get_engagements' })
-    return NextResponse.json(
-      { 
-        success: false,
-        error: 'Failed to retrieve engagements',
-        correlationId 
-      },
-      { status: 500 }
-    )
-  }
-}
-
-// Validation schemas
-const updateEngagementSchema = z.object({
-  action: z.enum(['complete', 'terminate', 'dispute']),
-  totalHours: z.number().positive().optional(),
-  completionNotes: z.string().optional(),
-  disputeReason: z.string().optional()
-})
-
-// POST /api/engagements - Update engagement status
-export async function POST(request: NextRequest) {
-  const correlationId = uuidv4()
-
-  try {
-    const body = await request.json()
-    
-    logInfo('Updating engagement status', {
-      correlationId,
-      requestBody: body
-    })
-
-    // Validate request data
-    const validatedData = updateEngagementSchema.parse(body)
-    const { engagementId } = body
-
-    if (!engagementId) {
-      return NextResponse.json({
-        success: false,
-        error: 'Engagement ID is required',
-        correlationId
-      }, { status: 400 })
-    }
-
-    // Validate engagement exists
-    const engagement = await prisma.engagement.findUnique({
-      where: { id: engagementId },
-      include: {
-        offer: {
-          include: {
-            match: {
-              include: {
-                profile: true,
-                request: true
-              }
-            }
-          }
-        }
+        totalPages
       }
-    })
-
-    if (!engagement) {
-      return NextResponse.json({
-        success: false,
-        error: 'Engagement not found',
-        correlationId
-      }, { status: 404 })
-    }
-
-    let updatedEngagement
-
-    switch (validatedData.action) {
-      case 'complete':
-        if (engagement.status !== 'active') {
-          return NextResponse.json({
-            success: false,
-            error: 'Engagement must be active to complete',
-            correlationId
-          }, { status: 400 })
-        }
-
-        updatedEngagement = await prisma.engagement.update({
-          where: { id: engagementId },
-          data: {
-            status: 'completed',
-            endDate: new Date(),
-            totalHours: validatedData.totalHours,
-            completionVerified: false,
-            updatedAt: new Date()
-          },
-          include: {
-            offer: {
-              include: {
-                match: {
-                  include: {
-                    profile: true,
-                    request: true
-                  }
-                }
-              }
-            }
-          }
-        })
-
-        // TODO: Trigger payment release process
-        // await initiatePaymentRelease(updatedEngagement)
-
-        logInfo('Engagement completed', {
-          correlationId,
-          engagementId,
-          totalHours: validatedData.totalHours
-        })
-        break
-
-      case 'terminate':
-        if (!['active'].includes(engagement.status)) {
-          return NextResponse.json({
-            success: false,
-            error: 'Engagement cannot be terminated in current status',
-            correlationId
-          }, { status: 400 })
-        }
-
-        updatedEngagement = await prisma.engagement.update({
-          where: { id: engagementId },
-          data: {
-            status: 'terminated',
-            endDate: new Date(),
-            updatedAt: new Date()
-          },
-          include: {
-            offer: {
-              include: {
-                match: {
-                  include: {
-                    profile: true,
-                    request: true
-                  }
-                }
-              }
-            }
-          }
-        })
-
-        logInfo('Engagement terminated', {
-          correlationId,
-          engagementId
-        })
-        break
-
-      case 'dispute':
-        if (!['active', 'completed'].includes(engagement.status)) {
-          return NextResponse.json({
-            success: false,
-            error: 'Engagement cannot be disputed in current status',
-            correlationId
-          }, { status: 400 })
-        }
-
-        updatedEngagement = await prisma.engagement.update({
-          where: { id: engagementId },
-          data: {
-            status: 'disputed',
-            updatedAt: new Date()
-          },
-          include: {
-            offer: {
-              include: {
-                match: {
-                  include: {
-                    profile: true,
-                    request: true
-                  }
-                }
-              }
-            }
-          }
-        })
-
-        // TODO: Trigger dispute resolution process
-        // await initiateDisputeResolution(updatedEngagement, validatedData.disputeReason)
-
-        logInfo('Engagement disputed', {
-          correlationId,
-          engagementId,
-          reason: validatedData.disputeReason
-        })
-        break
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: updatedEngagement,
-      message: `Engagement ${validatedData.action}d successfully`,
-      correlationId
     })
 
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const validationError = createError.validation(
-        'ENGAGEMENT_UPDATE_VALIDATION_ERROR',
-        'Validation error updating engagement',
-        { zodErrors: error.errors, correlationId }
-      )
-      logError(validationError)
-      
-      return NextResponse.json({
-        success: false,
-        error: 'Validation failed',
-        details: error.errors,
-        correlationId
-      }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid query parameters', details: error.errors }, { status: 400 })
     }
 
-    const appError = parseError(error)
-    logError(appError, { correlationId, operation: 'update_engagement' })
-    
-    return NextResponse.json({
-      success: false,
-      error: 'Failed to update engagement',
-      correlationId
-    }, { status: 500 })
+    logger.error(error as Error, 'Failed to list engagements')
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

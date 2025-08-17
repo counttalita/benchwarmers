@@ -44,6 +44,7 @@ describe('Talent Requests API', () => {
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests', {
         method: 'POST',
         headers: {
+          'x-user-id': 'user-123',
           'x-company-id': 'company-123'
         },
         body: JSON.stringify({
@@ -88,6 +89,7 @@ describe('Talent Requests API', () => {
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests', {
         method: 'POST',
         headers: {
+          'x-user-id': 'user-123',
           'x-company-id': 'company-123'
         },
         body: JSON.stringify({
@@ -109,6 +111,7 @@ describe('Talent Requests API', () => {
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests', {
         method: 'POST',
         headers: {
+          'x-user-id': 'user-123',
           'x-company-id': 'company-123'
         },
         body: JSON.stringify({
@@ -134,6 +137,7 @@ describe('Talent Requests API', () => {
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests', {
         method: 'POST',
         headers: {
+          'x-user-id': 'user-123',
           'x-company-id': 'company-123'
         },
         body: JSON.stringify({
@@ -240,6 +244,7 @@ describe('Talent Requests API', () => {
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests/request-123', {
         method: 'PUT',
         headers: {
+          'x-user-id': 'user-123',
           'x-company-id': 'company-123'
         },
         body: JSON.stringify({
@@ -274,6 +279,7 @@ describe('Talent Requests API', () => {
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests/request-123', {
         method: 'PUT',
         headers: {
+          'x-user-id': 'user-123',
           'x-company-id': 'company-123'
         },
         body: JSON.stringify({
