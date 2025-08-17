@@ -51,6 +51,34 @@ jest.mock('@/lib/prisma', () => ({
       delete: jest.fn(),
       deleteMany: jest.fn(),
     },
+    engagement: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    escrowPayment: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    transaction: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    dispute: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
     $transaction: jest.fn((callback) => {
       // Mock transaction by calling the callback with a mock transaction object
       const mockTx = {
@@ -86,6 +114,34 @@ jest.mock('@/lib/prisma', () => ({
           update: jest.fn(),
           delete: jest.fn(),
           deleteMany: jest.fn(),
+        },
+        engagement: {
+          create: jest.fn(),
+          findUnique: jest.fn(),
+          findMany: jest.fn(),
+          update: jest.fn(),
+          delete: jest.fn(),
+        },
+        escrowPayment: {
+          create: jest.fn(),
+          findUnique: jest.fn(),
+          findMany: jest.fn(),
+          update: jest.fn(),
+          delete: jest.fn(),
+        },
+        transaction: {
+          create: jest.fn(),
+          findUnique: jest.fn(),
+          findMany: jest.fn(),
+          update: jest.fn(),
+          delete: jest.fn(),
+        },
+        dispute: {
+          create: jest.fn(),
+          findUnique: jest.fn(),
+          findMany: jest.fn(),
+          update: jest.fn(),
+          delete: jest.fn(),
         }
       }
       return callback(mockTx)
@@ -256,3 +312,29 @@ jest.mock('@/lib/logger', () => ({
     debug: jest.fn()
   }
 }))
+
+// Mock Stripe
+jest.mock('stripe', () => {
+  return jest.fn().mockImplementation(() => ({
+    accounts: {
+      create: jest.fn(),
+      retrieve: jest.fn(),
+    },
+    accountLinks: {
+      create: jest.fn(),
+    },
+    paymentIntents: {
+      create: jest.fn(),
+      retrieve: jest.fn(),
+    },
+    transfers: {
+      create: jest.fn(),
+    },
+    refunds: {
+      create: jest.fn(),
+    },
+    webhooks: {
+      constructEvent: jest.fn(),
+    },
+  }))
+})
