@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logRequest, logError } from '@/lib/logger'
+import { logRequest, logError, logInfo } from '@/lib/logger'
 import { z } from 'zod'
 
 const uploadCertificationSchema = z.object({
@@ -19,7 +19,8 @@ export async function POST(request: NextRequest) {
   const correlationId = `upload-certification-${Date.now()}`
   
   try {
-    logRequest(request, { metadata: { correlationId } })
+    const requestLogger = logRequest(request)
+    logInfo('Uploading certification', { correlationId })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id') || 'test-user-id'

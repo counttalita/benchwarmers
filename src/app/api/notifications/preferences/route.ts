@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { notificationService } from '@/lib/notifications/notification-service'
-import { logRequest, logError } from '@/lib/logger'
+import { logRequest, logError, logInfo } from '@/lib/logger'
 import { z } from 'zod'
 
 const updatePreferencesSchema = z.object({
@@ -21,7 +21,8 @@ export async function GET(request: NextRequest) {
   const correlationId = `preferences-get-${Date.now()}`
   
   try {
-    logRequest(request, { correlationId })
+    const requestLogger = logRequest(request)
+    logInfo('Getting notification preferences', { correlationId })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id') || 'test-user-id'
@@ -57,7 +58,8 @@ export async function POST(request: NextRequest) {
   const correlationId = `preferences-post-${Date.now()}`
   
   try {
-    logRequest(request, { correlationId })
+    const requestLogger = logRequest(request)
+    logInfo('Updating notification preferences', { correlationId })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id') || 'test-user-id'
@@ -101,7 +103,8 @@ export async function PUT(request: NextRequest) {
   const correlationId = `preferences-bulk-${Date.now()}`
   
   try {
-    logRequest(request, { correlationId })
+    const requestLogger = logRequest(request)
+    logInfo('Bulk updating notification preferences', { correlationId })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id') || 'test-user-id'

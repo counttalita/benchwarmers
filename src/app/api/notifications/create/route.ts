@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { notificationService } from '@/lib/notifications/notification-service'
-import { logRequest, logError } from '@/lib/logger'
+import { logRequest, logError, logInfo } from '@/lib/logger'
 import { z } from 'zod'
 
 const createNotificationSchema = z.object({
@@ -33,7 +33,8 @@ export async function POST(request: NextRequest) {
   const correlationId = `create-notification-${Date.now()}`
   
   try {
-    logRequest(request, { correlationId })
+    const requestLogger = logRequest(request)
+    logInfo('Creating notification', { correlationId })
 
     const body = await request.json()
     const validatedBody = createNotificationSchema.parse(body)
@@ -83,7 +84,8 @@ export async function PUT(request: NextRequest) {
   const correlationId = `bulk-create-notifications-${Date.now()}`
   
   try {
-    logRequest(request, { correlationId })
+    const requestLogger = logRequest(request)
+    logInfo('Bulk creating notifications', { correlationId })
 
     const body = await request.json()
     const notificationsData = z.array(createNotificationSchema).parse(body)

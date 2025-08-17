@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { notificationService } from '@/lib/notifications/notification-service'
-import { logRequest, logError } from '@/lib/logger'
+import { logRequest, logError, logInfo } from '@/lib/logger'
 import { z } from 'zod'
 
 const updateNotificationSchema = z.object({
@@ -14,7 +14,8 @@ export async function PUT(
   const correlationId = `notification-update-${Date.now()}`
   
   try {
-    logRequest(request, { correlationId, notificationId: params.id })
+    const requestLogger = logRequest(request)
+    logInfo('Updating notification', { correlationId, notificationId: params.id })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id') || 'test-user-id'
@@ -71,7 +72,8 @@ export async function DELETE(
   const correlationId = `notification-delete-${Date.now()}`
   
   try {
-    logRequest(request, { correlationId, notificationId: params.id })
+    const requestLogger = logRequest(request)
+    logInfo('Deleting notification', { correlationId, notificationId: params.id })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id') || 'test-user-id'

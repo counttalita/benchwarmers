@@ -59,13 +59,18 @@ jobs:
     - name: Build application
       run: npm run build
 
-    - name: Run tests (when available)
-      run: |
-        if [ -f "package.json" ] && grep -q '"test"' package.json; then
-          npm test
-        else
-          echo "No tests configured yet"
-        fi
+    - name: Run unit tests
+      run: npm run test:unit
+
+    - name: Run integration tests
+      run: npm run test:integration
+      env:
+        TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/benchwarmers_test
+
+    - name: Run E2E tests
+      run: npm run test:e2e
+      env:
+        CI: true
 
   build-and-deploy:
     needs: test

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logRequest, logError } from '@/lib/logger'
+import { logRequest, logError, logInfo } from '@/lib/logger'
 import { z } from 'zod'
 
 const updateProfileSchema = z.object({
@@ -51,7 +51,8 @@ export async function GET(
   const correlationId = `get-profile-${Date.now()}`
   
   try {
-    logRequest(request, { metadata: { correlationId, profileId: params.id } })
+    const requestLogger = logRequest(request)
+    logInfo('Getting talent profile', { correlationId, profileId: params.id })
 
     const talentProfile = await prisma.talentProfile.findUnique({
       where: { id: params.id },
@@ -110,7 +111,8 @@ export async function PUT(
   const correlationId = `update-profile-${Date.now()}`
   
   try {
-    logRequest(request, { metadata: { correlationId, profileId: params.id } })
+    const requestLogger = logRequest(request)
+    logInfo('Updating talent profile', { correlationId, profileId: params.id })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id') || 'test-user-id'

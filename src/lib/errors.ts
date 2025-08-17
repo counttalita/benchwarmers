@@ -67,9 +67,6 @@ export const createError: CreateErrorMethods = {
     new AppErrorImpl(code, message, category, severity, context)
 }
 
-// Export AppError type for external use
-export type { AppError }
-
 // Parse unknown error into AppError
 export function parseError(error: unknown, correlationId?: string): AppError {
   if (error instanceof AppErrorImpl) {

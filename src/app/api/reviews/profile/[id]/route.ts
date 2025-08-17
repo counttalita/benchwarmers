@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logRequest, logError } from '@/lib/logger'
+import { logRequest, logError, logInfo } from '@/lib/logger'
 
 export async function GET(
   request: NextRequest,
@@ -9,7 +9,8 @@ export async function GET(
   const correlationId = `get-profile-reviews-${Date.now()}`
   
   try {
-    logRequest(request, { metadata: { correlationId, profileId: params.id } })
+    const requestLogger = logRequest(request)
+    logInfo('Getting profile reviews', { correlationId, profileId: params.id })
 
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { notificationService } from '@/lib/notifications/notification-service'
-import { logRequest, logError } from '@/lib/logger'
+import { logRequest, logError, logInfo } from '@/lib/logger'
 import { z } from 'zod'
 
 const getNotificationsSchema = z.object({
@@ -24,7 +24,8 @@ export async function GET(request: NextRequest) {
   const correlationId = `notifications-get-${Date.now()}`
   
   try {
-    logRequest(request, { correlationId })
+    const requestLogger = logRequest(request)
+    logInfo('Getting notifications', { correlationId })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id') || 'test-user-id'
@@ -75,7 +76,8 @@ export async function POST(request: NextRequest) {
   const correlationId = `notifications-post-${Date.now()}`
   
   try {
-    logRequest(request, { correlationId })
+    const requestLogger = logRequest(request)
+    logInfo('Creating notification via POST', { correlationId })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id') || 'test-user-id'

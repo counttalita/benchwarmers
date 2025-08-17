@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 import { NextRequest } from 'next/server'
 import { POST as createReview, GET as listReviews } from '@/app/api/reviews/route'
 import { GET as getProfileReviews } from '@/app/api/reviews/profile/[id]/route'
-import { PUT as updateReview } from '@/app/api/reviews/[id]/route'
+import { PUT as updateReview, DELETE as deleteReview } from '@/app/api/reviews/[id]/route'
 
 // Mock Prisma
 jest.mock('@/lib/prisma', () => ({
@@ -121,7 +121,7 @@ describe('Reviews API', () => {
       const response = await createReview(request)
       const data = await response.json()
 
-      expect(response.status).toBe(400)
+      expect(response.status).toBe(403)
       expect(data.error).toBe('You can only review engagements you participated in')
     })
 
@@ -426,7 +426,7 @@ describe('Reviews API', () => {
         isPublic: false
       } as any)
 
-      const response = await updateReview(request, { params: { id: 'review-123' } })
+      const response = await deleteReview(request, { params: { id: 'review-123' } })
       const data = await response.json()
 
       expect(response.status).toBe(200)

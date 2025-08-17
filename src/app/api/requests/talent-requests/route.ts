@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logRequest, logError } from '@/lib/logger'
+import { logRequest, logError, logInfo } from '@/lib/logger'
 import { z } from 'zod'
 
 
@@ -39,7 +39,8 @@ export async function POST(request: NextRequest) {
   const correlationId = `create-request-${Date.now()}`
   
   try {
-    logRequest(request, { correlationId })
+    const requestLogger = logRequest(request)
+    logInfo('Creating talent request', { correlationId })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id') || 'test-user-id'
