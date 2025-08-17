@@ -70,15 +70,20 @@ enum RequestStatus {
 }
 
 model Company {
-  id              String        @id @default(cuid())
-  name            String
-  domain          String        @unique
-  type            CompanyType
-  status          CompanyStatus @default(pending)
-  stripeAccountId String?       @map("stripe_account_id")
-  verifiedAt      DateTime?     @map("verified_at")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  id                    String        @id @default(cuid())
+  name                  String
+  domain                String        @unique
+  type                  CompanyType
+  status                CompanyStatus @default(pending)
+  stripeAccountId       String?       @map("stripe_account_id")
+  verifiedAt            DateTime?     @map("verified_at")
+  domainVerified        Boolean       @default(false) @map("domain_verified")
+  domainVerificationToken String?     @unique @map("domain_verification_token")
+  domainVerifiedAt      DateTime?     @map("domain_verified_at")
+  adminNotes            String?       @map("admin_notes")
+  rejectionReason       String?       @map("rejection_reason")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
 
   // Relations
   users           User[]

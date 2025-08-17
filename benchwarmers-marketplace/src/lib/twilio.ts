@@ -5,11 +5,8 @@ const accountSid = process.env.TWILIO_ACCOUNT_SID
 const authToken = process.env.TWILIO_AUTH_TOKEN
 const twilioPhoneNumber = process.env.TWILIO_PHONE_NUM
 
-if (!accountSid || !authToken || !twilioPhoneNumber) {
-  throw new Error('Missing Twilio configuration. Please check your environment variables.')
-}
-
-export const twilioClient = twilio(accountSid, authToken)
+// Create client only if all credentials are available
+export const twilioClient = accountSid && authToken ? twilio(accountSid, authToken) : null
 
 export const TWILIO_CONFIG = {
   accountSid,
@@ -23,6 +20,11 @@ export const generateOTP = (): string => {
 
 // Send OTP via SMS
 export const sendOTP = async (phoneNumber: string, otp: string): Promise<boolean> => {
+  if (!twilioClient || !twilioPhoneNumber) {
+    console.error('Twilio not configured. Missing credentials.')
+    return false
+  }
+
   try {
     const message = await twilioClient.messages.create({
       body: `Your BenchWarmers verification code is: ${otp}. This code expires in 5 minutes.`,
