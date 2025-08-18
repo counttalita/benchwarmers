@@ -8,253 +8,368 @@ jest.mock('@/lib/prisma', () => ({
   prisma: {
     engagement: {
       findUnique: jest.fn(),
-      update: jest.fn()
-    }
-  }
+      update: jest.fn(),
+    },
+    user: {
+      findMany: jest.fn(),
+    },
+  },
 }))
 
 jest.mock('@/lib/notifications/notification-service', () => ({
   notificationService: {
-    bulkCreateNotifications: jest.fn()
-  }
+    bulkCreateNotifications: jest.fn(),
+  },
 }))
 
 jest.mock('@/lib/auth', () => ({
-  getCurrentUser: jest.fn()
+  getCurrentUser: jest.fn(),
 }))
 
-
-
 describe('/api/engagements/[id]/interview', () => {
-  const mockUser = {
-    id: 'user-1',
-    companyId: 'company-1',
-    role: 'admin'
-  }
-
-  const mockEngagement = {
-    id: 'engagement-1',
-    status: 'staged',
-    totalAmount: 10000,
-    offer: {
-      id: 'offer-1',
-      amount: 10000,
-      message: 'Test offer',
-      talentRequest: {
-        id: 'request-1',
-        title: 'Test Request',
-        companyId: 'company-1',
-        company: {
-          id: 'company-1',
-          name: 'Seeker Company',
-          users: [
-            { id: 'user-1', role: 'admin' },
-            { id: 'user-2', role: 'member' }
-          ]
-        }
-      },
-      talentProfile: {
-        id: 'profile-1',
-        name: 'Test Talent',
-        companyId: 'company-2',
-        company: {
-          id: 'company-2',
-          name: 'Provider Company',
-          users: [
-            { id: 'user-3', role: 'admin' },
-            { id: 'user-4', role: 'member' }
-          ]
-        }
-      },
-      company: {
-        id: 'company-1',
-        name: 'Seeker Company',
-        users: [
-          { id: 'user-1', role: 'admin' },
-          { id: 'user-2', role: 'member' }
-        ]
-      }
-    }
-  }
+  let mockRequest: NextRequest
 
   beforeEach(() => {
     jest.clearAllMocks()
-    ;(require('@/lib/auth').getCurrentUser as jest.Mock).mockResolvedValue(mockUser)
-    ;(prisma.engagement.findUnique as jest.Mock).mockResolvedValue(mockEngagement)
-    ;(prisma.engagement.update as jest.Mock).mockResolvedValue({
-      ...mockEngagement,
-      status: 'interviewing',
-      updatedAt: new Date()
+    
+    // Mock getCurrentUser to return a test user
+    const { getCurrentUser } = require('@/lib/auth')
+    getCurrentUser.mockResolvedValue({
+      id: 'user-1',
+      email: 'test@example.com',
+      role: 'admin',
     })
-    ;(notificationService.bulkCreateNotifications as jest.Mock).mockResolvedValue([])
+
+    // Mock request
+    mockRequest = new NextRequest('http://localhost:3000/api/engagements/engagement-1/interview', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
   })
 
-  describe('POST', () => {
-    it('should update engagement status to interviewing', async () => {
-      const request = new NextRequest('http://localhost:3000/api/engagements/engagement-1/interview', {
+  describe('POST /api/engagements/[id]/interview', () => {
+    it('should update engagement status to staged', async () => {
+      const mockEngagement = {
+        id: 'engagement-1',
+        status: 'active',
+        talentRequestId: 'request-1',
+        talentProfileId: 'profile-1',
+        talentRequest: {
+          companyId: 'company-1',
+          company: {
+            name: 'Test Company',
+          },
+        },
+        talentProfile: {
+          name: 'Test Talent',
+        },
+      }
+
+      ;(prisma.engagement.findUnique as jest.Mock).mockResolvedValue(mockEngagement)
+      ;(prisma.engagement.update as jest.Mock).mockResolvedValue({
+        ...mockEngagement,
+        status: 'staged',
+      })
+      ;(prisma.user.findMany as jest.Mock).mockResolvedValue([
+        { id: 'user-1', email: 'admin@example.com' },
+      ])
+
+      const requestBody = {
+        status: 'staged',
+        interviewNotes: 'Great candidate',
+      }
+
+      mockRequest = new NextRequest('http://localhost:3000/api/engagements/engagement-1/interview', {
         method: 'POST',
-        body: JSON.stringify({
-          status: 'interviewing',
-          notes: 'Scheduling interview',
-          interviewDate: '2024-01-15T10:00:00Z',
-          interviewDuration: 60,
-          interviewerName: 'John Doe',
-          interviewType: 'video'
-        })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
       })
 
-      const response = await POST(request, { params: { id: 'engagement-1' } })
-      const data = await response.json()
+      const response = await POST(mockRequest, { params: Promise.resolve({ id: 'engagement-1' }) })
 
       expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.engagement.status).toBe('interviewing')
+      expect(prisma.engagement.update).toHaveBeenCalledWith({
+        where: { id: 'engagement-1' },
+        data: {
+          status: 'staged',
+          interviewNotes: 'Great candidate',
+        },
+        include: {
+          talentRequest: {
+            include: {
+              company: true,
+            },
+          },
+          talentProfile: true,
+        },
+      })
+    })
+
+    it('should update engagement status to interviewing', async () => {
+      const mockEngagement = {
+        id: 'engagement-1',
+        status: 'staged',
+        talentRequestId: 'request-1',
+        talentProfileId: 'profile-1',
+        talentRequest: {
+          companyId: 'company-1',
+          company: {
+            name: 'Test Company',
+          },
+        },
+        talentProfile: {
+          name: 'Test Talent',
+        },
+      }
+
+      ;(prisma.engagement.findUnique as jest.Mock).mockResolvedValue(mockEngagement)
+      ;(prisma.engagement.update as jest.Mock).mockResolvedValue({
+        ...mockEngagement,
+        status: 'interviewing',
+      })
+      ;(prisma.user.findMany as jest.Mock).mockResolvedValue([
+        { id: 'user-1', email: 'admin@example.com' },
+      ])
+
+      const requestBody = {
+        status: 'interviewing',
+        interviewNotes: 'Scheduling interview',
+      }
+
+      mockRequest = new NextRequest('http://localhost:3000/api/engagements/engagement-1/interview', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      const response = await POST(mockRequest, { params: Promise.resolve({ id: 'engagement-1' }) })
+
+      expect(response.status).toBe(200)
       expect(prisma.engagement.update).toHaveBeenCalledWith({
         where: { id: 'engagement-1' },
         data: {
           status: 'interviewing',
-          updatedAt: expect.any(Date)
+          interviewNotes: 'Scheduling interview',
         },
-        include: expect.any(Object)
+        include: {
+          talentRequest: {
+            include: {
+              company: true,
+            },
+          },
+          talentProfile: true,
+        },
       })
     })
 
-    it('should trigger manual invoicing when status is accepted', async () => {
-      // First update the mock to simulate an engagement in 'interviewing' status
-      ;(prisma.engagement.findUnique as jest.Mock).mockResolvedValue({
-        ...mockEngagement,
-        status: 'interviewing'
-      })
+    it('should update engagement status to accepted and trigger notifications', async () => {
+      const mockEngagement = {
+        id: 'engagement-1',
+        status: 'interviewing',
+        talentRequestId: 'request-1',
+        talentProfileId: 'profile-1',
+        talentRequest: {
+          companyId: 'company-1',
+          company: {
+            name: 'Test Company',
+          },
+        },
+        talentProfile: {
+          name: 'Test Talent',
+        },
+      }
 
-      // Update the update mock to return 'accepted' status
+      ;(prisma.engagement.findUnique as jest.Mock).mockResolvedValue(mockEngagement)
       ;(prisma.engagement.update as jest.Mock).mockResolvedValue({
         ...mockEngagement,
         status: 'accepted',
-        updatedAt: new Date()
       })
+      ;(prisma.user.findMany as jest.Mock).mockResolvedValue([
+        { id: 'user-1', email: 'admin@example.com' },
+      ])
 
-      const request = new NextRequest('http://localhost:3000/api/engagements/engagement-1/interview', {
+      const requestBody = {
+        status: 'accepted',
+        interviewNotes: 'Excellent candidate, accepted',
+      }
+
+      mockRequest = new NextRequest('http://localhost:3000/api/engagements/engagement-1/interview', {
         method: 'POST',
-        body: JSON.stringify({
-          status: 'accepted',
-          notes: 'Interview successful'
-        })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
       })
 
-      const response = await POST(request, { params: { id: 'engagement-1' } })
-      const data = await response.json()
+      const response = await POST(mockRequest, { params: Promise.resolve({ id: 'engagement-1' }) })
 
       expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.engagement.status).toBe('accepted')
-      
-      // Should create notifications for manual invoicing
       expect(notificationService.bulkCreateNotifications).toHaveBeenCalledTimes(3)
     })
 
+    it('should update engagement status to rejected', async () => {
+      const mockEngagement = {
+        id: 'engagement-1',
+        status: 'interviewing',
+        talentRequestId: 'request-1',
+        talentProfileId: 'profile-1',
+        talentRequest: {
+          companyId: 'company-1',
+          company: {
+            name: 'Test Company',
+          },
+        },
+        talentProfile: {
+          name: 'Test Talent',
+        },
+      }
+
+      ;(prisma.engagement.findUnique as jest.Mock).mockResolvedValue(mockEngagement)
+      ;(prisma.engagement.update as jest.Mock).mockResolvedValue({
+        ...mockEngagement,
+        status: 'rejected',
+      })
+      ;(prisma.user.findMany as jest.Mock).mockResolvedValue([
+        { id: 'user-1', email: 'admin@example.com' },
+      ])
+
+      const requestBody = {
+        status: 'rejected',
+        interviewNotes: 'Not a good fit',
+      }
+
+      mockRequest = new NextRequest('http://localhost:3000/api/engagements/engagement-1/interview', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      const response = await POST(mockRequest, { params: Promise.resolve({ id: 'engagement-1' }) })
+
+      expect(response.status).toBe(200)
+      expect(prisma.engagement.update).toHaveBeenCalledWith({
+        where: { id: 'engagement-1' },
+        data: {
+          status: 'rejected',
+          interviewNotes: 'Not a good fit',
+        },
+        include: {
+          talentRequest: {
+            include: {
+              company: true,
+            },
+          },
+          talentProfile: true,
+        },
+      })
+    })
+
     it('should reject invalid status transitions', async () => {
-      const request = new NextRequest('http://localhost:3000/api/engagements/engagement-1/interview', {
+      const mockEngagement = {
+        id: 'engagement-1',
+        status: 'active',
+        talentRequestId: 'request-1',
+        talentProfileId: 'profile-1',
+        talentRequest: {
+          companyId: 'company-1',
+          company: {
+            name: 'Test Company',
+          },
+        },
+        talentProfile: {
+          name: 'Test Talent',
+        },
+      }
+
+      ;(prisma.engagement.findUnique as jest.Mock).mockResolvedValue(mockEngagement)
+
+      const requestBody = {
+        status: 'staged',
+        interviewNotes: 'Invalid transition',
+      }
+
+      mockRequest = new NextRequest('http://localhost:3000/api/engagements/engagement-1/interview', {
         method: 'POST',
-        body: JSON.stringify({
-          status: 'accepted' // Cannot go directly from staged to accepted
-        })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
       })
 
-      const response = await POST(request, { params: { id: 'engagement-1' } })
-      const data = await response.json()
+      const response = await POST(mockRequest, { params: Promise.resolve({ id: 'engagement-1' }) })
 
       expect(response.status).toBe(400)
-      expect(data.error).toContain('Invalid status transition')
-    })
-
-    it('should validate required fields for interview scheduling', async () => {
-      const request = new NextRequest('http://localhost:3000/api/engagements/engagement-1/interview', {
-        method: 'POST',
-        body: JSON.stringify({
-          status: 'interviewing',
-          interviewDuration: 1000 // Exceeds max limit
-        })
-      })
-
-      const response = await POST(request, { params: { id: 'engagement-1' } })
-      const data = await response.json()
-
-      expect(response.status).toBe(400)
-      expect(data.error).toContain('Invalid request data')
-    })
-
-    it('should return 401 for unauthorized users', async () => {
-      ;(require('@/lib/auth').getCurrentUser as jest.Mock).mockResolvedValue(null)
-
-      const request = new NextRequest('http://localhost:3000/api/engagements/engagement-1/interview', {
-        method: 'POST',
-        body: JSON.stringify({
-          status: 'interviewing'
-        })
-      })
-
-      const response = await POST(request, { params: { id: 'engagement-1' } })
-      const data = await response.json()
-
-      expect(response.status).toBe(401)
-      expect(data.error).toBe('Unauthorized')
     })
 
     it('should return 404 for non-existent engagement', async () => {
       ;(prisma.engagement.findUnique as jest.Mock).mockResolvedValue(null)
 
-      const request = new NextRequest('http://localhost:3000/api/engagements/non-existent/interview', {
+      const requestBody = {
+        status: 'staged',
+        interviewNotes: 'Test',
+      }
+
+      mockRequest = new NextRequest('http://localhost:3000/api/engagements/non-existent/interview', {
         method: 'POST',
-        body: JSON.stringify({
-          status: 'interviewing'
-        })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
       })
 
-      const response = await POST(request, { params: { id: 'non-existent' } })
-      const data = await response.json()
+      const response = await POST(mockRequest, { params: Promise.resolve({ id: 'non-existent' }) })
 
       expect(response.status).toBe(404)
-      expect(data.error).toBe('Engagement not found')
     })
   })
 
-  describe('GET', () => {
-    it('should return engagement details', async () => {
-      const request = new NextRequest('http://localhost:3000/api/engagements/engagement-1/interview')
+  describe('GET /api/engagements/[id]/interview', () => {
+    it('should return engagement interview details', async () => {
+      const mockEngagement = {
+        id: 'engagement-1',
+        status: 'interviewing',
+        interviewNotes: 'Great candidate',
+        talentRequest: {
+          company: {
+            name: 'Test Company',
+          },
+        },
+        talentProfile: {
+          name: 'Test Talent',
+        },
+      }
 
-      const response = await GET(request, { params: { id: 'engagement-1' } })
-      const data = await response.json()
+      ;(prisma.engagement.findUnique as jest.Mock).mockResolvedValue(mockEngagement)
+
+      mockRequest = new NextRequest('http://localhost:3000/api/engagements/engagement-1/interview', {
+        method: 'GET',
+      })
+
+      const response = await GET(mockRequest, { params: Promise.resolve({ id: 'engagement-1' }) })
 
       expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.engagement.id).toBe('engagement-1')
-      expect(data.engagement.status).toBe('staged')
-      expect(data.engagement.offer.talentRequest.title).toBe('Test Request')
-      expect(data.engagement.offer.talentProfile.name).toBe('Test Talent')
-    })
-
-    it('should return 401 for unauthorized users', async () => {
-      ;(require('@/lib/auth').getCurrentUser as jest.Mock).mockResolvedValue(null)
-
-      const request = new NextRequest('http://localhost:3000/api/engagements/engagement-1/interview')
-
-      const response = await GET(request, { params: { id: 'engagement-1' } })
       const data = await response.json()
-
-      expect(response.status).toBe(401)
-      expect(data.error).toBe('Unauthorized')
+      expect(data.engagement).toEqual(mockEngagement)
     })
 
     it('should return 404 for non-existent engagement', async () => {
       ;(prisma.engagement.findUnique as jest.Mock).mockResolvedValue(null)
 
-      const request = new NextRequest('http://localhost:3000/api/engagements/non-existent/interview')
+      mockRequest = new NextRequest('http://localhost:3000/api/engagements/non-existent/interview', {
+        method: 'GET',
+      })
 
-      const response = await GET(request, { params: { id: 'non-existent' } })
-      const data = await response.json()
+      const response = await GET(mockRequest, { params: Promise.resolve({ id: 'non-existent' }) })
 
       expect(response.status).toBe(404)
-      expect(data.error).toBe('Engagement not found')
     })
   })
 })

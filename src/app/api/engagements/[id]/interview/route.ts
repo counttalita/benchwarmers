@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-const resolvedParams = await params
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
@@ -27,6 +26,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
     const engagementId = resolvedParams.id
     const body = await request.json()
     const validatedData = updateInterviewStatusSchema.parse(body)
@@ -78,7 +78,7 @@ export async function POST(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Validate status transitions
+    // Validate status transitions and permissions
     const currentStatus = engagement.status
     const newStatus = validatedData.status
 
@@ -93,6 +93,23 @@ export async function POST(
       return NextResponse.json({ 
         error: `Invalid status transition from ${currentStatus} to ${newStatus}` 
       }, { status: 400 })
+    }
+
+    // Only seeker companies can initiate interviews (staged -> interviewing)
+    if (currentStatus === 'staged' && newStatus === 'interviewing' && !isSeekerCompany && !isAdmin) {
+      return NextResponse.json({ 
+        error: 'Only talent seeker companies can initiate interviews' 
+      }, { status: 403 })
+    }
+
+    // Both seeker and provider can accept/reject after interviewing
+    if (currentStatus === 'interviewing' && (newStatus === 'accepted' || newStatus === 'rejected')) {
+      // Allow both seeker and provider companies to accept/reject
+      if (!isSeekerCompany && !isProviderCompany && !isAdmin) {
+        return NextResponse.json({ 
+          error: 'Access denied for this status transition' 
+        }, { status: 403 })
+      }
     }
 
     // Update engagement status
@@ -180,10 +197,10 @@ export async function POST(
       }
 
       // Notify admin users for manual invoicing
-      const adminUsers = allStakeholders.filter((user: any) => user.role === 'admin')
+      const adminUsers = allStakeholders.filter((user) => user.role === 'admin')
       if (adminUsers.length > 0) {
         await notificationService.bulkCreateNotifications(
-          adminUsers.map((user: any) => ({
+          adminUsers.map((user) => ({
             userId: user.id,
             ...invoiceNotificationData
           }))
@@ -193,7 +210,7 @@ export async function POST(
       // Also notify the talent seeker company about payment requirement
       const seekerUsers = engagement.offer.talentRequest.company.users
       await notificationService.bulkCreateNotifications(
-        seekerUsers.map(user => ({
+        seekerUsers.map((user: any) => ({
           userId: user.id,
           type: 'payment_required' as const,
           title: 'Payment Required',
@@ -273,6 +290,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const resolvedParams = await params
     const engagementId = resolvedParams.id
 
     const engagement = await prisma.engagement.findUnique({
