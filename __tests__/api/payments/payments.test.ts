@@ -1,9 +1,25 @@
 import { NextRequest } from 'next/server'
-import { GET, POST } from '@/app/api/payments/route'
+import { GET } from '@/app/api/payments/route'
 import { POST as ProcessPayment } from '@/app/api/payments/process/route'
 import { POST as ReleasePayment } from '@/app/api/payments/release/route'
 import { prisma } from '@/lib/prisma'
 import Stripe from 'stripe'
+
+// Mock authentication
+jest.mock('@/lib/auth', () => ({
+  getCurrentUser: jest.fn(),
+}))
+
+// Mock logger
+jest.mock('@/lib/logger', () => ({
+  __esModule: true,
+  default: {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+  },
+}))
 
 // Mock dependencies
 jest.mock('@/lib/prisma')
@@ -121,6 +137,13 @@ describe('/api/payments', () => {
         client_secret: 'pi_test123_secret'
       }
 
+      // Mock authentication
+      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
+        id: 'user-1',
+        email: 'test@example.com',
+        companyId: 'company-1',
+      })
+
       mockPrisma.engagement.findUnique.mockResolvedValue(mockEngagement as any)
       mockStripe.paymentIntents.create.mockResolvedValue(mockPaymentIntent)
       mockPrisma.transaction.create.mockResolvedValue({
@@ -134,7 +157,8 @@ describe('/api/payments', () => {
         body: JSON.stringify(validPaymentData),
         headers: { 
           'Content-Type': 'application/json',
-          'x-user-id': 'user-1'
+          'x-user-id': 'user-1',
+          'x-company-id': 'company-1'
         }
       })
 

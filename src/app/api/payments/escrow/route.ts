@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { escrowPaymentService } from '@/lib/payments/escrow'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 
 // POST /api/payments/escrow - Create escrow payment
 export async function POST(request: NextRequest) {
@@ -39,9 +39,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (engagement.status !== 'pending') {
+    if (engagement.status !== 'active') {
       return NextResponse.json(
-        { error: 'Engagement is not in pending status' },
+        { error: 'Engagement is not in active status' },
         { status: 400 }
       )
     }

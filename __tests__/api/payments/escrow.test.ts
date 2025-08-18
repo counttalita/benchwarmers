@@ -4,6 +4,22 @@ import { POST as createEscrowPayment, GET as getEscrowPayments } from '@/app/api
 import { POST as processPayment } from '@/app/api/payments/process/route'
 import { POST as releasePayment } from '@/app/api/payments/release/route'
 
+// Mock authentication
+jest.mock('@/lib/auth', () => ({
+  getCurrentUser: jest.fn(),
+}))
+
+// Mock logger
+jest.mock('@/lib/logger', () => ({
+  __esModule: true,
+  default: {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+  },
+}))
+
 // Mock escrow payment service
 jest.mock('@/lib/payments/escrow', () => ({
   escrowPaymentService: {
@@ -76,12 +92,23 @@ describe('Escrow Payment API', () => {
         currency: 'USD',
       }
 
+      // Mock authentication
+      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
+        id: 'user-123',
+        email: 'test@example.com',
+        companyId: 'seeker-company-123',
+      })
+
       jest.mocked(require('@/lib/prisma').prisma.engagement.findUnique).mockResolvedValue(mockEngagement as any)
       jest.mocked(require('@/lib/payments/escrow').escrowPaymentService.createEscrowPayment).mockResolvedValue(mockEscrowPayment)
       jest.mocked(require('@/lib/payments/escrow').escrowPaymentService.calculatePaymentBreakdown).mockReturnValue(mockBreakdown)
 
       const request = new NextRequest('http://localhost:3000/api/payments/escrow', {
         method: 'POST',
+        headers: {
+          'x-user-id': 'user-123',
+          'x-company-id': 'seeker-company-123',
+        },
         body: JSON.stringify({
           engagementId: 'engagement-123',
           amount: 1000,
@@ -268,11 +295,22 @@ describe('Escrow Payment API', () => {
         paymentIntentId: 'pi_test123',
       }
 
+      // Mock authentication
+      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
+        id: 'user-123',
+        email: 'test@example.com',
+        companyId: 'seeker-123',
+      })
+
       jest.mocked(require('@/lib/prisma').prisma.escrowPayment.findUnique).mockResolvedValue(mockEscrowPayment as any)
       jest.mocked(require('@/lib/payments/escrow').escrowPaymentService.processPayment).mockResolvedValue(mockProcessedPayment)
 
       const request = new NextRequest('http://localhost:3000/api/payments/process', {
         method: 'POST',
+        headers: {
+          'x-user-id': 'user-123',
+          'x-company-id': 'seeker-123',
+        },
         body: JSON.stringify({
           escrowPaymentId: 'escrow-123',
           paymentMethodId: 'pm_test123',
@@ -317,10 +355,21 @@ describe('Escrow Payment API', () => {
         },
       }
 
+      // Mock authentication
+      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
+        id: 'user-123',
+        email: 'test@example.com',
+        companyId: 'seeker-123',
+      })
+
       jest.mocked(require('@/lib/prisma').prisma.escrowPayment.findUnique).mockResolvedValue(mockEscrowPayment as any)
 
       const request = new NextRequest('http://localhost:3000/api/payments/process', {
         method: 'POST',
+        headers: {
+          'x-user-id': 'user-123',
+          'x-company-id': 'seeker-123',
+        },
         body: JSON.stringify({
           escrowPaymentId: 'escrow-123',
           paymentMethodId: 'pm_test123',
@@ -357,15 +406,25 @@ describe('Escrow Payment API', () => {
         transferId: 'tr_test123',
       }
 
+      // Mock authentication
+      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
+        id: 'user-123',
+        email: 'test@example.com',
+        companyId: 'seeker-123',
+      })
+
       jest.mocked(require('@/lib/prisma').prisma.escrowPayment.findUnique).mockResolvedValue(mockEscrowPayment as any)
       jest.mocked(require('@/lib/payments/escrow').escrowPaymentService.releasePayment).mockResolvedValue(mockReleasedPayment)
       jest.mocked(require('@/lib/prisma').prisma.engagement.update).mockResolvedValue(mockEscrowPayment.engagement as any)
 
       const request = new NextRequest('http://localhost:3000/api/payments/release', {
         method: 'POST',
+        headers: {
+          'x-user-id': 'user-123',
+          'x-company-id': 'seeker-123',
+        },
         body: JSON.stringify({
           escrowPaymentId: 'escrow-123',
-          userId: 'user-123',
         }),
       })
 

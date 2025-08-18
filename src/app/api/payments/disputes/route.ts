@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { transactionService } from '@/lib/payments/transactions'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 
 // POST /api/payments/disputes - Create dispute
 export async function POST(request: NextRequest) {

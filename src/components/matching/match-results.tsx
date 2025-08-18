@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { 
   Star, Eye, Heart, X, MessageCircle, Calendar, DollarSign, MapPin, 
   Clock, TrendingUp, AlertCircle, CheckCircle, Info, ChevronDown, 
-  ChevronUp, Filter, SortAsc, Users, Award, Zap
+  ChevronUp, Filter, SortAsc, Users, Award, Zap, UserCheck, UserX,
+  FileText, AlertTriangle
 } from 'lucide-react'
 
 interface MatchBreakdown {
@@ -56,6 +57,8 @@ interface TalentMatch {
   confidence: number
   predictedSuccess: number
   status: 'pending' | 'viewed' | 'interested' | 'not_interested' | 'contacted' | 'hired'
+  engagementStatus?: 'staged' | 'interviewing' | 'accepted' | 'rejected' | 'active' | 'completed' | 'terminated' | 'disputed'
+  engagementId?: string
   availabilityDetails?: {
     overlapPercentage: number
     availableHours: number
@@ -70,6 +73,7 @@ interface MatchResultsProps {
   talentRequestId: string
   matches: TalentMatch[]
   onMatchAction: (matchId: string, action: 'view' | 'interested' | 'not_interested' | 'contact') => void
+  onEngagementStatusUpdate?: (engagementId: string, status: string, notes?: string) => void
   onGenerateMore?: () => void
   isLoading?: boolean
 }
@@ -99,6 +103,7 @@ export default function MatchResults({
   talentRequestId,
   matches,
   onMatchAction,
+  onEngagementStatusUpdate,
   onGenerateMore,
   isLoading = false
 }: MatchResultsProps) {
@@ -109,6 +114,9 @@ export default function MatchResults({
 
   const filteredMatches = matches.filter(match => {
     if (filterStatus === 'all') return true
+    if (filterStatus === 'engagement') {
+      return match.engagementStatus && ['staged', 'interviewing', 'accepted', 'rejected'].includes(match.engagementStatus)
+    }
     return match.status === filterStatus
   })
 
@@ -129,6 +137,13 @@ export default function MatchResults({
 
   const handleMatchAction = (matchId: string, action: string) => {
     onMatchAction(matchId, action as any)
+  }
+
+  const handleEngagementStatusUpdate = (matchId: string, status: string) => {
+    const match = matches.find(m => m.id === matchId)
+    if (match?.engagementId && onEngagementStatusUpdate) {
+      onEngagementStatusUpdate(match.engagementId, status)
+    }
   }
 
   const toggleExpanded = (matchId: string) => {
@@ -161,6 +176,30 @@ export default function MatchResults({
       case 'hired': return 'bg-purple-100 text-purple-800'
       case 'viewed': return 'bg-gray-100 text-gray-800'
       default: return 'bg-yellow-100 text-yellow-800'
+    }
+  }
+
+  const getEngagementStatusColor = (status: string) => {
+    switch (status) {
+      case 'staged': return 'bg-blue-100 text-blue-800'
+      case 'interviewing': return 'bg-orange-100 text-orange-800'
+      case 'accepted': return 'bg-green-100 text-green-800'
+      case 'rejected': return 'bg-red-100 text-red-800'
+      case 'active': return 'bg-purple-100 text-purple-800'
+      case 'completed': return 'bg-gray-100 text-gray-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getEngagementStatusIcon = (status: string) => {
+    switch (status) {
+      case 'staged': return <UserCheck className="h-4 w-4" />
+      case 'interviewing': return <Calendar className="h-4 w-4" />
+      case 'accepted': return <CheckCircle className="h-4 w-4" />
+      case 'rejected': return <UserX className="h-4 w-4" />
+      case 'active': return <TrendingUp className="h-4 w-4" />
+      case 'completed': return <CheckCircle className="h-4 w-4" />
+      default: return <Info className="h-4 w-4" />
     }
   }
 
@@ -234,6 +273,7 @@ export default function MatchResults({
                 <option value="interested">Interested</option>
                 <option value="not_interested">Not Interested</option>
                 <option value="contacted">Contacted</option>
+                <option value="engagement">In Engagement</option>
               </select>
             </div>
             
@@ -285,6 +325,12 @@ export default function MatchResults({
                         <Badge className={getStatusColor(match.status)}>
                           {match.status.replace('_', ' ')}
                         </Badge>
+                        {match.engagementStatus && (
+                          <Badge className={`${getEngagementStatusColor(match.engagementStatus)} flex items-center gap-1`}>
+                            {getEngagementStatusIcon(match.engagementStatus)}
+                            {match.engagementStatus.charAt(0).toUpperCase() + match.engagementStatus.slice(1)}
+                          </Badge>
+                        )}
                         {match.talent.isPremium && (
                           <Badge className="bg-purple-100 text-purple-800">Premium</Badge>
                         )}
@@ -426,6 +472,79 @@ export default function MatchResults({
                       )}
                     </Button>
                   </div>
+
+                  {/* Engagement Status Actions */}
+                  {match.engagementStatus && (
+                    <div className="mt-4 pt-4 border-t">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm font-medium">Engagement Status</span>
+                        </div>
+                        <div className="flex gap-2">
+                          {match.engagementStatus === 'staged' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEngagementStatusUpdate(match.id, 'interviewing')}
+                              >
+                                <Calendar className="h-4 w-4 mr-1" />
+                                Schedule Interview
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEngagementStatusUpdate(match.id, 'rejected')}
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <UserX className="h-4 w-4 mr-1" />
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                          {match.engagementStatus === 'interviewing' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEngagementStatusUpdate(match.id, 'accepted')}
+                                className="text-green-600 hover:text-green-700"
+                              >
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                Accept
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEngagementStatusUpdate(match.id, 'rejected')}
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <UserX className="h-4 w-4 mr-1" />
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                          {match.engagementStatus === 'accepted' && (
+                            <div className="flex items-center gap-2">
+                              <Badge className="bg-green-100 text-green-800 flex items-center gap-1">
+                                <AlertTriangle className="h-4 w-4" />
+                                Manual Invoice Required
+                              </Badge>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => window.location.href = `/admin/invoicing`}
+                              >
+                                <FileText className="h-4 w-4 mr-1" />
+                                Process Invoice
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Expanded Details */}
                   {expandedMatch === match.id && (

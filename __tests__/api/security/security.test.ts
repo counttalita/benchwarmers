@@ -48,6 +48,16 @@ jest.mock('@/lib/auth', () => ({
   getCurrentUser: jest.fn()
 }))
 
+jest.mock('@/lib/logger', () => ({
+  __esModule: true,
+  default: {
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn()
+  }
+}))
+
 jest.mock('crypto', () => ({
   randomBytes: jest.fn(),
   createCipher: jest.fn(),
@@ -500,8 +510,5 @@ describe('Security API', () => {
       expect(certificateValidation.domainMatch).toBe(true)
       expect(new Date(certificateValidation.expiryDate).getTime()).toBeGreaterThan(new Date().getTime())
     })
-  })
-})
-
   })
 })

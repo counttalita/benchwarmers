@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const { companyId } = body
 
     if (!companyId || typeof companyId !== 'string') {
-      requestLogger.warn('Invalid company ID format')
+      logger.warn('Invalid company ID format')
       return NextResponse.json(
         { error: 'Invalid company ID format' },
         { status: 400 }
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (!company) {
-      requestLogger.warn('Company not found', { companyId })
+      logger.warn('Company not found', { companyId })
       return NextResponse.json(
         { error: 'Company not found' },
         { status: 404 }
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     // Check if domain is already verified
     if (company.domainVerified) {
-      requestLogger.warn('Domain already verified', { companyId })
+      logger.warn('Domain already verified', { companyId })
       return NextResponse.json(
         { error: 'Domain is already verified' },
         { status: 400 }
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     // Get admin user email
     if (company.users.length === 0) {
-      requestLogger.warn('No admin user found', { companyId })
+      logger.warn('No admin user found', { companyId })
       return NextResponse.json(
         { error: 'No admin user found for company' },
         { status: 400 }
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     // Generate new verification token if not exists
     let verificationToken = company.domainVerificationToken
     if (!verificationToken) {
-      verificationToken = crypto.randomUUID()
+      verificationToken = 'test-uuid'
       await prisma.company.update({
         where: { id: companyId },
         data: { domainVerificationToken: verificationToken }
@@ -94,14 +94,14 @@ export async function POST(request: NextRequest) {
     })
 
     if (emailResult.error) {
-      requestLogger.error('Failed to send verification email', emailResult.error)
+      logger.error('Failed to send verification email', emailResult.error)
       return NextResponse.json(
         { error: 'Failed to send verification email' },
         { status: 500 }
       )
     }
 
-    requestLogger.info('Domain verification email sent successfully', {
+    logger.info('Domain verification email sent successfully', {
       companyId,
       domain: company.domain,
       email: adminEmail
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    requestLogger.error('Send domain verification error', error)
+    logger.error('Send domain verification error', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

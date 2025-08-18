@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 
 // GET /api/auth/verify-domain?token=<token>
 export async function GET(request: NextRequest) {
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const token = searchParams.get('token')
 
     if (!token) {
-      requestLogger.warn('Missing verification token')
+      logger.warn('Missing verification token')
       return NextResponse.json(
         { error: 'Verification token is required' },
         { status: 400 }
@@ -27,14 +27,14 @@ export async function GET(request: NextRequest) {
     })
 
     if (!company) {
-      requestLogger.warn('Invalid verification token', { token })
+      logger.warn('Invalid verification token', { token })
       return NextResponse.json(
         { error: 'Invalid or expired verification token' },
         { status: 404 }
       )
     }
 
-    requestLogger.info('Company info retrieved for verification', { companyId: company.id })
+    logger.info('Company info retrieved for verification', { companyId: company.id })
     return NextResponse.json({
       company: {
         id: company.id,
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    requestLogger.error('Domain verification info error', error)
+    logger.error('Domain verification info error', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     const { token } = body
 
     if (!token || typeof token !== 'string') {
-      requestLogger.warn('Invalid verification token format')
+      logger.warn('Invalid verification token format')
       return NextResponse.json(
         { error: 'Invalid verification token format' },
         { status: 400 }
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (!company) {
-      requestLogger.warn('Invalid verification token', { token })
+      logger.warn('Invalid verification token', { token })
       return NextResponse.json(
         { error: 'Invalid or expired verification token' },
         { status: 404 }
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     // Check if domain is already verified
     if (company.domainVerified) {
-      requestLogger.warn('Domain already verified', { companyId: company.id })
+      logger.warn('Domain already verified', { companyId: company.id })
       return NextResponse.json(
         { error: 'Domain is already verified' },
         { status: 400 }
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    requestLogger.info('Domain verified successfully', { 
+    logger.info('Domain verified successfully', { 
       companyId: company.id,
       domain: company.domain
     })
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    requestLogger.error('Domain verification error', error)
+    logger.error('Domain verification error', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

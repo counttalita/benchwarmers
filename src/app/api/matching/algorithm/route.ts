@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MatchingEngine, ProjectRequirement, TalentProfile, MatchScore } from '@/lib/matching/matching-engine'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 
 const matchingEngine = new MatchingEngine()
 

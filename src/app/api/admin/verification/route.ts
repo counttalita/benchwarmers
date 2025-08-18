@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Process verification decision
-    let updateData: any = {
+    const updateData: any = {
       updatedAt: new Date()
     }
 

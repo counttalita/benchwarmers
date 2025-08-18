@@ -1,5 +1,5 @@
 import twilio from 'twilio'
-import { logger } from './logger'
+import logger from './logger'
 
 // Initialize Twilio client
 const twilioClient = twilio(
@@ -28,7 +28,12 @@ export async function sendSMS(options: SMSOptions): Promise<{ success: boolean; 
   try {
     const { to, body, from: fromNumberOverride, mediaUrl } = options
 
-    const messageData: Record<string, unknown> = {
+    const messageData: {
+      to: string
+      from: string | undefined
+      body: string
+      mediaUrl?: string[]
+    } = {
       to,
       from: fromNumberOverride || fromNumber,
       body
@@ -51,7 +56,7 @@ export async function sendSMS(options: SMSOptions): Promise<{ success: boolean; 
       messageId: message.sid
     }
   } catch (error) {
-    logger.error(error as Error, 'Failed to send SMS')
+    logger.error('Failed to send SMS', error as Error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'

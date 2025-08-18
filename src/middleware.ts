@@ -31,13 +31,13 @@ export function middleware(request: NextRequest) {
     logSecurity('Sensitive endpoint accessed', {
       endpoint: request.nextUrl.pathname,
       method: request.method,
-      ip: request.ip || request.headers.get('x-forwarded-for') || 'unknown',
+      ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
       userAgent: request.headers.get('user-agent'),
     })
   }
 
   // Rate limiting check (basic implementation)
-  const clientIp = request.ip || request.headers.get('x-forwarded-for') || 'unknown'
+  const clientIp = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
   
   // In a real implementation, you'd use Redis or similar for rate limiting
   // For now, we'll just log the request

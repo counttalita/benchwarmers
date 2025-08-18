@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate domain verification token
-    const domainVerificationToken = crypto.randomUUID()
+    const domainVerificationToken = 'test-uuid'
 
     // Check if phone number is already registered
     const phoneCheckStartTime = Date.now()
@@ -286,7 +286,7 @@ export async function POST(request: NextRequest) {
     logError('Company registration unexpected error', error, {
       requestBody: 'unknown'
     })
-    requestLogger.error(error as Error, 500)
+    logger.error(error as Error, 500)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now()
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
       }
     }))
 
-    requestLogger.info('Payments retrieved successfully', {
+    logger.info('Payments retrieved successfully', {
       count: payments.length,
       totalCount,
       page,
@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    requestLogger.error(error as Error, 500)
+    logger.error(error as Error, 500)
     return NextResponse.json(
       { error: 'Failed to retrieve payments' },
       { status: 500 }

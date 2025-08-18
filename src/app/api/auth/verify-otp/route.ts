@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
     logError('Verify OTP unexpected error', error, {
       phoneNumber: 'unknown'
     })
-    requestLogger.error(error as Error, 500)
+    logger.error(error as Error, 500)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

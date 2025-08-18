@@ -9,6 +9,7 @@ export interface CreateNotificationData {
   companyId?: string
   type: 'match_created' | 'offer_received' | 'offer_accepted' | 'offer_declined' | 
         'payment_released' | 'payment_held' | 'engagement_started' | 'engagement_completed' |
+        'engagement_status_changed' | 'manual_invoice_required' | 'payment_required' |
         'milestone_reached' | 'dispute_created' | 'dispute_resolved' | 'system_alert'
   title: string
   message: string
@@ -207,28 +208,150 @@ export class NotificationService {
   }
 
   /**
-   * Get notifications for a user
+   * Get user notifications with pagination and filters
    */
   async getUserNotifications(
     userId: string,
     options: {
-      status?: 'unread' | 'read' | 'archived'
+      page?: number
       limit?: number
-      offset?: number
+      status?: 'unread' | 'read' | 'archived'
       type?: string
+      startDate?: Date
+      endDate?: Date
     } = {}
   ) {
-    const where: { userId: string; status?: string; type?: string; createdAt?: { gte?: Date; lte?: Date } } = { userId }
-    
-    if (options.status) where.status = options.status
-    if (options.type) where.type = options.type
+    const { page = 1, limit = 20, status, type, startDate, endDate } = options
+    const skip = (page - 1) * limit
 
-    return await prisma.notification.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: options.limit || 50,
-      skip: options.offset || 0
+    try {
+      const where: any = { userId }
+
+      if (status) {
+        where.status = status
+      }
+
+      if (type) {
+        where.type = type
+      }
+
+      if (startDate || endDate) {
+        where.sentAt = {}
+        if (startDate) where.sentAt.gte = startDate
+        if (endDate) where.sentAt.lte = endDate
+      }
+
+      const [notifications, total] = await Promise.all([
+        prisma.notification.findMany({
+          where,
+          orderBy: { sentAt: 'desc' },
+          skip,
+          take: limit
+        }),
+        prisma.notification.count({ where })
+      ])
+
+      return {
+        notifications,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      }
+    } catch (error) {
+      logError('Failed to get user notifications', {
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Update notification (mark as read, archive, etc.)
+   */
+  async updateNotification(
+    notificationId: string,
+    userId: string,
+    updates: {
+      status?: 'read' | 'archived'
+      readAt?: Date
+      archivedAt?: Date
+    }
+  ) {
+    try {
+      const notification = await prisma.notification.findFirst({
+        where: { id: notificationId, userId }
+      })
+
+      if (!notification) {
+        throw new Error('Notification not found')
+      }
+
+      const updatedNotification = await prisma.notification.update({
+        where: { id: notificationId },
+        data: updates
+      })
+
+      return updatedNotification
+    } catch (error) {
+      logError('Failed to update notification', {
+        notificationId,
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Archive notification
+   */
+  async archiveNotification(notificationId: string, userId: string) {
+    return this.updateNotification(notificationId, userId, {
+      status: 'archived',
+      archivedAt: new Date()
     })
+  }
+
+  /**
+   * Bulk create notifications
+   */
+  async bulkCreateNotifications(notifications: CreateNotificationData[]) {
+    const results = {
+      successful: 0,
+      failed: 0,
+      skipped: 0,
+      errors: [] as string[]
+    }
+
+    for (const notificationData of notifications) {
+      try {
+        const notification = await this.createNotification(notificationData)
+        if (notification) {
+          results.successful++
+        } else {
+          results.skipped++
+        }
+      } catch (error) {
+        results.failed++
+        results.errors.push(
+          `Failed to create notification for user ${notificationData.userId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+        )
+      }
+    }
+
+    return {
+      summary: {
+        total: notifications.length,
+        successful: results.successful,
+        failed: results.failed,
+        skipped: results.skipped
+      },
+      errors: results.errors
+    }
   }
 
   /**

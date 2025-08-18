@@ -1,14 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logError, logInfo, parseError } from '@/lib/errors'
-import { v4 as uuidv4 } from 'uuid'
+import logger from '@/lib/logger'
+import { getCurrentUser } from '@/lib/auth'
 
 // GET /api/admin/dashboard - Get admin dashboard metrics
 export async function GET(request: NextRequest) {
-  const correlationId = uuidv4()
+  const requestLogger = logger
 
   try {
-    logInfo('Fetching admin dashboard metrics', { correlationId })
+    // Check authentication
+    const user = await getCurrentUser(request)
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    // Check admin role
+    if (user.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Admin access required' },
+        { status: 403 }
+      )
+    }
+
+    logger.info('Fetching admin dashboard metrics')
 
     // Get current date ranges
     const now = new Date()
@@ -221,8 +238,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    logInfo('Admin dashboard metrics retrieved successfully', {
-      correlationId,
+    logger.info('Admin dashboard metrics retrieved successfully', {
       totalCompanies,
       activeEngagements,
       totalRevenue: dashboardData.revenue.total
@@ -230,18 +246,17 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: dashboardData,
-      correlationId
+      dashboard: dashboardData
     })
 
   } catch (error) {
-    const appError = parseError(error)
-    logError(appError, { correlationId, operation: 'get_admin_dashboard' })
+    logger.error('Failed to retrieve dashboard metrics', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
     
     return NextResponse.json({
       success: false,
-      error: 'Failed to retrieve dashboard metrics',
-      correlationId
+      error: 'Failed to retrieve dashboard metrics'
     }, { status: 500 })
   }
 }

@@ -201,7 +201,7 @@ export default function TalentListing({
   }
 
   const filteredAndSortedProfiles = useMemo(() => {
-    let filtered = profiles.filter(profile => {
+    const filtered = profiles.filter(profile => {
       // Search filter
       if (filters.search) {
         const searchLower = filters.search.toLowerCase()

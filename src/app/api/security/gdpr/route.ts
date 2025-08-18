@@ -1,21 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 
 // POST /api/security/gdpr - Delete user data for GDPR compliance
 export async function POST(request: NextRequest) {
-  const requestLogger = logger.child({ 
-    method: 'POST', 
-    path: '/api/security/gdpr',
-    requestId: crypto.randomUUID()
-  })
+  const requestLogger = logger
 
   try {
     const body = await request.json()
     const { userId, reason } = body
 
     if (!userId) {
-      requestLogger.warn('Missing userId in GDPR deletion request')
+      logger.warn('Missing userId in GDPR deletion request')
       return NextResponse.json(
         { error: 'User ID is required' },
         { status: 400 }
@@ -28,7 +24,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (!user) {
-      requestLogger.warn('User not found for GDPR deletion', { userId })
+      logger.warn('User not found for GDPR deletion', { userId })
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
@@ -88,7 +84,7 @@ export async function POST(request: NextRequest) {
       })
     })
 
-    requestLogger.info('User data deleted successfully for GDPR compliance', {
+    logger.info('User data deleted successfully for GDPR compliance', {
       userId,
       reason: reason || 'GDPR request'
     })
@@ -100,7 +96,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    requestLogger.error('Failed to delete user data for GDPR', error)
+    logger.error('Failed to delete user data for GDPR', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

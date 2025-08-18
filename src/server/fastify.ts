@@ -464,15 +464,12 @@ function registerErrorHandlers(server: FastifyInstance) {
     }
 
     // Handle validation errors
-    if (error.validation) {
-      reply.code(400)
-      return {
-        error: 'VALIDATION_ERROR',
+    if ('validation' in error && error.validation) {
+      return reply.status(400).send({
+        error: 'Validation failed',
         message: 'Request validation failed',
         details: error.validation,
-        statusCode: 400,
-        correlationId,
-      }
+      })
     }
 
     // Default error response

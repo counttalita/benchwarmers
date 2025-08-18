@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 import { z } from 'zod'
 
 
@@ -39,8 +39,8 @@ export async function POST(request: NextRequest) {
   const correlationId = `create-request-${Date.now()}`
   
   try {
-    const requestLogger = logRequest(request)
-    logInfo('Creating talent request', { correlationId })
+    const requestLogger = logger
+    logger.info('Creating talent request', { correlationId })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id')
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
     }, { status: 201 })
 
   } catch (error) {
-    logError('Failed to create talent request', {
+    logger.error('Failed to create talent request', {
       correlationId,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
@@ -141,7 +141,7 @@ export async function GET(request: NextRequest) {
   const correlationId = `list-requests-${Date.now()}`
   
   try {
-    logRequest(request, { correlationId })
+    logger.info('Listing talent requests', { correlationId })
 
     const { searchParams } = new URL(request.url)
     const skills = searchParams.get('skills')
@@ -208,7 +208,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    logError('Failed to list talent requests', {
+    logger.error('Failed to list talent requests', {
       correlationId,
       error: error instanceof Error ? error.message : 'Unknown error'
     })

@@ -1,142 +1,125 @@
 import { NextRequest, NextResponse } from 'next/server'
+import logger from '@/lib/logger'
 import { z } from 'zod'
-import { logger } from '@/lib/logger'
 import { getCurrentUser } from '@/lib/auth'
 
-const inputValidationSchema = z.object({
-  input: z.string().min(1, 'Input is required'),
-  type: z.enum(['email', 'phone', 'url', 'text', 'sql']).optional().default('text')
+const validateInputSchema = z.object({
+  type: z.enum(['email', 'phone', 'url', 'text']),
+  value: z.string().min(1)
 })
 
+// POST /api/security/validation/input - Validate and sanitize user input
 export async function POST(request: NextRequest) {
+  const requestLogger = logger
+
   try {
-    // Authentication check
+    // Check authentication
     const user = await getCurrentUser(request)
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
     }
 
     const body = await request.json()
-    const validatedData = inputValidationSchema.parse(body)
+    const validatedBody = validateInputSchema.parse(body)
 
-    const { input, type } = validatedData
-
-    // Check for SQL injection attempts
+    // Check for SQL injection patterns
     const sqlInjectionPatterns = [
-      /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|SCRIPT)\b)/i,
-      /(\b(OR|AND)\b\s+\d+\s*=\s*\d+)/i,
-      /(\b(OR|AND)\b\s+['"]?\w+['"]?\s*=\s*['"]?\w+['"]?)/i,
-      /(--|\/\*|\*\/|;)/,
-      /(\b(WAITFOR|DELAY)\b)/i,
-      /(\b(BENCHMARK|SLEEP)\b)/i
+      /(\b(union|select|insert|update|delete|drop|create|alter)\b)/i,
+      /(\b(or|and)\b\s+\d+\s*=\s*\d+)/i,
+      /(\b(union|select|insert|update|delete|drop|create|alter)\b.*\b(union|select|insert|update|delete|drop|create|alter)\b)/i
     ]
 
-    const hasSqlInjection = sqlInjectionPatterns.some(pattern => pattern.test(input))
+    const hasSqlInjection = sqlInjectionPatterns.some(pattern => 
+      pattern.test(validatedBody.value)
+    )
+
     if (hasSqlInjection) {
-      logger.warn('SQL injection attempt detected', { 
-        userId: user.id, 
-        input: input.substring(0, 100) // Log first 100 chars only
-      })
-      return NextResponse.json({ 
-        error: 'Potential SQL injection detected' 
-      }, { status: 400 })
-    }
-
-    // Check for XSS attempts
-    const xssPatterns = [
-      /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
-      /javascript:/gi,
-      /on\w+\s*=/gi,
-      /<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi,
-      /<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi,
-      /<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi
-    ]
-
-    const hasXss = xssPatterns.some(pattern => pattern.test(input))
-    if (hasXss) {
-      logger.warn('XSS attempt detected', { 
-        userId: user.id, 
-        input: input.substring(0, 100)
-      })
-      return NextResponse.json({ 
-        error: 'Potential XSS attack detected' 
-      }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Potentially malicious input detected' },
+        { status: 400 }
+      )
     }
 
     let isValid = true
-    let sanitizedInput = input
-    let validationError = null
+    let sanitizedValue = validatedBody.value
 
-    // Type-specific validation
-    switch (type) {
+    // Validate based on type
+    switch (validatedBody.type) {
       case 'email':
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        if (!emailRegex.test(input)) {
-          isValid = false
-          validationError = 'Invalid email format'
+        isValid = emailRegex.test(validatedBody.value)
+        if (!isValid) {
+          return NextResponse.json(
+            { error: 'Invalid email format' },
+            { status: 400 }
+          )
         }
-        sanitizedInput = input.toLowerCase().trim()
+        sanitizedValue = validatedBody.value.toLowerCase().trim()
         break
 
       case 'phone':
-        const phoneRegex = /^\+?[1-9]\d{1,14}$/
-        if (!phoneRegex.test(input.replace(/\s/g, ''))) {
-          isValid = false
-          validationError = 'Invalid phone number format'
+        const phoneRegex = /^\+?[\d\s\-\(\)]{10,}$/
+        isValid = phoneRegex.test(validatedBody.value)
+        if (!isValid) {
+          return NextResponse.json(
+            { error: 'Invalid phone number format' },
+            { status: 400 }
+          )
         }
-        sanitizedInput = input.replace(/\s/g, '').replace(/[^\d+]/g, '')
+        sanitizedValue = validatedBody.value.replace(/[\s\-\(\)]/g, '')
         break
 
       case 'url':
         try {
-          const url = new URL(input.startsWith('http') ? input : `https://${input}`)
-          sanitizedInput = url.toString()
+          new URL(validatedBody.value)
+          sanitizedValue = validatedBody.value.trim()
         } catch {
-          isValid = false
-          validationError = 'Invalid URL format'
+          return NextResponse.json(
+            { error: 'Invalid URL format' },
+            { status: 400 }
+          )
         }
         break
 
       case 'text':
-      default:
         // Basic text sanitization
-        sanitizedInput = input
+        sanitizedValue = validatedBody.value
           .trim()
-          .replace(/[<>]/g, '') // Remove angle brackets
-          .replace(/\s+/g, ' ') // Normalize whitespace
+          .replace(/[<>]/g, '') // Remove potential HTML tags
         break
     }
 
-    // Additional security checks
-    if (input.length > 10000) {
-      return NextResponse.json({ 
-        error: 'Input too long (maximum 10,000 characters)' 
-      }, { status: 400 })
-    }
-
-    logger.info('Input validated', { 
-      userId: user.id, 
-      type, 
-      inputLength: input.length,
-      isValid 
+    logger.info('Input validated successfully', {
+      userId: user.id,
+      inputType: validatedBody.type,
+      originalLength: validatedBody.value.length
     })
 
     return NextResponse.json({
       success: true,
       isValid,
-      sanitizedInput,
-      validationError,
-      type,
-      originalLength: input.length,
-      sanitizedLength: sanitizedInput.length
+      sanitizedValue,
+      originalValue: validatedBody.value
     })
 
   } catch (error) {
+    logger.error('Failed to validate input', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid request data', details: error.errors }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      )
     }
 
-    logger.error(error as Error, 'Failed to validate input')
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
   }
 }

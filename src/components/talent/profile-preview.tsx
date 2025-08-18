@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Eye, EyeOff, Lock, Unlock, Star, MapPin, Clock, DollarSign, Mail, Phone, Globe, Github, Linkedin, Calendar, Award, Briefcase } from 'lucide-react'
+import EngagementStatusActions from './engagement-status-actions'
 
 interface TalentProfile {
   id: string
@@ -367,6 +368,16 @@ export default function ProfilePreview({
               </BlurOverlay>
             </CardContent>
           </Card>
+
+          {/* Engagement Status Actions */}
+          <EngagementStatusActions
+            talentProfileId={profile.id}
+            requestId="sample-request-id" // TODO: Pass actual request ID
+            currentStatus={null} // TODO: Pass actual engagement status
+            onStatusChange={(newStatus) => {
+              console.log('Status changed to:', newStatus)
+            }}
+          />
 
           {/* Action Buttons */}
           <div className="space-y-3">

@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 
 // POST /api/offers/[id]/respond - Respond to an offer (accept, decline, counter)
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const requestLogger = logger.child({ 
-    method: 'POST', 
-    path: `/api/offers/${params.id}/respond`,
-    requestId: crypto.randomUUID()
-  })
+  const requestLogger = logger
 
   try {
     const { id: offerId } = params
@@ -19,7 +15,7 @@ export async function POST(
     const { action, counterRate, counterDuration, message } = body
 
     if (!action || !['accept', 'decline', 'counter'].includes(action)) {
-      requestLogger.warn('Invalid action in offer response')
+      logger.warn('Invalid action in offer response')
       return NextResponse.json(
         { error: 'Action must be accept, decline, or counter' },
         { status: 400 }
@@ -40,7 +36,7 @@ export async function POST(
     })
 
     if (!offer) {
-      requestLogger.warn('Offer not found for response', { offerId })
+      logger.warn('Offer not found for response', { offerId })
       return NextResponse.json(
         { error: 'Offer not found' },
         { status: 404 }
@@ -48,7 +44,7 @@ export async function POST(
     }
 
     if (offer.status !== 'pending') {
-      requestLogger.warn('Offer already responded to', { offerId, status: offer.status })
+      logger.warn('Offer already responded to', { offerId, status: offer.status })
       return NextResponse.json(
         { error: 'Offer has already been responded to' },
         { status: 400 }
@@ -112,7 +108,7 @@ export async function POST(
           }
         })
 
-        requestLogger.info('Offer accepted and engagement created', {
+        logger.info('Offer accepted and engagement created', {
           offerId,
           engagementId: engagement.id,
           talentId: offer.talentId,
@@ -139,14 +135,14 @@ export async function POST(
           }
         })
 
-        requestLogger.info('Offer declined', { offerId })
+        logger.info('Offer declined', { offerId })
 
         break
 
       case 'counter':
         // Counter the offer
         if (!counterRate) {
-          requestLogger.warn('Counter rate required for counter offer')
+          logger.warn('Counter rate required for counter offer')
           return NextResponse.json(
             { error: 'Counter rate is required for counter offer' },
             { status: 400 }
@@ -172,7 +168,7 @@ export async function POST(
           }
         })
 
-        requestLogger.info('Offer countered', {
+        logger.info('Offer countered', {
           offerId,
           originalRate: offer.proposedRate,
           counterRate
@@ -188,7 +184,7 @@ export async function POST(
     })
 
   } catch (error) {
-    requestLogger.error('Failed to respond to offer', error)
+    logger.error('Failed to respond to offer', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

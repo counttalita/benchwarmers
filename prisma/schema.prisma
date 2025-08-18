@@ -43,6 +43,10 @@ enum PaymentStatus {
 }
 
 enum EngagementStatus {
+  staged
+  interviewing
+  accepted
+  rejected
   active
   completed
   terminated
@@ -78,6 +82,9 @@ enum NotificationType {
   payment_held
   engagement_started
   engagement_completed
+  engagement_status_changed
+  manual_invoice_required
+  payment_required
   milestone_reached
   dispute_created
   dispute_resolved
@@ -152,6 +159,7 @@ model Company {
   receivedOffers  Offer[]       @relation("ProviderOffers")
   notifications   Notification[]
   notificationPreferences NotificationPreference[]
+  subscriptions   Subscription[]
 
   @@index([domain])
   @@index([status])
@@ -178,6 +186,7 @@ model User {
   otpCodes OTPCode[]
   notifications Notification[]
   notificationPreferences NotificationPreference[]
+  subscriptions Subscription[]
 
   @@index([companyId])
   @@index([phoneNumber])
@@ -320,20 +329,31 @@ model Offer {
 model Payment {
   id                     String        @id @default(cuid())
   offerId                String        @map("offer_id")
-  stripePaymentIntentId  String?       @unique @map("stripe_payment_intent_id")
+  engagementId           String?       @map("engagement_id")
+  paystackPaymentId      String?       @unique @map("paystack_payment_id")
   amount                 Decimal       @db.Decimal(10, 2)
-  currency               String        @default("USD")
+  currency               String        @default("ZAR")
+  type                   String        @default("escrow") // escrow, release, refund, facilitation_fee
   platformFeeAmount      Decimal       @map("platform_fee_amount") @db.Decimal(10, 2)
   providerAmount         Decimal       @map("provider_amount") @db.Decimal(10, 2)
   status                 PaymentStatus @default(pending)
+  reason                 String?       // completion, milestone, dispute_resolution, etc.
+  verificationData       Json?         @map("verification_data")
+  milestoneId            String?       @map("milestone_id")
   heldAt                 DateTime?     @map("held_at")
   releasedAt             DateTime?     @map("released_at")
+  processedAt            DateTime?     @map("processed_at")
   createdAt              DateTime      @default(now()) @map("created_at")
   updatedAt              DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  offer Offer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  offer      Offer       @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  engagement Engagement? @relation(fields: [engagementId], references: [id])
 
+  @@index([offerId])
+  @@index([engagementId])
+  @@index([status])
+  @@index([type])
   @@map("payments")
 }
 
@@ -353,6 +373,10 @@ model Engagement {
   offer           Offer           @relation(fields: [offerId], references: [id], onDelete: Cascade)
   reviews         Review[]
   timesheetEntries TimesheetEntry[]
+  transactions    Transaction[]
+  payments        Payment[]
+  invoices        Invoice[]
+  manualPayments  ManualPayment[]
 
   @@map("engagements")
 }
@@ -402,20 +426,119 @@ enum TransactionType {
 }
 
 model Transaction {
-  id          String            @id @default(cuid())
-  type        TransactionType
-  amount      Decimal           @db.Decimal(10, 2)
-  currency    String            @default("USD")
-  status      TransactionStatus @default(pending)
-  description String
-  metadata    Json?
-  createdAt   DateTime          @default(now()) @map("created_at")
-  updatedAt   DateTime          @updatedAt @map("updated_at")
+  id                   String            @id @default(cuid())
+  engagementId         String?           @map("engagement_id")
+  type                 TransactionType
+  amount               Decimal           @db.Decimal(10, 2)
+  facilitationFee      Decimal?          @map("facilitation_fee") @db.Decimal(10, 2)
+  netAmount            Decimal?          @map("net_amount") @db.Decimal(10, 2)
+  currency             String            @default("ZAR")
+  status               TransactionStatus @default(pending)
+  reason               String?
+  paystackPaymentId    String?           @map("paystack_payment_id")
+  milestoneId          String?           @map("milestone_id")
+  processedAt          DateTime?         @map("processed_at")
+  description          String?
+  metadata             Json?
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  engagement Engagement? @relation(fields: [engagementId], references: [id])
 
   @@index([status])
   @@index([type])
+  @@index([engagementId])
   @@index([createdAt])
   @@map("transactions")
+}
+
+model Subscription {
+  id                      String    @id @default(cuid())
+  userId                  String    @map("user_id")
+  companyId               String?   @map("company_id")
+  paystackSubscriptionId  String    @unique @map("paystack_subscription_id")
+  paystackCustomerId      String    @map("paystack_customer_id")
+  planType                String    @map("plan_type") // monthly, yearly
+  amount                  Decimal   @db.Decimal(10, 2)
+  currency                String    @default("ZAR")
+  status                  String    @default("active") // active, cancelled, expired
+  startDate               DateTime  @map("start_date")
+  nextBillingDate         DateTime  @map("next_billing_date")
+  lastBillingDate         DateTime? @map("last_billing_date")
+  cancelledAt             DateTime? @map("cancelled_at")
+  metadata                Json?
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company? @relation(fields: [companyId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([nextBillingDate])
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id              String    @id @default(cuid())
+  invoiceNumber   String    @unique @map("invoice_number")
+  type            String    // 'seeker' or 'provider'
+  engagementId    String    @map("engagement_id")
+  fromCompany     String    @map("from_company")
+  toCompany       String    @map("to_company")
+  subtotal        Decimal   @db.Decimal(10, 2)
+  vatAmount       Decimal   @map("vat_amount") @db.Decimal(10, 2)
+  total           Decimal   @db.Decimal(10, 2)
+  currency        String    @default("ZAR")
+  issueDate       DateTime  @map("issue_date")
+  dueDate         DateTime  @map("due_date")
+  paidDate        DateTime? @map("paid_date")
+  status          String    @default("pending") // pending, paid, overdue, cancelled
+  items           Json      // Invoice line items
+  notes           String?
+  paymentReference String?  @map("payment_reference")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  engagement Engagement @relation(fields: [engagementId], references: [id])
+
+  @@index([engagementId])
+  @@index([status])
+  @@index([type])
+  @@index([dueDate])
+  @@map("invoices")
+}
+
+model ManualPayment {
+  id                String    @id @default(cuid())
+  engagementId      String    @map("engagement_id")
+  type              String    // 'seeker_payment' or 'provider_payment'
+  amount            Decimal   @db.Decimal(10, 2)
+  facilitationFee   Decimal?  @map("facilitation_fee") @db.Decimal(10, 2)
+  netAmount         Decimal?  @map("net_amount") @db.Decimal(10, 2)
+  currency          String    @default("ZAR")
+  paymentDate       DateTime  @map("payment_date")
+  paymentMethod     String    @map("payment_method") // bank_transfer, eft, etc
+  reference         String    @unique
+  description       String
+  status            String    @default("pending") // pending, completed, failed
+  invoiceId         String?   @map("invoice_id")
+  processedBy       String    @map("processed_by") // User ID who processed
+  notes             String?
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  engagement Engagement @relation(fields: [engagementId], references: [id])
+
+  @@index([engagementId])
+  @@index([type])
+  @@index([status])
+  @@index([paymentDate])
+  @@map("manual_payments")
 }
 
 enum EscrowStatus {

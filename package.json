@@ -60,6 +60,7 @@
     "lucide-react": "^0.468.0",
     "next": "15.2.4",
     "next-auth": "^4.24.10",
+    "paystack": "^2.0.1",
     "pusher": "^5.2.0",
     "pusher-js": "^8.4.0",
     "react": "^19.1.1",
@@ -78,6 +79,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.54.2",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.7.0",
     "@testing-library/react": "^16.3.0",
@@ -99,6 +101,7 @@
     "jsdom": "^26.1.0",
     "msw": "^2.0.8",
     "tailwindcss": "^4",
+    "ts-jest": "^29.4.1",
     "tsx": "^4.20.4",
     "tw-animate-css": "^1.3.7",
     "typescript": "^5",

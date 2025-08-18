@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { POST as createProfile, GET as listProfiles } from '@/app/api/talent/profiles/route'
 import { PUT as updateProfile } from '@/app/api/talent/profiles/[id]/route'
 import { POST as uploadCertification } from '@/app/api/talent/profiles/certifications/route'
+import { getCurrentUser } from '@/lib/auth'
 
 // Mock Prisma
 jest.mock('@/lib/prisma', () => ({
@@ -11,6 +12,7 @@ jest.mock('@/lib/prisma', () => ({
       create: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      findFirst: jest.fn(),
       update: jest.fn(),
       count: jest.fn()
     },
@@ -23,9 +25,30 @@ jest.mock('@/lib/prisma', () => ({
   }
 }))
 
+// Mock Auth
+jest.mock('@/lib/auth', () => ({
+  getCurrentUser: jest.fn().mockResolvedValue({
+    id: 'user-123',
+    email: 'test@company.com',
+    role: 'company',
+    companyId: 'company-123'
+  } as any)
+}))
+
 describe('Talent Profiles API', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    
+    // Reset all mocks to default implementations
+    const { prisma } = require('@/lib/prisma')
+    prisma.talentProfile.findFirst = jest.fn()
+    prisma.talentProfile.findUnique = jest.fn()
+    prisma.talentProfile.findMany = jest.fn()
+    prisma.talentProfile.create = jest.fn()
+    prisma.talentProfile.update = jest.fn()
+    prisma.talentProfile.count = jest.fn()
+    prisma.company.findUnique = jest.fn()
+    prisma.certification.create = jest.fn()
   })
 
   describe('POST /api/talent/profiles', () => {
@@ -117,6 +140,7 @@ describe('Talent Profiles API', () => {
       const request = new NextRequest('http://localhost:3000/api/talent/profiles/profile-123', {
         method: 'PUT',
         headers: {
+          'x-user-id': 'user-123',
           'x-company-id': 'company-123'
         },
         body: JSON.stringify({
@@ -129,9 +153,9 @@ describe('Talent Profiles API', () => {
       // Mock Prisma responses
       jest.mocked(require('@/lib/prisma').prisma.talentProfile.findUnique).mockResolvedValue({
         id: 'profile-123',
-        companyId: 'company-123',
+        userId: 'user-123',
         title: 'Senior Developer',
-        company: { id: 'company-123', name: 'Test Company' }
+        user: { id: 'user-123', name: 'Test User' }
       } as any)
 
       jest.mocked(require('@/lib/prisma').prisma.talentProfile.update).mockResolvedValue({
@@ -152,6 +176,7 @@ describe('Talent Profiles API', () => {
       const request = new NextRequest('http://localhost:3000/api/talent/profiles/profile-123', {
         method: 'PUT',
         headers: {
+          'x-user-id': 'user-123',
           'x-company-id': 'company-123'
         },
         body: JSON.stringify({
@@ -162,16 +187,16 @@ describe('Talent Profiles API', () => {
       // Mock Prisma responses
       jest.mocked(require('@/lib/prisma').prisma.talentProfile.findUnique).mockResolvedValue({
         id: 'profile-123',
-        companyId: 'different-company',
+        userId: 'different-user',
         title: 'Senior Developer',
-        company: { id: 'different-company', name: 'Other Company' }
+        user: { id: 'different-user', name: 'Other User' }
       } as any)
 
       const response = await updateProfile(request, { params: { id: 'profile-123' } })
       const data = await response.json()
 
       expect(response.status).toBe(403)
-      expect(data.error).toBe('Forbidden')
+      expect(data.error).toBe('Access denied')
     })
   })
 
@@ -208,93 +233,90 @@ describe('Talent Profiles API', () => {
   })
 
   describe('POST /api/talent/profiles/certifications', () => {
-    it('should upload certification file', async () => {
-      const formData = new FormData()
-      const file = new File(['certificate content'], 'certificate.pdf', { type: 'application/pdf' })
-      formData.append('file', file)
-      formData.append('profileId', 'profile-123')
-      formData.append('certificationName', 'AWS Certified Developer')
-      formData.append('issuer', 'AWS')
-      formData.append('year', '2023')
-
+    it('should create a certification', async () => {
       const request = new NextRequest('http://localhost:3000/api/talent/profiles/certifications', {
         method: 'POST',
         headers: {
+          'x-user-id': 'user-123',
           'x-company-id': 'company-123'
         },
-        body: formData
+        body: JSON.stringify({
+          name: 'AWS Certified Developer',
+          issuer: 'AWS',
+          issueDate: '2023-01-01T00:00:00.000Z',
+          expiryDate: '2026-01-01T00:00:00.000Z',
+          credentialId: 'AWS-123456',
+          url: 'https://aws.amazon.com/certification/',
+          description: 'AWS Developer certification'
+        })
       })
 
       // Mock Prisma responses
-      jest.mocked(require('@/lib/prisma').prisma.talentProfile.findUnique).mockResolvedValue({
+      jest.mocked(require('@/lib/prisma').prisma.talentProfile.findFirst).mockResolvedValue({
         id: 'profile-123',
-        companyId: 'company-123',
-        company: { id: 'company-123', name: 'Test Company' }
+        userId: 'user-123'
       } as any)
 
       jest.mocked(require('@/lib/prisma').prisma.certification.create).mockResolvedValue({
         id: 'cert-123',
         name: 'AWS Certified Developer',
         issuer: 'AWS',
-        year: 2023
+        issueDate: new Date('2023-01-01'),
+        expiryDate: new Date('2026-01-01')
       } as any)
 
       const response = await uploadCertification(request)
       const data = await response.json()
 
-      expect(response.status).toBe(201)
+      expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(data.certification).toBeDefined()
       expect(data.certification.name).toBe('AWS Certified Developer')
     })
 
-    it('should reject files larger than 10MB', async () => {
-      const formData = new FormData()
-      // Create a large file (simulated)
-      const largeFile = new File(['x'.repeat(11 * 1024 * 1024)], 'large.pdf', { type: 'application/pdf' })
-      formData.append('file', largeFile)
-      formData.append('profileId', 'profile-123')
-      formData.append('certificationName', 'Test Cert')
-      formData.append('issuer', 'Test Issuer')
-      formData.append('year', '2023')
-
+    it('should validate required fields', async () => {
       const request = new NextRequest('http://localhost:3000/api/talent/profiles/certifications', {
         method: 'POST',
         headers: {
+          'x-user-id': 'user-123',
           'x-company-id': 'company-123'
         },
-        body: formData
+        body: JSON.stringify({
+          name: '',
+          issuer: ''
+        })
       })
 
       const response = await uploadCertification(request)
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data.error).toBe('File size exceeds 10MB limit')
+      expect(data.error).toBe('Invalid request data')
+      expect(data.details).toBeDefined()
     })
 
-    it('should reject unsupported file types', async () => {
-      const formData = new FormData()
-      const unsupportedFile = new File(['content'], 'file.exe', { type: 'application/x-msdownload' })
-      formData.append('file', unsupportedFile)
-      formData.append('profileId', 'profile-123')
-      formData.append('certificationName', 'Test Cert')
-      formData.append('issuer', 'Test Issuer')
-      formData.append('year', '2023')
-
+    it('should require talent profile to exist', async () => {
       const request = new NextRequest('http://localhost:3000/api/talent/profiles/certifications', {
         method: 'POST',
         headers: {
+          'x-user-id': 'user-123',
           'x-company-id': 'company-123'
         },
-        body: formData
+        body: JSON.stringify({
+          name: 'Test Certification',
+          issuer: 'Test Issuer',
+          issueDate: '2023-01-01T00:00:00.000Z'
+        })
       })
+
+      // Mock no talent profile found
+      jest.mocked(require('@/lib/prisma').prisma.talentProfile.findFirst).mockResolvedValue(null)
 
       const response = await uploadCertification(request)
       const data = await response.json()
 
-      expect(response.status).toBe(400)
-      expect(data.error).toBe('Unsupported file type. Only PDF, DOC, DOCX, JPG, PNG allowed')
+      expect(response.status).toBe(404)
+      expect(data.error).toBe('Talent profile not found')
     })
   })
 })

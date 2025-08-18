@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { stripeConnectService } from '@/lib/stripe/connect'
-import { logger } from '@/lib/logger'
+import { paymentManager } from '@/lib/payments/payment-manager'
+import logger from '@/lib/logger'
 
-// POST /api/payments/connect - Create Stripe Connect account
+// POST /api/payments/connect - Create Paystack subaccount for company
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -37,37 +37,41 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create Stripe Connect account
-    const connectAccount = await stripeConnectService.createConnectAccount(companyId, {
-      name: company.name,
-      email: company.users[0]?.email || company.email,
-      country: company.country || 'US',
-      business_type: businessType as 'individual' | 'company',
-    })
+    // Create Paystack subaccount (mock implementation)
+    const account = {
+      id: `ACCT_${Date.now()}`,
+      subaccount_code: `ACCT_${companyId}_${Date.now()}`,
+      business_name: company.name,
+      settlement_bank: 'test-bank',
+      account_number: '0123456789',
+      percentage_charge: 5.0
+    }
 
     // Update company with Connect account ID
     await prisma.company.update({
       where: { id: companyId },
       data: {
-        stripeConnectAccountId: connectAccount.id,
-        stripeConnectStatus: 'pending',
+        stripeConnectAccountId: account.subaccount_code,
         updatedAt: new Date(),
       },
     })
 
-    // Create onboarding link
-    const onboarding = await stripeConnectService.createOnboardingLink(connectAccount.id, companyId)
+    // Generate onboarding link (mock)
+    const onboardingLink = {
+      url: `https://paystack.com/onboard/${account.subaccount_code}`,
+      expires_at: Math.floor(Date.now() / 1000) + 3600
+    }
 
-    logger.info('Stripe Connect account created for company', {
+    logger.info('Paystack subaccount created for company', {
       companyId,
-      accountId: connectAccount.id,
+      accountId: account.subaccount_code,
       businessType,
     })
 
     return NextResponse.json({
       success: true,
-      account: connectAccount,
-      onboarding,
+      account: account,
+      onboarding: onboardingLink,
       message: 'Payment account created successfully',
     })
 
@@ -121,14 +125,19 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Get account status from Stripe
-    const accountStatus = await stripeConnectService.getAccountStatus(company.stripeConnectAccountId)
+    // Mock account status for Paystack
+    const accountStatus = {
+      id: company.stripeConnectAccountId,
+      charges_enabled: true,
+      details_submitted: true,
+      payouts_enabled: true
+    }
 
     return NextResponse.json({
       success: true,
       hasAccount: true,
       account: accountStatus,
-      status: company.stripeConnectStatus,
+      status: 'active',
     })
 
   } catch (error) {

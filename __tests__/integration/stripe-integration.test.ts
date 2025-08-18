@@ -1,6 +1,6 @@
 import Stripe from 'stripe'
 import { PaymentManager } from '@/lib/payments/payment-manager'
-import { EscrowService } from '@/lib/payments/escrow'
+import { EscrowService } from '@/lib/payments/escrow-service'
 
 // Mock Stripe with realistic responses
 jest.mock('stripe')

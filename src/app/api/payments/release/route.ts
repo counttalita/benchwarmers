@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 import Stripe from 'stripe'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    requestLogger.info('Payment released successfully', {
+    logger.info('Payment released successfully', {
       transactionId: transaction.id,
       engagementId: transaction.engagementId,
       amount: transaction.amount,
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    requestLogger.error(error as Error, 500)
+    logger.error(error as Error, 500)
     return NextResponse.json(
       { error: 'Failed to release payment' },
       { status: 500 }

@@ -1,5 +1,5 @@
 import { Resend } from 'resend'
-import { logger } from './logger'
+import logger from './logger'
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -54,7 +54,7 @@ export async function sendEmail(options: EmailOptions): Promise<{ success: boole
       messageId: result.data?.id
     }
   } catch (error) {
-    logger.error(error as Error, 'Failed to send email')
+    logger.error('Failed to send email', error as Error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'

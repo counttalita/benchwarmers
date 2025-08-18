@@ -380,19 +380,22 @@ global.navigator = {
 }
 
 // Mock @/lib/logger
+const mockLogger = {
+  child: jest.fn(() => mockLogger),
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn(),
+  logInfo: jest.fn(),
+  logWarning: jest.fn(),
+  logError: jest.fn(),
+  logDebug: jest.fn()
+}
+
 jest.mock('@/lib/logger', () => ({
-  logger: {
-    child: jest.fn(() => ({
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn(),
-      debug: jest.fn()
-    })),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn()
-  },
+  __esModule: true,
+  default: mockLogger,
+  logger: mockLogger,
   logRequest: jest.fn(() => ({
     end: jest.fn(),
     error: jest.fn()
@@ -406,19 +409,89 @@ jest.mock('@/lib/logger', () => ({
   logSecurity: jest.fn(),
   logWarning: jest.fn(),
   logApi: jest.fn(),
-  logPayment: jest.fn(),
-  default: {
-    child: jest.fn(() => ({
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn(),
-      debug: jest.fn()
-    })),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn()
+  logPayment: jest.fn()
+}))
+
+// Mock @/lib/payments/payment-manager
+jest.mock('@/lib/payments/payment-manager', () => ({
+  PaymentManager: jest.fn().mockImplementation(() => ({
+    createSubscription: jest.fn(),
+    getSubscription: jest.fn(),
+    cancelSubscription: jest.fn(),
+    initializeTransaction: jest.fn(),
+    verifyTransaction: jest.fn(),
+    createRecipient: jest.fn(),
+    createTransfer: jest.fn(),
+    calculateFacilitationFee: jest.fn(),
+    calculateNetAmount: jest.fn(),
+    processWebhook: jest.fn(),
+    releasePayment: jest.fn()
+  })),
+  paymentManager: {
+    createSubscription: jest.fn(),
+    getSubscription: jest.fn(),
+    cancelSubscription: jest.fn(),
+    initializeTransaction: jest.fn(),
+    verifyTransaction: jest.fn(),
+    createRecipient: jest.fn(),
+    createTransfer: jest.fn(),
+    calculateFacilitationFee: jest.fn(),
+    calculateNetAmount: jest.fn(),
+    processWebhook: jest.fn(),
+    releasePayment: jest.fn()
   }
+}))
+
+// Mock @/lib/payments/subscription-service
+jest.mock('@/lib/payments/subscription-service', () => ({
+  SubscriptionService: jest.fn().mockImplementation(() => ({
+    createSubscription: jest.fn(),
+    getSubscriptionStatus: jest.fn(),
+    cancelSubscription: jest.fn(),
+    processRenewal: jest.fn(),
+    hasActiveSubscription: jest.fn(),
+    getSubscriptionAmount: jest.fn(),
+    getSubscriptionCurrency: jest.fn()
+  })),
+  subscriptionService: {
+    createSubscription: jest.fn(),
+    getSubscriptionStatus: jest.fn(),
+    cancelSubscription: jest.fn(),
+    processRenewal: jest.fn(),
+    hasActiveSubscription: jest.fn(),
+    getSubscriptionAmount: jest.fn(),
+    getSubscriptionCurrency: jest.fn()
+  }
+}))
+
+// Mock @/lib/payments/escrow-service
+jest.mock('@/lib/payments/escrow-service', () => ({
+  EscrowService: jest.fn().mockImplementation(() => ({
+    createEscrowPayment: jest.fn(),
+    releaseEscrowPayment: jest.fn(),
+    cancelEscrowPayment: jest.fn(),
+    getEscrowPayment: jest.fn(),
+    listEscrowPayments: jest.fn()
+  }))
+}))
+
+// Mock @/lib/notifications/notification-service
+jest.mock('@/lib/notifications/notification-service', () => ({
+  NotificationService: jest.fn().mockImplementation(() => ({
+    createNotification: jest.fn(),
+    getUserNotifications: jest.fn(),
+    updateNotification: jest.fn(),
+    archiveNotification: jest.fn(),
+    bulkCreateNotifications: jest.fn()
+  }))
+}))
+
+// Mock axios for Paystack API calls
+jest.mock('axios', () => ({
+  post: jest.fn(),
+  get: jest.fn(),
+  put: jest.fn(),
+  delete: jest.fn()
 }))
 
 // Mock navigator and clipboard

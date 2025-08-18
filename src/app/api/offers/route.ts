@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 import { getCurrentUser } from '@/lib/auth'
 
 const createOfferSchema = z.object({
@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
     const validatedQuery = listOffersSchema.parse(parsedQuery)
 
     // Build where clause based on user role
-    let whereClause: any = {}
+    const whereClause: any = {}
 
     if (user.role === 'company') {
       whereClause.companyId = user.companyId

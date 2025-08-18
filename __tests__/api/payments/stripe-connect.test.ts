@@ -1,25 +1,42 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 import { NextRequest } from 'next/server'
-import { POST as createConnectAccount, GET as getConnectStatus } from '@/app/api/payments/connect/route'
 
-// Mock Stripe Connect service
-jest.mock('@/lib/stripe/connect', () => ({
-  stripeConnectService: {
-    createConnectAccount: jest.fn(),
-    createOnboardingLink: jest.fn(),
-    getAccountStatus: jest.fn(),
+// Mock all dependencies before importing the route
+const mockStripeConnectService = {
+  createConnectAccount: jest.fn() as jest.MockedFunction<any>,
+  createOnboardingLink: jest.fn() as jest.MockedFunction<any>,
+  getAccountStatus: jest.fn() as jest.MockedFunction<any>,
+}
+
+const mockPrisma = {
+  company: {
+    findUnique: jest.fn() as jest.MockedFunction<any>,
+    update: jest.fn() as jest.MockedFunction<any>,
   },
+}
+
+const mockLogger = {
+  info: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+  debug: jest.fn(),
+}
+
+jest.mock('@/lib/logger', () => ({
+  __esModule: true,
+  default: mockLogger,
 }))
 
-// Mock Prisma
 jest.mock('@/lib/prisma', () => ({
-  prisma: {
-    company: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    },
-  },
+  prisma: mockPrisma,
 }))
+
+jest.mock('@/lib/stripe/connect', () => ({
+  stripeConnectService: mockStripeConnectService,
+}))
+
+// Import the route handlers after mocking
+import { POST as createConnectAccount, GET as getConnectStatus } from '@/app/api/payments/connect/route'
 
 describe('Stripe Connect API', () => {
   beforeEach(() => {
@@ -39,7 +56,7 @@ describe('Stripe Connect API', () => {
 
       const mockConnectAccount = {
         id: 'acct_test123',
-        business_type: 'company',
+        business_type: 'company' as const,
         charges_enabled: false,
         payouts_enabled: false,
         requirements: {
@@ -48,8 +65,8 @@ describe('Stripe Connect API', () => {
           past_due: [],
         },
         capabilities: {
-          card_payments: 'inactive',
-          transfers: 'inactive',
+          card_payments: 'inactive' as const,
+          transfers: 'inactive' as const,
         },
       }
 
@@ -59,10 +76,11 @@ describe('Stripe Connect API', () => {
         requirements: ['business_profile.url'],
       }
 
-      jest.mocked(require('@/lib/prisma').prisma.company.findUnique).mockResolvedValue(mockCompany as any)
-      jest.mocked(require('@/lib/stripe/connect').stripeConnectService.createConnectAccount).mockResolvedValue(mockConnectAccount)
-      jest.mocked(require('@/lib/stripe/connect').stripeConnectService.createOnboardingLink).mockResolvedValue(mockOnboarding)
-      jest.mocked(require('@/lib/prisma').prisma.company.update).mockResolvedValue(mockCompany as any)
+      // Set up mocks with proper return values
+      mockPrisma.company.findUnique.mockImplementation(() => Promise.resolve(mockCompany))
+      mockStripeConnectService.createConnectAccount.mockImplementation(() => Promise.resolve(mockConnectAccount))
+      mockStripeConnectService.createOnboardingLink.mockImplementation(() => Promise.resolve(mockOnboarding))
+      mockPrisma.company.update.mockImplementation(() => Promise.resolve(mockCompany))
 
       const request = new NextRequest('http://localhost:3000/api/payments/connect', {
         method: 'POST',
@@ -74,6 +92,12 @@ describe('Stripe Connect API', () => {
 
       const response = await createConnectAccount(request)
       const data = await response.json()
+
+      if (response.status !== 200) {
+        console.log('Error response:', JSON.stringify(data, null, 2))
+        console.log('Response status:', response.status)
+        console.log('Mock calls:', mockPrisma.company.findUnique.mock.calls)
+      }
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)

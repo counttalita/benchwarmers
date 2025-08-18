@@ -16,71 +16,128 @@ describe('MatchingEngine', () => {
   describe('findMatches', () => {
     const mockTalentRequest = {
       id: 'req-123',
-      companyId: 'company-123',
       title: 'Senior React Developer',
       description: 'Looking for experienced React developer',
-      budget: 5000,
-      duration: 30,
-      skillsRequired: ['React', 'TypeScript', 'Node.js'],
-      experienceLevel: 'senior' as const,
-      location: 'Remote',
+      requiredSkills: [
+        { name: 'React', level: 'senior' as const, weight: 8, isRequired: true },
+        { name: 'TypeScript', level: 'senior' as const, weight: 7, isRequired: true },
+        { name: 'Node.js', level: 'mid' as const, weight: 6, isRequired: true }
+      ],
+      preferredSkills: [
+        { name: 'Python', level: 'mid' as const, weight: 3, isRequired: false }
+      ],
+      budget: { min: 60, max: 100, currency: 'USD' },
+      duration: { weeks: 12, startDate: new Date(), endDate: new Date(Date.now() + 12 * 7 * 24 * 60 * 60 * 1000) },
+      startDate: new Date(),
+      location: { type: 'remote' as const, timezone: 'UTC' },
       urgency: 'medium' as const,
-      projectType: 'contract' as const,
-      status: 'active' as const,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      projectType: 'development' as const,
+      teamSize: 3,
+      clientIndustry: 'technology',
+      companySize: 'medium' as const,
+      workStyle: 'agile' as const
     }
 
     const mockTalentProfiles = [
       {
         id: 'profile-1',
-        userId: 'user-1',
-        title: 'Senior Full Stack Developer',
-        bio: 'Experienced React and Node.js developer',
-        skills: ['React', 'TypeScript', 'Node.js', 'Python'],
-        experienceLevel: 'senior' as const,
+        name: 'John Developer',
+        skills: [
+          { name: 'React', level: 'senior' as const, yearsOfExperience: 5, category: 'frontend' as const },
+          { name: 'TypeScript', level: 'senior' as const, yearsOfExperience: 4, category: 'frontend' as const },
+          { name: 'Node.js', level: 'senior' as const, yearsOfExperience: 6, category: 'backend' as const },
+          { name: 'Python', level: 'mid' as const, yearsOfExperience: 3, category: 'backend' as const }
+        ],
+        experience: [
+          {
+            company: 'Tech Corp',
+            role: 'Senior Developer',
+            duration: '3 years',
+            industry: 'technology',
+            technologies: ['React', 'Node.js', 'TypeScript'],
+            achievements: ['Led team of 5 developers']
+          }
+        ],
+        availability: [
+          {
+            startDate: new Date(),
+            endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+            capacity: 100,
+            timezone: 'UTC'
+          }
+        ],
         hourlyRate: 80,
-        availability: 'available' as const,
-        location: 'Remote',
-        portfolioUrl: 'https://portfolio.com',
-        linkedinUrl: 'https://linkedin.com/in/dev',
-        githubUrl: 'https://github.com/dev',
-        yearsOfExperience: 8,
+        location: {
+          country: 'US',
+          city: 'Remote',
+          timezone: 'UTC',
+          remotePreference: 'remote' as const
+        },
         languages: ['English'],
+        certifications: [],
+        pastProjects: [],
+        ratings: [],
+        companyId: 'company-1',
         timezone: 'UTC',
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        user: {
-          id: 'user-1',
-          email: 'dev@example.com',
-          name: 'John Developer'
-        }
+        preferences: {
+          preferredCompanySize: 'medium' as const,
+          workStyle: 'agile' as const,
+          communicationStyle: 'casual' as const,
+          preferredRate: 80,
+          minimumRate: 70
+        },
+        isAvailable: true,
+        rating: 4.8,
+        totalReviews: 15
       },
       {
         id: 'profile-2',
-        userId: 'user-2',
-        title: 'Junior React Developer',
-        bio: 'Learning React and TypeScript',
-        skills: ['React', 'JavaScript'],
-        experienceLevel: 'junior' as const,
+        name: 'Jane Junior',
+        skills: [
+          { name: 'React', level: 'junior' as const, yearsOfExperience: 2, category: 'frontend' as const },
+          { name: 'JavaScript', level: 'mid' as const, yearsOfExperience: 2, category: 'frontend' as const }
+        ],
+        experience: [
+          {
+            company: 'Startup Inc',
+            role: 'Junior Developer',
+            duration: '1 year',
+            industry: 'technology',
+            technologies: ['React', 'JavaScript'],
+            achievements: ['Built responsive components']
+          }
+        ],
+        availability: [
+          {
+            startDate: new Date(),
+            endDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+            capacity: 100,
+            timezone: 'EST'
+          }
+        ],
         hourlyRate: 35,
-        availability: 'available' as const,
-        location: 'New York',
-        portfolioUrl: null,
-        linkedinUrl: null,
-        githubUrl: null,
-        yearsOfExperience: 2,
+        location: {
+          country: 'US',
+          city: 'New York',
+          timezone: 'EST',
+          remotePreference: 'hybrid' as const
+        },
         languages: ['English'],
+        certifications: [],
+        pastProjects: [],
+        ratings: [],
+        companyId: 'company-2',
         timezone: 'EST',
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        user: {
-          id: 'user-2',
-          email: 'junior@example.com',
-          name: 'Jane Junior'
-        }
+        preferences: {
+          preferredCompanySize: 'startup' as const,
+          workStyle: 'agile' as const,
+          communicationStyle: 'casual' as const,
+          preferredRate: 35,
+          minimumRate: 30
+        },
+        isAvailable: true,
+        rating: 4.2,
+        totalReviews: 8
       }
     ]
 
@@ -132,8 +189,8 @@ describe('MatchingEngine', () => {
     it('should include match reasons in results', async () => {
       const matches = await matchingEngine.findMatches(mockTalentRequest, mockTalentProfiles as any)
       
-      expect(matches[0].reasons).toContain('Strong skill match')
-      expect(matches[0].reasons).toContain('Experience level match')
+      expect(matches[0].reasons).toContain('Perfect skill match for React, TypeScript, Node.js')
+      expect(matches[0].reasons).toContain('Strong experience in technology industry')
     })
   })
 

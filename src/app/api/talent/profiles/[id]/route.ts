@@ -1,98 +1,79 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { logRequest, logError, logInfo } from '@/lib/logger'
+import logger from '@/lib/logger'
 import { z } from 'zod'
+import { getCurrentUser } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 
 const updateProfileSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  title: z.string().min(1).max(200).optional(),
-  skills: z.array(z.object({
-    name: z.string(),
-    level: z.enum(['junior', 'mid', 'senior', 'lead', 'principal']),
-    yearsOfExperience: z.number().min(0).max(50)
-  })).optional(),
-  rateMin: z.number().positive().optional(),
-  rateMax: z.number().positive().optional(),
-  currency: z.string().optional(),
-  location: z.string().optional(),
-  timezone: z.string().optional(),
-  availability: z.enum(['available', 'partially_available', 'unavailable']).optional(),
-  bio: z.string().max(2000).optional(),
+  title: z.string().min(1).max(100).optional(),
+  bio: z.string().min(1).max(1000).optional(),
+  skills: z.array(z.string()).optional(),
   experience: z.number().min(0).max(50).optional(),
-  education: z.array(z.object({
-    degree: z.string(),
-    institution: z.string(),
-    year: z.number().min(1900).max(new Date().getFullYear())
-  })).optional(),
-  certifications: z.array(z.object({
-    name: z.string(),
-    issuer: z.string(),
-    year: z.number().min(1900).max(new Date().getFullYear()),
-    expiryDate: z.string().datetime().optional()
-  })).optional(),
-  portfolio: z.array(z.object({
-    title: z.string(),
-    description: z.string(),
-    url: z.string().url().optional(),
-    technologies: z.array(z.string()).optional()
-  })).optional(),
-  languages: z.array(z.object({
-    language: z.string(),
-    proficiency: z.enum(['basic', 'conversational', 'fluent', 'native'])
-  })).optional(),
-  isVisible: z.boolean().optional(),
-  status: z.enum(['active', 'inactive', 'suspended']).optional()
+  hourlyRate: z.number().min(0).optional(),
+  availability: z.enum(['available', 'busy', 'unavailable']).optional(),
+  location: z.string().optional(),
+  website: z.string().url().optional(),
+  linkedin: z.string().url().optional(),
+  github: z.string().url().optional()
 })
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const correlationId = `get-profile-${Date.now()}`
-  
-  try {
-    const requestLogger = logRequest(request)
-    logInfo('Getting talent profile', { correlationId, profileId: params.id })
+// GET /api/talent/profiles/[id] - Get a specific talent profile
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  const requestLogger = logger
 
-    const talentProfile = await prisma.talentProfile.findUnique({
+  try {
+    const profile = await prisma.talentProfile.findUnique({
       where: { id: params.id },
       include: {
-        company: {
-          select: {
-            id: true,
-            name: true
-          }
+        user: {
+          select: { id: true, name: true, email: true, avatar: true }
         },
+        certifications: true,
         reviews: {
           include: {
             reviewer: {
-              select: {
-                id: true,
-                name: true
-              }
+              select: { id: true, name: true, email: true }
             }
           },
-          orderBy: { createdAt: 'desc' },
-          take: 5
+          take: 5,
+          orderBy: { createdAt: 'desc' }
+        },
+        _count: {
+          select: {
+            reviews: true,
+            engagements: true
+          }
         }
       }
     })
 
-    if (!talentProfile) {
+    if (!profile) {
       return NextResponse.json(
-        { error: 'Talent profile not found' },
+        { error: 'Profile not found' },
         { status: 404 }
       )
     }
 
+    // Calculate average rating
+    const avgRating = await prisma.review.aggregate({
+      where: { revieweeId: profile.userId },
+      _avg: { rating: true }
+    })
+
+    logger.info('Talent profile retrieved successfully', {
+      profileId: params.id
+    })
+
     return NextResponse.json({
       success: true,
-      profile: talentProfile
+      profile: {
+        ...profile,
+        averageRating: avgRating._avg.rating || 0
+      }
     })
 
   } catch (error) {
-    logError('Failed to get talent profile', {
-      correlationId,
+    logger.error('Failed to get talent profile', {
       profileId: params.id,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
@@ -104,91 +85,58 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const correlationId = `update-profile-${Date.now()}`
-  
-  try {
-    const requestLogger = logRequest(request)
-    logInfo('Updating talent profile', { correlationId, profileId: params.id })
+// PUT /api/talent/profiles/[id] - Update a talent profile
+export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+  const requestLogger = logger
 
-    // TODO: Get user from session/auth
-    const userId = request.headers.get('x-user-id') || 'test-user-id'
-    const companyId = request.headers.get('x-company-id')
-    
-    if (!companyId) {
+  try {
+    // Check authentication
+    const user = await getCurrentUser(request)
+    if (!user) {
       return NextResponse.json(
-        { error: 'Company ID is required' },
-        { status: 400 }
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    // Check if profile exists
+    const existingProfile = await prisma.talentProfile.findUnique({
+      where: { id: params.id }
+    })
+
+    if (!existingProfile) {
+      return NextResponse.json(
+        { error: 'Profile not found' },
+        { status: 404 }
+      )
+    }
+
+    // Check if user owns this profile
+    if (existingProfile.userId !== user.id) {
+      return NextResponse.json(
+        { error: 'Access denied' },
+        { status: 403 }
       )
     }
 
     const body = await request.json()
     const validatedBody = updateProfileSchema.parse(body)
-    
-    // Get the existing profile
-    const existingProfile = await prisma.talentProfile.findUnique({
-      where: { id: params.id },
-      include: { company: true }
-    })
 
-    if (!existingProfile) {
-      return NextResponse.json(
-        { error: 'Talent profile not found' },
-        { status: 404 }
-      )
-    }
-
-    // Check if user can update this profile
-    if (existingProfile.companyId !== companyId) {
-      return NextResponse.json(
-        { error: 'Forbidden' },
-        { status: 403 }
-      )
-    }
-
-    // Validate rate range if both are provided
-    if (validatedBody.rateMin && validatedBody.rateMax && validatedBody.rateMax <= validatedBody.rateMin) {
-      return NextResponse.json(
-        { error: 'Maximum rate must be greater than minimum rate' },
-        { status: 400 }
-      )
-    }
-
-    // Prepare update data
-    const updateData: any = {}
-    
-    if (validatedBody.name) updateData.name = validatedBody.name
-    if (validatedBody.title) updateData.title = validatedBody.title
-    if (validatedBody.skills) updateData.skills = validatedBody.skills
-    if (validatedBody.rateMin) updateData.rateMin = validatedBody.rateMin
-    if (validatedBody.rateMax) updateData.rateMax = validatedBody.rateMax
-    if (validatedBody.currency) updateData.currency = validatedBody.currency
-    if (validatedBody.location) updateData.location = validatedBody.location
-    if (validatedBody.timezone) updateData.timezone = validatedBody.timezone
-    if (validatedBody.availability) updateData.availability = validatedBody.availability
-    if (validatedBody.bio) updateData.bio = validatedBody.bio
-    if (validatedBody.experience) updateData.experience = validatedBody.experience
-    if (validatedBody.education) updateData.education = validatedBody.education
-    if (validatedBody.certifications) updateData.certifications = validatedBody.certifications
-    if (validatedBody.portfolio) updateData.portfolio = validatedBody.portfolio
-    if (validatedBody.languages) updateData.languages = validatedBody.languages
-    if (validatedBody.isVisible !== undefined) updateData.isVisible = validatedBody.isVisible
-    if (validatedBody.status) updateData.status = validatedBody.status
-
+    // Update profile
     const updatedProfile = await prisma.talentProfile.update({
       where: { id: params.id },
-      data: updateData,
+      data: validatedBody,
       include: {
-        company: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
+        user: {
+          select: { id: true, name: true, email: true, avatar: true }
+        },
+        certifications: true
       }
+    })
+
+    logger.info('Talent profile updated successfully', {
+      profileId: params.id,
+      userId: user.id
     })
 
     return NextResponse.json({
@@ -197,8 +145,7 @@ export async function PUT(
     })
 
   } catch (error) {
-    logError('Failed to update talent profile', {
-      correlationId,
+    logger.error('Failed to update talent profile', {
       profileId: params.id,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
@@ -209,6 +156,83 @@ export async function PUT(
         { status: 400 }
       )
     }
+
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE /api/talent/profiles/[id] - Delete a talent profile
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  const requestLogger = logger
+
+  try {
+    // Check authentication
+    const user = await getCurrentUser(request)
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    // Check if profile exists
+    const existingProfile = await prisma.talentProfile.findUnique({
+      where: { id: params.id }
+    })
+
+    if (!existingProfile) {
+      return NextResponse.json(
+        { error: 'Profile not found' },
+        { status: 404 }
+      )
+    }
+
+    // Check if user owns this profile
+    if (existingProfile.userId !== user.id) {
+      return NextResponse.json(
+        { error: 'Access denied' },
+        { status: 403 }
+      )
+    }
+
+    // Check if profile has active engagements
+    const activeEngagements = await prisma.engagement.count({
+      where: {
+        talentProfileId: params.id,
+        status: { in: ['active', 'pending'] }
+      }
+    })
+
+    if (activeEngagements > 0) {
+      return NextResponse.json(
+        { error: 'Cannot delete profile with active engagements' },
+        { status: 400 }
+      )
+    }
+
+    // Delete profile
+    await prisma.talentProfile.delete({
+      where: { id: params.id }
+    })
+
+    logger.info('Talent profile deleted successfully', {
+      profileId: params.id,
+      userId: user.id
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: 'Profile deleted successfully'
+    })
+
+  } catch (error) {
+    logger.error('Failed to delete talent profile', {
+      profileId: params.id,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
 
     return NextResponse.json(
       { error: 'Internal server error' },

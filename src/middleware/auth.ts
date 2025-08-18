@@ -10,7 +10,7 @@ export default withAuth(
     logAuth('Route accessed', userId, {
       path: req.nextUrl.pathname,
       method: req.method,
-      ip: req.ip || req.headers.get('x-forwarded-for') || 'unknown',
+      ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown',
     })
 
     // Additional security checks
@@ -21,7 +21,7 @@ export default withAuth(
           userId,
           userRole,
           path: req.nextUrl.pathname,
-          ip: req.ip || req.headers.get('x-forwarded-for') || 'unknown',
+          ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown',
         })
       }
     }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 import { escrowPaymentService } from '@/lib/payments/escrow'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {

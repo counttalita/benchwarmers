@@ -59,6 +59,12 @@ export function NotificationCenter({ userId, companyId, isOpen, onClose }: Notif
         return '💰'
       case 'offer_accepted':
         return '✅'
+      case 'engagement_status_changed':
+        return '🔄'
+      case 'manual_invoice_required':
+        return '🧾'
+      case 'payment_required':
+        return '💳'
       case 'payment_released':
         return '💸'
       case 'engagement_completed':
@@ -117,6 +123,9 @@ export function NotificationCenter({ userId, companyId, isOpen, onClose }: Notif
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="match_created">Matches</SelectItem>
                 <SelectItem value="offer_received">Offers</SelectItem>
+                <SelectItem value="engagement_status_changed">Engagements</SelectItem>
+                <SelectItem value="manual_invoice_required">Invoicing</SelectItem>
+                <SelectItem value="payment_required">Payments</SelectItem>
                 <SelectItem value="payment_released">Payments</SelectItem>
                 <SelectItem value="engagement_completed">Engagements</SelectItem>
                 <SelectItem value="dispute_created">Disputes</SelectItem>

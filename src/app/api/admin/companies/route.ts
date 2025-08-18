@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   const requestLogger = logger
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       prisma.company.count({ where })
     ])
 
-    requestLogger.info('Admin companies retrieved successfully', {
+    logger.info('Admin companies retrieved successfully', {
       count: companies.length,
       totalCount,
       status,
@@ -53,7 +53,9 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    requestLogger.error(error as Error, 500)
+    logger.error('Failed to retrieve companies', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
     return NextResponse.json(
       { error: 'Failed to retrieve companies' },
       { status: 500 }
@@ -118,7 +120,7 @@ export async function POST(request: NextRequest) {
       data: updateData
     })
 
-    requestLogger.info('Company status updated', {
+    logger.info('Company status updated', {
       companyId,
       action,
       newStatus: updatedCompany.status
@@ -130,7 +132,9 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    requestLogger.error(error as Error, 500)
+    logger.error('Failed to update company status', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
     return NextResponse.json(
       { error: 'Failed to update company status' },
       { status: 500 }

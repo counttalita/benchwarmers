@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
-import Stripe from 'stripe'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2023-10-16'
-})
+import logger from '@/lib/logger'
+import { paystackService } from '@/lib/paystack'
 
 export async function POST(request: NextRequest) {
   const requestLogger = logger
@@ -55,17 +51,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create Stripe payment intent
+    // Calculate facilitation fee (5% of transaction amount)
+    const facilitationFee = Math.round(amount * 0.05)
+    const netAmount = amount - facilitationFee
+
+    // Create Paystack payment intent
     let paymentIntent
     try {
-      paymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(amount * 100), // Convert to cents
-        currency: 'usd',
-        payment_method: paymentMethodId,
-        confirm: true,
-        return_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/payments/success`
-      })
-    } catch (stripeError) {
+      paymentIntent = await paystackService.createPaymentIntent(
+        amount,
+        'ZAR', // Changed to ZAR for South African Rand
+        {
+          engagementId,
+          milestoneId,
+          paymentMethodId,
+          facilitationFee: facilitationFee.toString(),
+          netAmount: netAmount.toString()
+        }
+      )
+    } catch (paystackError) {
       return NextResponse.json(
         { error: 'Payment failed' },
         { status: 400 }
@@ -84,20 +88,24 @@ export async function POST(request: NextRequest) {
       data: {
         engagementId,
         amount,
-        currency: 'usd',
+        currency: 'ZAR',
         status: 'completed',
         type: 'milestone',
-        stripePaymentIntentId: paymentIntent.id,
+        paystackPaymentId: paymentIntent.id,
         milestoneId,
+        facilitationFee,
+        netAmount,
         processedAt: new Date()
       }
     })
 
-    requestLogger.info('Payment processed successfully', {
+    logger.info('Payment processed successfully', {
       transactionId: transaction.id,
       engagementId,
       amount,
-      stripePaymentIntentId: paymentIntent.id
+      facilitationFee,
+      netAmount,
+      paystackPaymentId: paymentIntent.id
     })
 
     return NextResponse.json({
@@ -106,12 +114,15 @@ export async function POST(request: NextRequest) {
         id: transaction.id,
         status: transaction.status,
         amount: transaction.amount,
-        stripePaymentIntentId: transaction.stripePaymentIntentId
+        facilitationFee: transaction.facilitationFee,
+        netAmount: transaction.netAmount,
+        currency: transaction.currency,
+        paystackPaymentId: transaction.paystackPaymentId
       }
     })
 
   } catch (error) {
-    requestLogger.error(error as Error, 500)
+    logger.error('Failed to process payment', error as Error)
     return NextResponse.json(
       { error: 'Failed to process payment' },
       { status: 500 }

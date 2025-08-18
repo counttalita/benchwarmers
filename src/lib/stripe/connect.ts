@@ -1,9 +1,9 @@
 import Stripe from 'stripe'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 
 // Initialize Stripe with Connect
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-12-18.acacia',
+  apiVersion: '2025-07-30.basil',
   typescript: true,
 })
 
@@ -66,7 +66,9 @@ export class StripeConnectService {
 
       return {
         id: account.id,
-        business_type: account.business_type!,
+        business_type: (account.business_type === 'individual' || account.business_type === 'company') 
+          ? account.business_type 
+          : 'company',
         charges_enabled: account.charges_enabled,
         payouts_enabled: account.payouts_enabled,
         requirements: {
@@ -75,8 +77,12 @@ export class StripeConnectService {
           past_due: account.requirements?.past_due || [],
         },
         capabilities: {
-          card_payments: account.capabilities?.card_payments?.status || 'inactive',
-          transfers: account.capabilities?.transfers?.status || 'inactive',
+          card_payments: (typeof account.capabilities?.card_payments === 'string') 
+            ? account.capabilities.card_payments as 'active' | 'inactive' | 'pending'
+            : 'inactive',
+          transfers: (typeof account.capabilities?.transfers === 'string') 
+            ? account.capabilities.transfers as 'active' | 'inactive' | 'pending'
+            : 'inactive',
         },
       }
     } catch (error) {
@@ -133,7 +139,9 @@ export class StripeConnectService {
 
       return {
         id: account.id,
-        business_type: account.business_type!,
+        business_type: (account.business_type === 'individual' || account.business_type === 'company') 
+          ? account.business_type 
+          : 'company',
         charges_enabled: account.charges_enabled,
         payouts_enabled: account.payouts_enabled,
         requirements: {
@@ -142,8 +150,12 @@ export class StripeConnectService {
           past_due: account.requirements?.past_due || [],
         },
         capabilities: {
-          card_payments: account.capabilities?.card_payments?.status || 'inactive',
-          transfers: account.capabilities?.transfers?.status || 'inactive',
+          card_payments: (typeof account.capabilities?.card_payments === 'string') 
+            ? account.capabilities.card_payments as 'active' | 'inactive' | 'pending'
+            : 'inactive',
+          transfers: (typeof account.capabilities?.transfers === 'string') 
+            ? account.capabilities.transfers as 'active' | 'inactive' | 'pending'
+            : 'inactive',
         },
       }
     } catch (error) {

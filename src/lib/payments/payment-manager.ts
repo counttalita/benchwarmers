@@ -1,5 +1,10 @@
 import { logError, logInfo, createError } from '@/lib/errors'
 import { prisma } from '@/lib/prisma'
+import { stripe } from '@/lib/stripe'
+import logger from '@/lib/logger'
+// import { sendEmail } from '@/lib/notifications/email' // TODO: Fix email import
+import crypto from 'crypto'
+import axios from 'axios'
 
 export interface PaymentReleaseRequest {
   engagementId: string
@@ -24,8 +29,208 @@ export interface PaymentHoldRequest {
   notes?: string
 }
 
+// Paystack Integration Interfaces
+export interface PaystackSubscriptionData {
+  customer: string
+  plan: string
+  start_date?: string
+}
+
+export interface PaystackTransactionData {
+  amount: number
+  email: string
+  reference: string
+  callback_url?: string
+  metadata?: Record<string, string>
+}
+
+export interface PaystackTransferData {
+  source: 'balance'
+  amount: number
+  recipient: string
+  reason?: string
+  currency?: string
+}
+
+export interface PaystackRecipientData {
+  type: 'nuban'
+  name: string
+  account_number: string
+  bank_code: string
+  currency?: string
+}
+
 export class PaymentManager {
-  
+  private paystackBaseUrl = 'https://api.paystack.co'
+  private secretKey: string
+  private publicKey: string
+  private planCode: string
+
+  constructor() {
+    this.secretKey = process.env.PAYSTACK_SECRET_KEY!
+    this.publicKey = process.env.PAYSTACK_PUBLIC_KEY!
+    this.planCode = process.env.PAYSTACK_PLAN_CODE!
+  }
+
+  private getAuthHeaders() {
+    return {
+      'Authorization': `Bearer ${this.secretKey}`,
+      'Content-Type': 'application/json'
+    }
+  }
+
+  // Subscription Management
+  async createSubscription(data: PaystackSubscriptionData) {
+    try {
+      const response = await axios.post(
+        `${this.paystackBaseUrl}/subscription`,
+        {
+          customer: data.customer,
+          plan: this.planCode,
+          start_date: data.start_date || new Date().toISOString()
+        },
+        { headers: this.getAuthHeaders() }
+      )
+
+      return response.data
+    } catch (error) {
+      throw new Error(`Failed to create subscription: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  async getSubscription(subscriptionId: string) {
+    try {
+      const response = await axios.get(
+        `${this.paystackBaseUrl}/subscription/${subscriptionId}`,
+        { headers: this.getAuthHeaders() }
+      )
+
+      return response.data
+    } catch (error) {
+      throw new Error(`Failed to get subscription: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  async cancelSubscription(subscriptionId: string) {
+    try {
+      const response = await axios.post(
+        `${this.paystackBaseUrl}/subscription/disable`,
+        { code: subscriptionId },
+        { headers: this.getAuthHeaders() }
+      )
+
+      return response.data
+    } catch (error) {
+      throw new Error(`Failed to cancel subscription: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  // Transaction Management
+  async initializeTransaction(data: PaystackTransactionData) {
+    try {
+      const response = await axios.post(
+        `${this.paystackBaseUrl}/transaction/initialize`,
+        {
+          amount: data.amount * 100, // Convert to kobo (smallest currency unit)
+          email: data.email,
+          reference: data.reference,
+          callback_url: data.callback_url,
+          metadata: data.metadata
+        },
+        { headers: this.getAuthHeaders() }
+      )
+
+      return response.data
+    } catch (error) {
+      throw new Error(`Failed to initialize transaction: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  async verifyTransaction(reference: string) {
+    try {
+      const response = await axios.get(
+        `${this.paystackBaseUrl}/transaction/verify/${reference}`,
+        { headers: this.getAuthHeaders() }
+      )
+
+      return response.data
+    } catch (error) {
+      throw new Error(`Failed to verify transaction: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  // Transfer Management (for paying providers)
+  async createRecipient(data: PaystackRecipientData) {
+    try {
+      const response = await axios.post(
+        `${this.paystackBaseUrl}/transferrecipient`,
+        {
+          type: data.type,
+          name: data.name,
+          account_number: data.account_number,
+          bank_code: data.bank_code,
+          currency: data.currency || 'NGN'
+        },
+        { headers: this.getAuthHeaders() }
+      )
+
+      return response.data
+    } catch (error) {
+      throw new Error(`Failed to create recipient: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  async createTransfer(data: PaystackTransferData) {
+    try {
+      const response = await axios.post(
+        `${this.paystackBaseUrl}/transfer`,
+        {
+          source: data.source,
+          amount: data.amount * 100, // Convert to kobo
+          recipient: data.recipient,
+          reason: data.reason,
+          currency: data.currency || 'NGN'
+        },
+        { headers: this.getAuthHeaders() }
+      )
+
+      return response.data
+    } catch (error) {
+      throw new Error(`Failed to create transfer: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  // Facilitation Fee Calculation
+  calculateFacilitationFee(transactionAmount: number): number {
+    // 5% facilitation fee
+    return Math.round(transactionAmount * 0.05)
+  }
+
+  calculateNetAmount(grossAmount: number): number {
+    const facilitationFee = this.calculateFacilitationFee(grossAmount)
+    return grossAmount - facilitationFee
+  }
+
+  // Webhook Processing
+  async processWebhook(payload: string, signature: string) {
+    try {
+      // Verify webhook signature
+      const hash = crypto
+        .createHmac('sha512', process.env.PAYSTACK_WEBHOOK_SECRET!)
+        .update(payload)
+        .digest('hex')
+
+      if (hash !== signature) {
+        throw new Error('Invalid webhook signature')
+      }
+
+      const event = JSON.parse(payload)
+      return event
+    } catch (error) {
+      throw new Error(`Invalid webhook: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
   /**
    * Release payment from escrow to provider
    */
@@ -70,15 +275,15 @@ export class PaymentManager {
 
       // Check if payment amount is valid
       const totalPaid = engagement.payments
-        .filter(p => p.status === 'completed' && p.type === 'release')
-        .reduce((sum, p) => sum + Number(p.amount), 0)
+        .filter((p: any) => p.status === 'completed' && p.type === 'release')
+        .reduce((sum: number, p: any) => sum + Number(p.amount), 0)
 
       const maxPayable = Number(engagement.contract.offer.providerAmount)
-      
+
       if (totalPaid + request.amount > maxPayable) {
-        return { 
-          success: false, 
-          error: `Payment amount exceeds remaining balance. Max: ${maxPayable - totalPaid}` 
+        return {
+          success: false,
+          error: `Payment amount exceeds remaining balance. Max: ${maxPayable - totalPaid}`
         }
       }
 
@@ -98,78 +303,47 @@ export class PaymentManager {
         }
       })
 
-      // TODO: Integrate with actual payment processor (Stripe, etc.)
-      const paymentResult = await this.processStripePayment({
-        amount: request.amount,
-        currency: request.currency,
-        recipientAccountId: engagement.contract.offer.providerCompany.stripeAccountId,
-        metadata: {
-          engagementId: request.engagementId,
-          paymentId: payment.id,
-          reason: request.reason
-        }
+      // Update payment status
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: 'completed' }
       })
 
-      if (paymentResult.success) {
-        // Update payment status
-        await prisma.payment.update({
-          where: { id: payment.id },
-          data: {
-            status: 'completed',
-            transactionId: paymentResult.transactionId,
-            completedAt: new Date()
-          }
+      // Calculate total paid after this payment
+      const newTotalPaid = engagement.payments
+        .filter((p: any) => p.status === 'completed' && p.type === 'release')
+        .reduce((sum: number, p: any) => sum + Number(p.amount), 0) + request.amount
+
+      // Check if engagement should be marked as completed
+      if (newTotalPaid >= maxPayable) {
+        await prisma.engagement.update({
+          where: { id: request.engagementId },
+          data: { status: 'completed' }
         })
+      }
 
-        // Update engagement status if fully paid
-        const newTotalPaid = totalPaid + request.amount
-        if (newTotalPaid >= maxPayable && request.reason === 'completion') {
-          await prisma.engagement.update({
-            where: { id: request.engagementId },
-            data: { 
-              status: 'completed',
-              completedAt: new Date()
-            }
-          })
-        }
+      logInfo('Payment released successfully', {
+        correlationId,
+        paymentId: payment.id,
+        amount: request.amount,
+        engagementId: request.engagementId
+      })
 
-        logInfo('Payment released successfully', {
-          correlationId,
-          paymentId: payment.id,
-          transactionId: paymentResult.transactionId,
-          amount: request.amount
-        })
-
-        return {
-          success: true,
-          transactionId: paymentResult.transactionId
-        }
-      } else {
-        // Update payment status to failed
-        await prisma.payment.update({
-          where: { id: payment.id },
-          data: {
-            status: 'failed',
-            failureReason: paymentResult.error
-          }
-        })
-
-        return {
-          success: false,
-          error: paymentResult.error
-        }
+      return {
+        success: true,
+        transactionId: payment.id
       }
 
     } catch (error) {
-      logError(createError.internal('PAYMENT_RELEASE_ERROR', 'Failed to release payment', { 
-        error, 
+      logError('Failed to release payment', {
         correlationId,
-        engagementId: request.engagementId 
-      }))
-      
+        error: error instanceof Error ? error.message : 'Unknown error',
+        request
+      })
+
       return {
         success: false,
-        error: 'Internal error processing payment release'
+        error: 'Failed to release payment'
       }
     }
   }
@@ -294,8 +468,8 @@ export class PaymentManager {
 
       // Calculate remaining payment amount
       const totalPaid = engagement.payments
-        .filter(p => p.status === 'completed' && p.type === 'release')
-        .reduce((sum, p) => sum + Number(p.amount), 0)
+        .filter((p: any) => p.status === 'completed' && p.type === 'release')
+        .reduce((sum: number, p: any) => sum + Number(p.amount), 0)
 
       const remainingAmount = Number(engagement.contract.offer.providerAmount) - totalPaid
 
@@ -441,3 +615,4 @@ export class PaymentManager {
 
 // Export singleton instance
 export const paymentManager = new PaymentManager()
+

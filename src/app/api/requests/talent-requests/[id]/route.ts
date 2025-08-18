@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logRequest, logError, logInfo } from '@/lib/logger'
+import logger from '@/lib/logger'
 import { z } from 'zod'
 
 const updateRequestSchema = z.object({
@@ -41,8 +41,8 @@ export async function GET(
   const correlationId = `get-request-${Date.now()}`
   
   try {
-    const requestLogger = logRequest(request)
-    logInfo('Getting talent request', { correlationId, requestId: params.id })
+    const requestLogger = logger
+    logger.info('Getting talent request', { correlationId, requestId: params.id })
 
     const talentRequest = await prisma.talentRequest.findUnique({
       where: { id: params.id },
@@ -85,7 +85,7 @@ export async function GET(
     })
 
   } catch (error) {
-    logError('Failed to get talent request', {
+    logger.error('Failed to get talent request', {
       correlationId,
       requestId: params.id,
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -105,8 +105,8 @@ export async function PUT(
   const correlationId = `update-request-${Date.now()}`
   
   try {
-    const requestLogger = logRequest(request)
-    logInfo('Updating talent request', { correlationId, requestId: params.id })
+    const requestLogger = logger
+    logger.info('Updating talent request', { correlationId, requestId: params.id })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id')
@@ -197,7 +197,7 @@ export async function PUT(
     })
 
   } catch (error) {
-    logError('Failed to update talent request', {
+    logger.error('Failed to update talent request', {
       correlationId,
       requestId: params.id,
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -224,8 +224,8 @@ export async function DELETE(
   const correlationId = `delete-request-${Date.now()}`
   
   try {
-    const requestLogger = logRequest(request)
-    logInfo('Deleting talent request', { correlationId, requestId: params.id })
+    const requestLogger = logger
+    logger.info('Deleting talent request', { correlationId, requestId: params.id })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id')
@@ -281,7 +281,7 @@ export async function DELETE(
     return new NextResponse(null, { status: 204 })
 
   } catch (error) {
-    logError('Failed to delete talent request', {
+    logger.error('Failed to delete talent request', {
       correlationId,
       requestId: params.id,
       error: error instanceof Error ? error.message : 'Unknown error'
