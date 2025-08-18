@@ -59,13 +59,128 @@ This directory contains comprehensive documentation for the Benchwarmers marketp
 - Authentication and authorization
 - Error handling and rate limiting
 
-### Database Schema
+### Client-Facing Documentation
 
-#### [Prisma Schema](./prisma-schema.md)
-- Database schema documentation
+#### [Client Presentation](./client-presentation.md)
+- Sales and marketing materials
+- Platform overview and benefits
+- User journey flows
+- Competitive advantages
+- Investment opportunity
+
+#### [User Experience Guide](./user-experience-guide.md)
+- Design philosophy and principles
+- User personas and journey maps
+- Interface design system
+- Accessibility features
+- Performance metrics
+
+#### [Business Case](./business-case.md)
+- Executive summary and market opportunity
+- Financial projections and ROI analysis
+- Growth strategy and funding requirements
+- Risk analysis and mitigation
+- Success metrics and KPIs
+
+### Technical Documentation
+
+#### [System Overview](./SYSTEM_OVERVIEW.md)
+- High-level architecture
+- Technology stack
+- System components
+- Data flow
+
+#### [Database Models](./DATABASE_MODELS.md)
+- Complete schema documentation
 - Model relationships
 - Indexes and constraints
-- Migration history
+- Data validation
+
+#### [API Endpoints](./API_ENDPOINTS.md)
+- Detailed API documentation
+- Authentication methods
+- Request/response formats
+- Error handling
+
+#### [User Workflows](./USER_WORKFLOWS.md)
+- Complete user journey documentation
+- Step-by-step processes
+- Business logic
+- Validation rules
+
+#### [Component Architecture](./COMPONENT_ARCHITECTURE.md)
+- React component structure
+- Design patterns
+- State management
+- Performance optimization
+
+#### [Security & Monitoring](./SECURITY_MONITORING.md)
+- Security measures
+- Authentication & authorization
+- Data protection
+- Monitoring & alerting
+
+#### [Testing Infrastructure](./TESTING_INFRASTRUCTURE.md)
+- Testing strategy
+- Test frameworks
+- CI/CD integration
+- Quality assurance
+
+#### [Error Handling & Logging](./ERROR_HANDLING_LOGGING.md)
+- Error management
+- Logging strategy
+- Monitoring
+- Debugging
+
+#### [Notification System](./NOTIFICATION_SYSTEM.md)
+- Real-time notifications
+- Email notifications
+- SMS notifications
+- Notification preferences
+
+#### [Payment System Implementation](./payment-system-implementation.md)
+- Paystack integration
+- Payment flows
+- Escrow system
+- Subscription management
+
+#### [Matching Algorithm](./matching-algorithm.md)
+- AI-powered matching
+- Algorithm details
+- Scoring system
+- Performance optimization
+
+#### [Logging](./LOGGING.md)
+- Logging configuration
+- Log levels
+- Log rotation
+- Log analysis
+
+#### [Integration Guide](./INTEGRATION_GUIDE.md)
+- Third-party integrations
+- API documentation
+- Webhook handling
+- Data synchronization
+
+#### [Admin Workflows](./ADMIN_WORKFLOWS.md)
+- Administrative processes
+- User management
+- System monitoring
+- Troubleshooting
+
+### Deployment Documentation
+
+#### [Production Setup](./production-setup.md)
+- Production environment setup
+- Configuration management
+- Performance optimization
+- Security hardening
+
+#### [Deployment Checklist](./deployment-checklist.md)
+- Pre-deployment checklist
+- Environment validation
+- Testing requirements
+- Rollback procedures
 
 ## Quick Start Guides
 
@@ -73,7 +188,7 @@ This directory contains comprehensive documentation for the Benchwarmers marketp
 
 1. **Setup**: Follow the main project README for development setup
 2. **Database**: Run `prisma generate` and `prisma db push` to set up the database
-3. **Environment**: Configure environment variables (see `.env.example`)
+3. **Environment**: Configure environment variables (see main README)
 4. **Testing**: Run `npm test` to execute the test suite
 
 ### For Administrators
@@ -111,7 +226,7 @@ This directory contains comprehensive documentation for the Benchwarmers marketp
 ## Technical Architecture
 
 ### Frontend
-- **Next.js 14**: React framework with App Router
+- **Next.js 15**: React framework with App Router
 - **TypeScript**: Type-safe development
 - **Tailwind CSS**: Utility-first styling
 - **Shadcn UI**: Component library

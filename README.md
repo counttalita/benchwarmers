@@ -40,15 +40,15 @@ BenchWarmers revolutionises how organisations manage talent resources by creatin
 
 | Category | Technology | Purpose |
 |----------|------------|----------|
-| **Frontend** | Next.js 14 + TypeScript | Modern React framework with type safety |
+| **Frontend** | Next.js 15 + TypeScript | Modern React framework with type safety |
 | **UI/UX** | Tailwind CSS + shadcn/ui | Responsive design & accessible components |
 | **Backend** | Node.js + Prisma ORM | Scalable API with type-safe database access |
 | **Database** | PostgreSQL + Redis | Primary data store + caching/sessions |
-| **Authentication** | NextAuth.js + 2FA | Secure user authentication with MFA |
-| **Payments** | Stripe + Stripe Connect | Payment processing & marketplace payouts |
-| **Storage** | Appwrite Storage | File uploads & document management |
+| **Authentication** | NextAuth.js | Secure user authentication |
+| **Payments** | Paystack | Payment processing & marketplace transactions |
 | **Real-time** | Pusher | Live notifications & updates |
-| **Email** | SendGrid | Transactional emails & notifications |
+| **Email** | Resend | Transactional emails & notifications |
+| **SMS** | Twilio | Phone verification & notifications |
 | **Monitoring** | Sentry + Winston | Error tracking & structured logging |
 | **Testing** | Jest + Playwright | Unit, integration & E2E testing |
 | **DevOps** | Docker + GitHub Actions | Containerisation & CI/CD pipelines |
@@ -69,7 +69,7 @@ BenchWarmers revolutionises how organisations manage talent resources by creatin
 ```bash
 # 1. Clone the repository
 git clone <repository-url>
-cd benchwarmers-marketplace
+cd benchwarmers
 
 # 2. Install dependencies
 npm install
@@ -123,12 +123,14 @@ npm run test         # Run unit tests
 npm run test:api     # Run API tests
 npm run test:e2e     # Run end-to-end tests
 npm run test:coverage # Generate coverage report
+npm run test:all     # Run all test suites
 ```
 
 ### Docker Operations
 ```bash
 npm run docker:up    # Start Docker containers
 npm run docker:down  # Stop Docker containers
+npm run docker:logs  # View container logs
 ```
 
 ## 📁 Project Structure
@@ -136,25 +138,40 @@ npm run docker:down  # Stop Docker containers
 ```
 📦 benchwarmers/
 ├── 📂 src/
-│   ├── 📂 app/                    # Next.js 14 app directory
+│   ├── 📂 app/                    # Next.js 15 app directory
 │   │   ├── 📂 api/               # API routes
-│   │   ├── 📂 auth/              # Authentication pages
+│   │   │   ├── 📂 admin/         # Admin endpoints
+│   │   │   ├── 📂 auth/          # Authentication endpoints
+│   │   │   ├── 📂 engagements/   # Engagement management
+│   │   │   ├── 📂 offers/        # Offer management
+│   │   │   ├── 📂 payments/      # Payment processing
+│   │   │   ├── 📂 subscriptions/ # Subscription management
+│   │   │   └── 📂 webhooks/      # Webhook handlers
 │   │   ├── 📂 admin/             # Admin dashboard
+│   │   ├── 📂 auth/              # Authentication pages
+│   │   ├── 📂 dashboard/         # User dashboard
+│   │   ├── 📂 profile/           # User profile management
 │   │   └── 📄 layout.tsx         # Root layout
 │   ├── 📂 components/            # React components
 │   │   ├── 📂 ui/               # Base UI components (shadcn/ui)
+│   │   ├── 📂 admin/            # Admin components
 │   │   ├── 📂 auth/             # Authentication components
-│   │   ├── 📂 talent/           # Talent-related components
-│   │   ├── 📂 requests/         # Request management
+│   │   ├── 📂 dashboard/        # Dashboard components
+│   │   ├── 📂 engagements/      # Engagement management
+│   │   ├── 📂 matching/         # Talent matching
+│   │   ├── 📂 notifications/    # Notification components
 │   │   ├── 📂 offers/           # Offer management
-│   │   └── 📂 admin/            # Admin components
+│   │   ├── 📂 profile/          # Profile components
+│   │   ├── 📂 requests/         # Request management
+│   │   └── 📂 talent/           # Talent-related components
 │   ├── 📂 lib/                   # Utility functions & configs
-│   │   ├── 📂 api/              # API utilities
+│   │   ├── 📂 payments/         # Payment integrations (Paystack)
 │   │   ├── 📂 auth/             # Auth utilities
-│   │   ├── 📂 payments/         # Payment integrations
+│   │   ├── 📂 notifications/    # Notification system
 │   │   └── 📂 utils/            # General utilities
 │   ├── 📂 hooks/                 # Custom React hooks
-│   └── 📂 types/                 # TypeScript definitions
+│   ├── 📂 types/                 # TypeScript definitions
+│   └── 📂 middleware/           # Middleware functions
 ├── 📂 prisma/
 │   ├── 📄 schema.prisma          # Database schema
 │   ├── 📂 migrations/           # Database migrations
@@ -162,9 +179,11 @@ npm run docker:down  # Stop Docker containers
 ├── 📂 __tests__/                 # Test suites
 │   ├── 📂 api/                  # API tests
 │   ├── 📂 components/           # Component tests
-│   └── 📂 integration/          # Integration tests
+│   ├── 📂 integration/          # Integration tests
+│   └── 📂 unit/                 # Unit tests
 ├── 📂 docs/                      # Documentation
 ├── 📂 docker/                    # Docker configurations
+├── 📂 e2e/                      # End-to-end tests
 └── 📂 scripts/                   # Utility scripts
 ```
 
@@ -176,33 +195,35 @@ Copy `.env.example` to `.env.local` and configure:
 
 ```bash
 # Database
-DATABASE_URL="postgresql://user:password@localhost:5432/benchwarmers"
+DATABASE_URL="postgresql://postgres:password@localhost:5432/benchwarmers_dev"
 REDIS_URL="redis://localhost:6379"
 
 # Authentication
 NEXTAUTH_SECRET="your-secret-key"
 NEXTAUTH_URL="http://localhost:3000"
 
-# Payments
-STRIPE_SECRET_KEY="sk_test_..."
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_test_..."
+# Payments (Paystack)
+PAYSTACK_PUBLIC_KEY="pk_test_..."
+PAYSTACK_SECRET_KEY="sk_test_..."
+PAYSTACK_WEBHOOK_SECRET="whsec_..."
+PAYSTACK_PLAN_CODE="PLN_..."
 
 # Email
-SENDGRID_API_KEY="SG..."
-SENDGRID_FROM_EMAIL="noreply@benchwarmers.com"
+RESEND_API_KEY="re_..."
+RESEND_FROM_EMAIL="noreply@benchwarmers.com"
 
-# File Storage
-NEXT_PUBLIC_APPWRITE_PROJECT_ID="your-project-id"
-APPWRITE_API_KEY="your-api-key"
-
-# Monitoring
-SENTRY_DSN="https://..."
-LOG_LEVEL="info"
+# SMS
+TWILIO_ACCOUNT_SID="AC..."
+TWILIO_AUTH_TOKEN="..."
 
 # Real-time
 PUSHER_APP_ID="your-app-id"
 PUSHER_KEY="your-key"
 PUSHER_SECRET="your-secret"
+
+# Monitoring
+SENTRY_DSN="https://..."
+LOG_LEVEL="info"
 ```
 
 > 📝 **Note**: See `.env.example` for complete configuration options
@@ -216,26 +237,40 @@ PUSHER_SECRET="your-secret"
 - 🎯 **Talent Profiles** - Comprehensive skill and experience tracking
 - 📋 **Request Management** - Detailed project requirements and matching
 - 💼 **Offer System** - Negotiation and contract management
-- 💳 **Payment Processing** - Secure escrow and payout system
+- 💳 **Payment Processing** - Secure Paystack integration with escrow
 - 📊 **Analytics Dashboard** - Performance metrics and insights
 - 🔔 **Real-time Notifications** - Live updates and messaging
-- 📄 **Document Management** - Contract generation and e-signatures
+- 📄 **Document Management** - Contract generation and file uploads
 - 🛡️ **Security & Compliance** - GDPR compliance and audit trails
 
 ### Database Schema
 
-PostgreSQL database with 15+ interconnected models:
+PostgreSQL database with 20+ interconnected models:
 
 - **Companies** - Provider/seeker organisations
 - **Users** - Platform users with role-based permissions
 - **TalentProfiles** - Professional skills and experience
 - **Requests** - Project requirements and specifications
 - **Offers** - Proposals and negotiations
-- **Engagements** - Active work relationships
+- **Engagements** - Active work relationships with status flow
 - **Payments** - Transaction and escrow management
+- **Subscriptions** - Monthly subscription management (850 ZAR)
 - **Reviews** - Performance feedback system
 - **Notifications** - Real-time communication
 - **AuditLogs** - Compliance and security tracking
+
+### Engagement Status Flow
+
+The platform implements a comprehensive interview workflow:
+
+1. **Staged** - Talent shortlisted for project
+2. **Interviewing** - Interview process in progress
+3. **Accepted** - Interview successful, ready for engagement
+4. **Rejected** - Interview unsuccessful
+5. **Active** - Engagement currently running
+6. **Completed** - Engagement finished successfully
+7. **Terminated** - Engagement ended early
+8. **Disputed** - Dispute resolution needed
 
 ## 🧪 Testing Strategy
 
@@ -274,6 +309,10 @@ Comprehensive documentation available in `/docs/`:
 - 🧪 **[Testing Guide](docs/TESTING_INFRASTRUCTURE.md)** - Testing strategy and setup
 - 🏗️ **[Component Architecture](docs/COMPONENT_ARCHITECTURE.md)** - UI component library
 - 📝 **[Error Handling](docs/ERROR_HANDLING_LOGGING.md)** - Error management and logging
+- 💰 **[Payment Flows](docs/payment-flows.md)** - Paystack integration and billing
+- 🎯 **[Client Presentation](docs/client-presentation.md)** - Sales and marketing materials
+- 🎨 **[User Experience Guide](docs/user-experience-guide.md)** - UX design and flows
+- 📊 **[Business Case](docs/business-case.md)** - Financial projections and ROI
 
 ## 🤝 Contributing
 
