@@ -20,7 +20,7 @@ export async function scanFile(
   options: ScanOptions = {}
 ): Promise<ScanResult> {
   const startTime = Date.now()
-  const { timeout = 30000, maxFileSize = 10 * 1024 * 1024 } = options
+  const { maxFileSize = 10 * 1024 * 1024 } = options
 
   try {
     // Check file size

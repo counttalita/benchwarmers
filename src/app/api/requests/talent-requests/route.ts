@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logRequest, logError, logInfo } from '@/lib/logger'
+import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
 

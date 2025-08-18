@@ -20,7 +20,7 @@ export interface EmailOptions {
 
 export interface EmailTemplate {
   name: string
-  data: Record<string, any>
+  data: Record<string, unknown>
 }
 
 /**
@@ -210,7 +210,7 @@ export async function sendBulkEmail(
 /**
  * Renders an email template with data
  */
-async function renderEmailTemplate(templateName: string, data: Record<string, any>): Promise<string> {
+async function renderEmailTemplate(templateName: string, data: Record<string, unknown> = {}): Promise<string> {
   // In a real implementation, you would use a template engine like Handlebars, EJS, or React Email
   // For now, we'll use simple string replacement
   

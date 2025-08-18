@@ -18,7 +18,7 @@ export interface SMSOptions {
 
 export interface SMSTemplate {
   name: string
-  data: Record<string, any>
+  data: Record<string, unknown>
 }
 
 /**
@@ -28,7 +28,7 @@ export async function sendSMS(options: SMSOptions): Promise<{ success: boolean; 
   try {
     const { to, body, from: fromNumberOverride, mediaUrl } = options
 
-    const messageData: any = {
+    const messageData: Record<string, unknown> = {
       to,
       from: fromNumberOverride || fromNumber,
       body
@@ -171,7 +171,7 @@ export async function sendBulkSMS(
   const failed = results.length - sent
   const errors = results
     .filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success))
-    .map(r => r.status === 'rejected' ? (r as PromiseRejectedResult).reason : (r as PromiseFulfilledResult<any>).value.error)
+    .map(r => r.status === 'rejected' ? (r as PromiseRejectedResult).reason : (r as PromiseFulfilledResult<{ success: boolean; error?: string }>).value.error)
 
   logger.info('Bulk SMS completed', {
     total: recipients.length,
@@ -215,7 +215,7 @@ export function formatPhoneNumber(phoneNumber: string): string {
 /**
  * Renders an SMS template with data
  */
-function renderSMSTemplate(templateName: string, data: Record<string, any>): string {
+function renderSMSTemplate(templateName: string, data: Record<string, unknown>): string {
   const templates: Record<string, string> = {
     'otp-verification': `Your BenchWarmers verification code is: ${data.otp}. Valid for ${data.expiresIn}.`,
     'domain-verification': `Verify your domain ${data.domain} with code: ${data.verificationCode}`,
@@ -239,7 +239,7 @@ function renderSMSTemplate(templateName: string, data: Record<string, any>): str
 /**
  * Checks if SMS notifications are enabled for a user
  */
-export function isSMSEnabled(userPreferences: any): boolean {
+export function isSMSEnabled(userPreferences: Record<string, unknown>): boolean {
   return userPreferences?.smsNotifications !== false
 }
 

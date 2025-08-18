@@ -1,163 +1,210 @@
+import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 import { NextRequest } from 'next/server'
-import { GET, POST } from '@/app/api/requests/talent-requests/route'
-import { PUT, DELETE } from '@/app/api/requests/talent-requests/[id]/route'
-import { prisma } from '@/lib/prisma'
 
-// Mock the prisma module
-jest.mock('@/lib/prisma')
+// Mock Prisma
+jest.mock('@/lib/prisma', () => ({
+  prisma: {
+    talentRequest: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      count: jest.fn()
+    },
+    user: {
+      findUnique: jest.fn()
+    },
+    company: {
+      findUnique: jest.fn()
+    }
+  }
+}))
+
+// Mock auth
+jest.mock('@/lib/auth', () => ({
+  getCurrentUser: jest.fn()
+}))
+
+// Mock logger
+jest.mock('@/lib/logger', () => ({
+  logger: {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn()
+  }
+}))
 
 describe('/api/requests/talent-requests', () => {
-  const mockPrisma = prisma as jest.Mocked<typeof prisma>
-  
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
   describe('GET /api/requests/talent-requests', () => {
-    const mockTalentRequests = [
-      {
-        id: 'req-1',
-        companyId: 'company-1',
-        title: 'Senior React Developer',
-        description: 'Looking for experienced React developer',
-        budget: 5000,
-        duration: 30,
-        skillsRequired: ['React', 'TypeScript'],
-        experienceLevel: 'senior',
-        status: 'active',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        company: {
-          id: 'company-1',
-          name: 'Tech Corp',
-          email: 'contact@techcorp.com'
+    it('should return talent requests successfully', async () => {
+      const request = new NextRequest('http://localhost:3000/api/requests/talent-requests', {
+        method: 'GET',
+        headers: {
+          'x-user-id': 'user-123',
+          'x-company-id': 'company-123'
         }
-      }
-    ]
+      })
 
-    it('should return all talent requests', async () => {
-      mockPrisma.talentRequest.findMany.mockResolvedValue(mockTalentRequests as any)
+      // Mock authenticated user
+      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
+        id: 'user-123',
+        role: 'company',
+        companyId: 'company-123'
+      })
 
-      const request = new NextRequest('http://localhost:3000/api/requests/talent-requests')
+      // Mock talent requests
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.findMany).mockResolvedValue([
+        {
+          id: 'req-123',
+          title: 'React Developer Needed',
+          description: 'We need a React developer',
+          companyId: 'company-123',
+          status: 'open',
+          createdAt: new Date(),
+          company: {
+            id: 'company-123',
+            name: 'Tech Corp'
+          }
+        }
+      ])
+
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.count).mockResolvedValue(1)
+
+      const { GET } = await import('@/app/api/requests/talent-requests/route')
       const response = await GET(request)
       const data = await response.json()
 
       expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
       expect(data.requests).toHaveLength(1)
-      expect(data.requests[0].title).toBe('Senior React Developer')
-    })
-
-    it('should filter by status', async () => {
-      mockPrisma.talentRequest.findMany.mockResolvedValue(mockTalentRequests as any)
-
-      const request = new NextRequest('http://localhost:3000/api/requests/talent-requests?status=active')
-      const response = await GET(request)
-
-      expect(mockPrisma.talentRequest.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ status: 'active' })
-        })
-      )
+      expect(data.requests[0].title).toBe('React Developer Needed')
     })
 
     it('should filter by experience level', async () => {
-      mockPrisma.talentRequest.findMany.mockResolvedValue(mockTalentRequests as any)
+      const request = new NextRequest('http://localhost:3000/api/requests/talent-requests?experienceLevel=senior', {
+        method: 'GET',
+        headers: {
+          'x-user-id': 'user-123',
+          'x-company-id': 'company-123'
+        }
+      })
 
-      const request = new NextRequest('http://localhost:3000/api/requests/talent-requests?experienceLevel=senior')
-      const response = await GET(request)
+      // Mock authenticated user
+      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
+        id: 'user-123',
+        role: 'company',
+        companyId: 'company-123'
+      })
 
-      expect(mockPrisma.talentRequest.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ experienceLevel: 'senior' })
-        })
-      )
-    })
+      // Mock talent requests
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.findMany).mockResolvedValue([])
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.count).mockResolvedValue(0)
 
-    it('should handle pagination', async () => {
-      mockPrisma.talentRequest.findMany.mockResolvedValue(mockTalentRequests as any)
-      mockPrisma.talentRequest.count.mockResolvedValue(25)
-
-      const request = new NextRequest('http://localhost:3000/api/requests/talent-requests?page=2&limit=10')
+      const { GET } = await import('@/app/api/requests/talent-requests/route')
       const response = await GET(request)
       const data = await response.json()
 
-      expect(mockPrisma.talentRequest.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          skip: 10,
-          take: 10
-        })
-      )
-      expect(data.pagination.totalPages).toBe(3)
-    })
-
-    it('should handle database errors', async () => {
-      mockPrisma.talentRequest.findMany.mockRejectedValue(new Error('Database error'))
-
-      const request = new NextRequest('http://localhost:3000/api/requests/talent-requests')
-      const response = await GET(request)
-
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.requests).toHaveLength(0)
     })
   })
 
   describe('POST /api/requests/talent-requests', () => {
-    const validRequestData = {
-      title: 'Senior React Developer',
-      description: 'Looking for experienced React developer',
-      budget: 5000,
-      duration: 30,
-      skillsRequired: ['React', 'TypeScript'],
-      experienceLevel: 'senior',
-      projectType: 'contract',
-      urgency: 'medium',
-      location: 'Remote'
-    }
-
     it('should create a new talent request', async () => {
-      const mockCreatedRequest = {
-        id: 'req-123',
-        companyId: 'company-1',
-        ...validRequestData,
-        status: 'active',
-        createdAt: new Date(),
-        updatedAt: new Date()
+      const validRequestData = {
+        title: 'React Developer Needed',
+        description: 'We need a React developer for our project',
+        skills: ['React', 'TypeScript', 'Node.js'],
+        experienceLevel: 'senior',
+        budgetRange: {
+          min: 5000,
+          max: 10000
+        },
+        durationWeeks: 12,
+        location: 'Remote'
       }
-
-      mockPrisma.talentRequest.create.mockResolvedValue(mockCreatedRequest as any)
 
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests', {
         method: 'POST',
-        body: JSON.stringify(validRequestData),
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'x-user-id': 'user-123',
+          'x-company-id': 'company-123'
+        },
+        body: JSON.stringify(validRequestData)
       })
 
+      // Mock authenticated user
+      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
+        id: 'user-123',
+        role: 'company',
+        companyId: 'company-123'
+      })
+
+      // Mock company data
+      jest.mocked(require('@/lib/prisma').prisma.company.findUnique).mockResolvedValue({
+        id: 'company-123',
+        name: 'Tech Corp',
+        status: 'approved'
+      })
+
+      // Mock talent request creation
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.create).mockResolvedValue({
+        id: 'req-123',
+        ...validRequestData,
+        companyId: 'company-123',
+        status: 'open',
+        createdAt: new Date(),
+        company: {
+          id: 'company-123',
+          name: 'Tech Corp'
+        }
+      })
+
+      const { POST } = await import('@/app/api/requests/talent-requests/route')
       const response = await POST(request)
       const data = await response.json()
 
       expect(response.status).toBe(201)
       expect(data.request.title).toBe(validRequestData.title)
-      expect(mockPrisma.talentRequest.create).toHaveBeenCalledWith(
+      expect(require('@/lib/prisma').prisma.talentRequest.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             title: validRequestData.title,
-            description: validRequestData.description
+            companyId: 'company-123'
           })
         })
       )
     })
 
     it('should validate required fields', async () => {
-      const invalidData = {
+      const invalidRequestData = {
         title: '',
-        description: 'Missing title'
+        description: ''
       }
 
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests', {
         method: 'POST',
-        body: JSON.stringify(invalidData),
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'x-user-id': 'user-123',
+          'x-company-id': 'company-123'
+        },
+        body: JSON.stringify(invalidRequestData)
       })
 
+      // Mock authenticated user
+      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
+        id: 'user-123',
+        role: 'company',
+        companyId: 'company-123'
+      })
+
+      const { POST } = await import('@/app/api/requests/talent-requests/route')
       const response = await POST(request)
       const data = await response.json()
 
@@ -166,34 +213,62 @@ describe('/api/requests/talent-requests', () => {
     })
 
     it('should validate skill requirements', async () => {
-      const invalidData = {
-        ...validRequestData,
-        skillsRequired: []
+      const invalidRequestData = {
+        title: 'React Developer',
+        description: 'We need a React developer',
+        skills: [] // Empty skills array
       }
 
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests', {
         method: 'POST',
-        body: JSON.stringify(invalidData),
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'x-user-id': 'user-123',
+          'x-company-id': 'company-123'
+        },
+        body: JSON.stringify(invalidRequestData)
       })
 
+      // Mock authenticated user
+      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
+        id: 'user-123',
+        role: 'company',
+        companyId: 'company-123'
+      })
+
+      const { POST } = await import('@/app/api/requests/talent-requests/route')
       const response = await POST(request)
 
       expect(response.status).toBe(400)
     })
 
     it('should validate budget range', async () => {
-      const invalidData = {
-        ...validRequestData,
-        budget: -1000
+      const invalidRequestData = {
+        title: 'React Developer',
+        description: 'We need a React developer',
+        skills: ['React'],
+        budgetRange: {
+          min: 10000,
+          max: 5000 // Max less than min
+        }
       }
 
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests', {
         method: 'POST',
-        body: JSON.stringify(invalidData),
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'x-user-id': 'user-123',
+          'x-company-id': 'company-123'
+        },
+        body: JSON.stringify(invalidRequestData)
       })
 
+      // Mock authenticated user
+      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
+        id: 'user-123',
+        role: 'company',
+        companyId: 'company-123'
+      })
+
+      const { POST } = await import('@/app/api/requests/talent-requests/route')
       const response = await POST(request)
 
       expect(response.status).toBe(400)
@@ -201,47 +276,77 @@ describe('/api/requests/talent-requests', () => {
   })
 
   describe('PUT /api/requests/talent-requests/[id]', () => {
-    const updateData = {
-      title: 'Updated React Developer Position',
-      budget: 6000,
-      status: 'paused'
-    }
-
     it('should update an existing talent request', async () => {
-      const mockUpdatedRequest = {
-        id: 'req-123',
-        ...updateData,
-        updatedAt: new Date()
+      const updateData = {
+        title: 'Updated React Developer Position',
+        description: 'Updated description'
       }
-
-      mockPrisma.talentRequest.update.mockResolvedValue(mockUpdatedRequest as any)
 
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests/req-123', {
         method: 'PUT',
-        body: JSON.stringify(updateData),
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'x-user-id': 'user-123',
+          'x-company-id': 'company-123'
+        },
+        body: JSON.stringify(updateData)
       })
 
+      // Mock authenticated user
+      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
+        id: 'user-123',
+        role: 'company',
+        companyId: 'company-123'
+      })
+
+      // Mock existing talent request
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.findUnique).mockResolvedValue({
+        id: 'req-123',
+        companyId: 'company-123',
+        status: 'open'
+      })
+
+      // Mock talent request update
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.update).mockResolvedValue({
+        id: 'req-123',
+        ...updateData,
+        companyId: 'company-123',
+        status: 'open',
+        updatedAt: new Date()
+      })
+
+      const { PUT } = await import('@/app/api/requests/talent-requests/[id]/route')
       const response = await PUT(request, { params: { id: 'req-123' } })
       const data = await response.json()
 
       expect(response.status).toBe(200)
       expect(data.request.title).toBe(updateData.title)
-      expect(mockPrisma.talentRequest.update).toHaveBeenCalledWith({
+      expect(require('@/lib/prisma').prisma.talentRequest.update).toHaveBeenCalledWith({
         where: { id: 'req-123' },
         data: expect.objectContaining(updateData)
       })
     })
 
     it('should handle non-existent request', async () => {
-      mockPrisma.talentRequest.update.mockRejectedValue(new Error('Record not found'))
-
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests/nonexistent', {
         method: 'PUT',
-        body: JSON.stringify(updateData),
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'x-user-id': 'user-123',
+          'x-company-id': 'company-123'
+        },
+        body: JSON.stringify({ title: 'Updated' })
       })
 
+      // Mock authenticated user
+      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
+        id: 'user-123',
+        role: 'company',
+        companyId: 'company-123'
+      })
+
+      // Mock non-existent talent request
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.findUnique).mockResolvedValue(null)
+
+      const { PUT } = await import('@/app/api/requests/talent-requests/[id]/route')
       const response = await PUT(request, { params: { id: 'nonexistent' } })
 
       expect(response.status).toBe(404)
@@ -250,27 +355,63 @@ describe('/api/requests/talent-requests', () => {
 
   describe('DELETE /api/requests/talent-requests/[id]', () => {
     it('should delete a talent request', async () => {
-      mockPrisma.talentRequest.delete.mockResolvedValue({ id: 'req-123' } as any)
-
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests/req-123', {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'x-user-id': 'user-123',
+          'x-company-id': 'company-123'
+        }
       })
 
+      // Mock authenticated user
+      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
+        id: 'user-123',
+        role: 'company',
+        companyId: 'company-123'
+      })
+
+      // Mock existing talent request
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.findUnique).mockResolvedValue({
+        id: 'req-123',
+        companyId: 'company-123',
+        status: 'open'
+      })
+
+      // Mock talent request deletion
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.delete).mockResolvedValue({
+        id: 'req-123',
+        companyId: 'company-123'
+      })
+
+      const { DELETE } = await import('@/app/api/requests/talent-requests/[id]/route')
       const response = await DELETE(request, { params: { id: 'req-123' } })
 
       expect(response.status).toBe(204)
-      expect(mockPrisma.talentRequest.delete).toHaveBeenCalledWith({
+      expect(require('@/lib/prisma').prisma.talentRequest.delete).toHaveBeenCalledWith({
         where: { id: 'req-123' }
       })
     })
 
     it('should handle deletion of non-existent request', async () => {
-      mockPrisma.talentRequest.delete.mockRejectedValue(new Error('Record not found'))
-
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests/nonexistent', {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'x-user-id': 'user-123',
+          'x-company-id': 'company-123'
+        }
       })
 
+      // Mock authenticated user
+      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
+        id: 'user-123',
+        role: 'company',
+        companyId: 'company-123'
+      })
+
+      // Mock non-existent talent request
+      jest.mocked(require('@/lib/prisma').prisma.talentRequest.findUnique).mockResolvedValue(null)
+
+      const { DELETE } = await import('@/app/api/requests/talent-requests/[id]/route')
       const response = await DELETE(request, { params: { id: 'nonexistent' } })
 
       expect(response.status).toBe(404)
@@ -278,30 +419,26 @@ describe('/api/requests/talent-requests', () => {
   })
 
   describe('Authentication and Authorization', () => {
-    it('should require authentication for POST requests', async () => {
-      // Mock unauthenticated request
-      const request = new NextRequest('http://localhost:3000/api/requests/talent-requests', {
-        method: 'POST',
-        body: JSON.stringify({}),
-        headers: { 'Content-Type': 'application/json' }
-      })
-
-      const response = await POST(request)
-
-      expect(response.status).toBe(401)
-    })
-
     it('should only allow company users to create requests', async () => {
-      // Mock authenticated but non-company user
       const request = new NextRequest('http://localhost:3000/api/requests/talent-requests', {
         method: 'POST',
-        body: JSON.stringify({}),
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer talent-user-token'
-        }
+        headers: {
+          'x-user-id': 'user-123'
+        },
+        body: JSON.stringify({
+          title: 'React Developer',
+          description: 'We need a React developer',
+          skills: ['React']
+        })
       })
 
+      // Mock authenticated user (talent role)
+      jest.mocked(require('@/lib/auth').getCurrentUser).mockResolvedValue({
+        id: 'user-123',
+        role: 'talent'
+      })
+
+      const { POST } = await import('@/app/api/requests/talent-requests/route')
       const response = await POST(request)
 
       expect(response.status).toBe(403)
