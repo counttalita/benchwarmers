@@ -1,222 +1,421 @@
-import { logError, logInfo, createError } from '@/lib/errors'
-import { prisma } from '@/lib/prisma'
-import { stripe } from '@/lib/stripe'
-import logger from '@/lib/logger'
-// import { sendEmail } from '@/lib/notifications/email' // TODO: Fix email import
-import crypto from 'crypto'
 import axios from 'axios'
+import { prisma } from '@/lib/prisma'
+import logger from '@/lib/logger'
+import crypto from 'crypto'
 
-export interface PaymentReleaseRequest {
-  engagementId: string
+export interface PaystackConfig {
+  secretKey: string
+  publicKey: string
+  webhookSecret: string
+  planCode: string
+}
+
+export interface PaymentIntent {
+  id: string
   amount: number
   currency: string
-  reason: 'completion' | 'milestone' | 'partial' | 'dispute_resolution'
-  verificationData?: {
-    deliverables: string[]
-    approvedBy: string
-    approvedAt: Date
-    notes?: string
-  }
-  milestoneId?: string
-}
-
-export interface PaymentHoldRequest {
-  engagementId: string
-  amount: number
-  currency: string
-  reason: 'dispute' | 'quality_issue' | 'breach_of_contract'
-  holdUntil?: Date
-  notes?: string
-}
-
-// Paystack Integration Interfaces
-export interface PaystackSubscriptionData {
-  customer: string
-  plan: string
-  start_date?: string
-}
-
-export interface PaystackTransactionData {
-  amount: number
-  email: string
+  status: string
   reference: string
-  callback_url?: string
-  metadata?: Record<string, string>
+  metadata: Record<string, any>
 }
 
-export interface PaystackTransferData {
-  source: 'balance'
+export interface Subscription {
+  id: string
+  customerId: string
+  planCode: string
+  status: string
+  startDate: Date
+  endDate: Date
   amount: number
-  recipient: string
-  reason?: string
-  currency?: string
+  currency: string
 }
 
-export interface PaystackRecipientData {
-  type: 'nuban'
-  name: string
-  account_number: string
-  bank_code: string
-  currency?: string
+export interface Transfer {
+  id: string
+  amount: number
+  currency: string
+  recipient: string
+  status: string
+  reference: string
 }
 
 export class PaymentManager {
-  private paystackBaseUrl = 'https://api.paystack.co'
-  private secretKey: string
-  private publicKey: string
-  private planCode: string
+  private config: PaystackConfig
+  private baseUrl = 'https://api.paystack.co'
 
   constructor() {
-    this.secretKey = process.env.PAYSTACK_SECRET_KEY!
-    this.publicKey = process.env.PAYSTACK_PUBLIC_KEY!
-    this.planCode = process.env.PAYSTACK_PLAN_CODE!
-  }
-
-  private getAuthHeaders() {
-    return {
-      'Authorization': `Bearer ${this.secretKey}`,
-      'Content-Type': 'application/json'
+    this.config = {
+      secretKey: process.env.PAYSTACK_SECRET_KEY || '',
+      publicKey: process.env.PAYSTACK_PUBLIC_KEY || '',
+      webhookSecret: process.env.PAYSTACK_WEBHOOK_SECRET || '',
+      planCode: process.env.PAYSTACK_PLAN_CODE || ''
     }
   }
 
-  // Subscription Management
-  async createSubscription(data: PaystackSubscriptionData) {
+  /**
+   * Create a subscription for a user
+   */
+  async createSubscription(userId: string, planCode?: string): Promise<Subscription> {
     try {
+      // Get or create customer
+      const customer = await this.createOrGetCustomer(userId)
+      
+      // Create subscription
       const response = await axios.post(
-        `${this.paystackBaseUrl}/subscription`,
+        `${this.baseUrl}/subscription`,
         {
-          customer: data.customer,
-          plan: this.planCode,
-          start_date: data.start_date || new Date().toISOString()
+          customer: customer.customer_code,
+          plan: planCode || this.config.planCode,
+          start_date: new Date().toISOString()
         },
-        { headers: this.getAuthHeaders() }
+        {
+          headers: {
+            'Authorization': `Bearer ${this.config.secretKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
       )
 
-      return response.data
+      const subscription = response.data.data
+
+      // Store subscription in database
+      await prisma.subscription.create({
+        data: {
+          userId,
+          paystackSubscriptionId: subscription.subscription_code,
+          paystackCustomerId: customer.customer_code,
+          paystackPlanCode: planCode || this.config.planCode,
+          status: subscription.status,
+          startDate: new Date(subscription.start),
+          endDate: new Date(subscription.next_payment_date),
+          amount: subscription.amount / 100, // Convert from kobo to naira
+          currency: subscription.currency
+        }
+      })
+
+      logger.info('Subscription created successfully', {
+        userId,
+        subscriptionId: subscription.subscription_code,
+        amount: subscription.amount
+      })
+
+      return {
+        id: subscription.subscription_code,
+        customerId: customer.customer_code,
+        planCode: planCode || this.config.planCode,
+        status: subscription.status,
+        startDate: new Date(subscription.start),
+        endDate: new Date(subscription.next_payment_date),
+        amount: subscription.amount / 100,
+        currency: subscription.currency
+      }
+
     } catch (error) {
-      throw new Error(`Failed to create subscription: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.error('Failed to create subscription', {
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error
     }
   }
 
-  async getSubscription(subscriptionId: string) {
+  /**
+   * Get subscription status
+   */
+  async getSubscription(subscriptionId: string): Promise<Subscription> {
     try {
       const response = await axios.get(
-        `${this.paystackBaseUrl}/subscription/${subscriptionId}`,
-        { headers: this.getAuthHeaders() }
-      )
-
-      return response.data
-    } catch (error) {
-      throw new Error(`Failed to get subscription: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
-  }
-
-  async cancelSubscription(subscriptionId: string) {
-    try {
-      const response = await axios.post(
-        `${this.paystackBaseUrl}/subscription/disable`,
-        { code: subscriptionId },
-        { headers: this.getAuthHeaders() }
-      )
-
-      return response.data
-    } catch (error) {
-      throw new Error(`Failed to cancel subscription: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
-  }
-
-  // Transaction Management
-  async initializeTransaction(data: PaystackTransactionData) {
-    try {
-      const response = await axios.post(
-        `${this.paystackBaseUrl}/transaction/initialize`,
+        `${this.baseUrl}/subscription/${subscriptionId}`,
         {
-          amount: data.amount * 100, // Convert to kobo (smallest currency unit)
+          headers: {
+            'Authorization': `Bearer ${this.config.secretKey}`
+          }
+        }
+      )
+
+      const subscription = response.data.data
+
+      return {
+        id: subscription.subscription_code,
+        customerId: subscription.customer,
+        planCode: subscription.plan.plan_code,
+        status: subscription.status,
+        startDate: new Date(subscription.start),
+        endDate: new Date(subscription.next_payment_date),
+        amount: subscription.amount / 100,
+        currency: subscription.currency
+      }
+
+    } catch (error) {
+      logger.error('Failed to get subscription', {
+        subscriptionId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Cancel a subscription
+   */
+  async cancelSubscription(subscriptionId: string): Promise<void> {
+    try {
+      await axios.post(
+        `${this.baseUrl}/subscription/disable`,
+        {
+          code: subscriptionId,
+          token: this.generateToken()
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.config.secretKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+
+      // Update subscription status in database
+      await prisma.subscription.update({
+        where: { paystackSubscriptionId: subscriptionId },
+        data: { status: 'cancelled' }
+      })
+
+      logger.info('Subscription cancelled successfully', { subscriptionId })
+
+    } catch (error) {
+      logger.error('Failed to cancel subscription', {
+        subscriptionId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Initialize a transaction for payment
+   */
+  async initializeTransaction(data: {
+    amount: number
+    email: string
+    reference: string
+    metadata?: Record<string, any>
+    callbackUrl?: string
+  }): Promise<PaymentIntent> {
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/transaction/initialize`,
+        {
+          amount: data.amount * 100, // Convert to kobo
           email: data.email,
           reference: data.reference,
-          callback_url: data.callback_url,
-          metadata: data.metadata
+          metadata: data.metadata,
+          callback_url: data.callbackUrl
         },
-        { headers: this.getAuthHeaders() }
+        {
+          headers: {
+            'Authorization': `Bearer ${this.config.secretKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
       )
 
-      return response.data
+      const transaction = response.data.data
+
+      // Store transaction in database
+      await prisma.payment.create({
+        data: {
+          paystackPaymentId: transaction.reference,
+          amount: data.amount,
+          currency: 'ZAR',
+          status: 'pending',
+          type: 'transaction',
+          metadata: {
+            authorizationUrl: transaction.authorization_url,
+            accessCode: transaction.access_code,
+            ...data.metadata
+          }
+        }
+      })
+
+      logger.info('Transaction initialized successfully', {
+        reference: transaction.reference,
+        amount: data.amount
+      })
+
+      return {
+        id: transaction.reference,
+        amount: data.amount,
+        currency: 'ZAR',
+        status: 'pending',
+        reference: transaction.reference,
+        metadata: {
+          authorizationUrl: transaction.authorization_url,
+          accessCode: transaction.access_code,
+          ...data.metadata
+        }
+      }
+
     } catch (error) {
-      throw new Error(`Failed to initialize transaction: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.error('Failed to initialize transaction', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error
     }
   }
 
-  async verifyTransaction(reference: string) {
+  /**
+   * Verify a transaction
+   */
+  async verifyTransaction(reference: string): Promise<PaymentIntent> {
     try {
       const response = await axios.get(
-        `${this.paystackBaseUrl}/transaction/verify/${reference}`,
-        { headers: this.getAuthHeaders() }
+        `${this.baseUrl}/transaction/verify/${reference}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${this.config.secretKey}`
+          }
+        }
       )
 
-      return response.data
+      const transaction = response.data.data
+
+      // Update payment status in database
+      await prisma.payment.update({
+        where: { paystackPaymentId: reference },
+        data: {
+          status: transaction.status === 'success' ? 'completed' : 'failed',
+          verificationData: transaction,
+          processedAt: new Date()
+        }
+      })
+
+      logger.info('Transaction verified successfully', {
+        reference,
+        status: transaction.status,
+        amount: transaction.amount / 100
+      })
+
+      return {
+        id: transaction.reference,
+        amount: transaction.amount / 100,
+        currency: transaction.currency,
+        status: transaction.status,
+        reference: transaction.reference,
+        metadata: transaction
+      }
+
     } catch (error) {
-      throw new Error(`Failed to verify transaction: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.error('Failed to verify transaction', {
+        reference,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error
     }
   }
 
-  // Transfer Management (for paying providers)
-  async createRecipient(data: PaystackRecipientData) {
+  /**
+   * Create a transfer recipient
+   */
+  async createRecipient(data: {
+    type: 'nuban' | 'mobile_money' | 'basa'
+    name: string
+    accountNumber: string
+    bankCode: string
+    currency?: string
+  }): Promise<any> {
     try {
       const response = await axios.post(
-        `${this.paystackBaseUrl}/transferrecipient`,
+        `${this.baseUrl}/transferrecipient`,
         {
           type: data.type,
           name: data.name,
-          account_number: data.account_number,
-          bank_code: data.bank_code,
-          currency: data.currency || 'NGN'
+          account_number: data.accountNumber,
+          bank_code: data.bankCode,
+          currency: data.currency || 'ZAR'
         },
-        { headers: this.getAuthHeaders() }
+        {
+          headers: {
+            'Authorization': `Bearer ${this.config.secretKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
       )
 
-      return response.data
+      logger.info('Transfer recipient created successfully', {
+        recipientId: response.data.data.recipient_code,
+        name: data.name
+      })
+
+      return response.data.data
+
     } catch (error) {
-      throw new Error(`Failed to create recipient: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.error('Failed to create transfer recipient', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error
     }
   }
 
-  async createTransfer(data: PaystackTransferData) {
+  /**
+   * Create a transfer
+   */
+  async createTransfer(data: {
+    amount: number
+    recipient: string
+    reason?: string
+    currency?: string
+  }): Promise<Transfer> {
     try {
       const response = await axios.post(
-        `${this.paystackBaseUrl}/transfer`,
+        `${this.baseUrl}/transfer`,
         {
-          source: data.source,
+          source: 'balance',
           amount: data.amount * 100, // Convert to kobo
           recipient: data.recipient,
           reason: data.reason,
-          currency: data.currency || 'NGN'
+          currency: data.currency || 'ZAR'
         },
-        { headers: this.getAuthHeaders() }
+        {
+          headers: {
+            'Authorization': `Bearer ${this.config.secretKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
       )
 
-      return response.data
+      const transfer = response.data.data
+
+      logger.info('Transfer created successfully', {
+        transferId: transfer.reference,
+        amount: data.amount,
+        recipient: data.recipient
+      })
+
+      return {
+        id: transfer.reference,
+        amount: data.amount,
+        currency: data.currency || 'ZAR',
+        recipient: data.recipient,
+        status: transfer.status,
+        reference: transfer.reference
+      }
+
     } catch (error) {
-      throw new Error(`Failed to create transfer: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.error('Failed to create transfer', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error
     }
   }
 
-  // Facilitation Fee Calculation
-  calculateFacilitationFee(transactionAmount: number): number {
-    // 5% facilitation fee
-    return Math.round(transactionAmount * 0.05)
-  }
-
-  calculateNetAmount(grossAmount: number): number {
-    const facilitationFee = this.calculateFacilitationFee(grossAmount)
-    return grossAmount - facilitationFee
-  }
-
-  // Webhook Processing
-  async processWebhook(payload: string, signature: string) {
+  /**
+   * Process webhook events
+   */
+  async processWebhook(payload: string, signature: string): Promise<void> {
     try {
       // Verify webhook signature
       const hash = crypto
-        .createHmac('sha512', process.env.PAYSTACK_WEBHOOK_SECRET!)
+        .createHmac('sha512', this.config.webhookSecret)
         .update(payload)
         .digest('hex')
 
@@ -225,394 +424,208 @@ export class PaymentManager {
       }
 
       const event = JSON.parse(payload)
-      return event
+
+      logger.info('Processing webhook event', {
+        event: event.event,
+        reference: event.data?.reference
+      })
+
+      switch (event.event) {
+        case 'charge.success':
+          await this.handleChargeSuccess(event.data)
+          break
+        case 'subscription.create':
+          await this.handleSubscriptionCreate(event.data)
+          break
+        case 'subscription.disable':
+          await this.handleSubscriptionDisable(event.data)
+          break
+        case 'transfer.success':
+          await this.handleTransferSuccess(event.data)
+          break
+        case 'transfer.failed':
+          await this.handleTransferFailed(event.data)
+          break
+        default:
+          logger.info('Unhandled webhook event', { event: event.event })
+      }
+
     } catch (error) {
-      throw new Error(`Invalid webhook: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.error('Failed to process webhook', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error
     }
   }
 
   /**
-   * Release payment from escrow to provider
+   * Calculate facilitation fee (5%)
    */
-  async releasePayment(request: PaymentReleaseRequest, correlationId?: string): Promise<{
-    success: boolean
-    transactionId?: string
-    error?: string
-  }> {
+  calculateFacilitationFee(amount: number): number {
+    return amount * 0.05
+  }
+
+  /**
+   * Calculate net amount after facilitation fee
+   */
+  calculateNetAmount(amount: number): number {
+    return amount - this.calculateFacilitationFee(amount)
+  }
+
+  /**
+   * Get available banks for transfers
+   */
+  async getBanks(): Promise<any[]> {
     try {
-      logInfo('Processing payment release', {
-        correlationId,
-        engagementId: request.engagementId,
-        amount: request.amount,
-        reason: request.reason
+      const response = await axios.get(
+        `${this.baseUrl}/bank`,
+        {
+          headers: {
+            'Authorization': `Bearer ${this.config.secretKey}`
+          }
+        }
+      )
+
+      return response.data.data
+
+    } catch (error) {
+      logger.error('Failed to get banks', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error
+    }
+  }
+
+  // Private helper methods
+  private async createOrGetCustomer(userId: string): Promise<any> {
+    try {
+      // Check if customer already exists
+      const existingCustomer = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { paystackCustomerId: true }
       })
 
-      // Get engagement and validate
-      const engagement = await prisma.engagement.findUnique({
-        where: { id: request.engagementId },
-        include: {
-          contract: {
-            include: {
-              offer: {
-                include: {
-                  seekerCompany: true,
-                  providerCompany: true
-                }
-              }
+      if (existingCustomer?.paystackCustomerId) {
+        // Get customer details from Paystack
+        const response = await axios.get(
+          `${this.baseUrl}/customer/${existingCustomer.paystackCustomerId}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${this.config.secretKey}`
             }
-          },
-          payments: true
+          }
+        )
+        return response.data.data
+      }
+
+      // Create new customer
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, email: true }
+      })
+
+      if (!user) {
+        throw new Error('User not found')
+      }
+
+      const response = await axios.post(
+        `${this.baseUrl}/customer`,
+        {
+          email: user.email,
+          first_name: user.name?.split(' ')[0] || 'User',
+          last_name: user.name?.split(' ').slice(1).join(' ') || 'Name'
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.config.secretKey}`,
+            'Content-Type': 'application/json'
+          }
         }
+      )
+
+      const customer = response.data.data
+
+      // Update user with customer ID
+      await prisma.user.update({
+        where: { id: userId },
+        data: { paystackCustomerId: customer.customer_code }
       })
 
-      if (!engagement) {
-        return { success: false, error: 'Engagement not found' }
-      }
-
-      if (engagement.status !== 'active' && engagement.status !== 'completed') {
-        return { success: false, error: 'Payment can only be released for active or completed engagements' }
-      }
-
-      // Check if payment amount is valid
-      const totalPaid = engagement.payments
-        .filter((p: any) => p.status === 'completed' && p.type === 'release')
-        .reduce((sum: number, p: any) => sum + Number(p.amount), 0)
-
-      const maxPayable = Number(engagement.contract.offer.providerAmount)
-
-      if (totalPaid + request.amount > maxPayable) {
-        return {
-          success: false,
-          error: `Payment amount exceeds remaining balance. Max: ${maxPayable - totalPaid}`
-        }
-      }
-
-      // Create payment record
-      const payment = await prisma.payment.create({
-        data: {
-          id: `PAY-${Date.now()}`,
-          engagementId: request.engagementId,
-          amount: request.amount,
-          currency: request.currency,
-          type: 'release',
-          status: 'processing',
-          reason: request.reason,
-          verificationData: request.verificationData ? JSON.stringify(request.verificationData) : null,
-          milestoneId: request.milestoneId,
-          processedAt: new Date()
-        }
-      })
-
-      // Update payment status
-      await prisma.payment.update({
-        where: { id: payment.id },
-        data: { status: 'completed' }
-      })
-
-      // Calculate total paid after this payment
-      const newTotalPaid = engagement.payments
-        .filter((p: any) => p.status === 'completed' && p.type === 'release')
-        .reduce((sum: number, p: any) => sum + Number(p.amount), 0) + request.amount
-
-      // Check if engagement should be marked as completed
-      if (newTotalPaid >= maxPayable) {
-        await prisma.engagement.update({
-          where: { id: request.engagementId },
-          data: { status: 'completed' }
-        })
-      }
-
-      logInfo('Payment released successfully', {
-        correlationId,
-        paymentId: payment.id,
-        amount: request.amount,
-        engagementId: request.engagementId
-      })
-
-      return {
-        success: true,
-        transactionId: payment.id
-      }
+      return customer
 
     } catch (error) {
-      logError('Failed to release payment', {
-        correlationId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        request
+      logger.error('Failed to create or get customer', {
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
       })
-
-      return {
-        success: false,
-        error: 'Failed to release payment'
-      }
+      throw error
     }
   }
 
-  /**
-   * Hold payment in escrow (dispute or quality issues)
-   */
-  async holdPayment(request: PaymentHoldRequest, correlationId?: string): Promise<{
-    success: boolean
-    holdId?: string
-    error?: string
-  }> {
-    try {
-      logInfo('Processing payment hold', {
-        correlationId,
-        engagementId: request.engagementId,
-        amount: request.amount,
-        reason: request.reason
-      })
-
-      // Create payment hold record
-      const hold = await prisma.paymentHold.create({
-        data: {
-          id: `HOLD-${Date.now()}`,
-          engagementId: request.engagementId,
-          amount: request.amount,
-          currency: request.currency,
-          reason: request.reason,
-          holdUntil: request.holdUntil,
-          notes: request.notes,
-          status: 'active',
-          createdAt: new Date()
-        }
-      })
-
-      // Update engagement status
-      await prisma.engagement.update({
-        where: { id: request.engagementId },
-        data: { 
-          status: 'disputed',
-          disputedAt: new Date()
-        }
-      })
-
-      logInfo('Payment hold created successfully', {
-        correlationId,
-        holdId: hold.id,
-        engagementId: request.engagementId
-      })
-
-      return {
-        success: true,
-        holdId: hold.id
-      }
-
-    } catch (error) {
-      logError(createError.internal('PAYMENT_HOLD_ERROR', 'Failed to hold payment', { 
-        error, 
-        correlationId,
-        engagementId: request.engagementId 
-      }))
-      
-      return {
-        success: false,
-        error: 'Internal error processing payment hold'
-      }
-    }
+  private generateToken(): string {
+    return crypto.randomBytes(32).toString('hex')
   }
 
-  /**
-   * Verify engagement completion and trigger payment release
-   */
-  async verifyCompletionAndRelease(
-    engagementId: string,
-    verificationData: {
-      deliverables: string[]
-      approvedBy: string
-      notes?: string
-    },
-    correlationId?: string
-  ): Promise<{ success: boolean; paymentReleased?: boolean; error?: string }> {
-    try {
-      logInfo('Verifying engagement completion', {
-        correlationId,
-        engagementId,
-        approvedBy: verificationData.approvedBy
-      })
-
-      // Get engagement details
-      const engagement = await prisma.engagement.findUnique({
-        where: { id: engagementId },
-        include: {
-          contract: {
-            include: {
-              offer: true
-            }
-          },
-          payments: true
-        }
-      })
-
-      if (!engagement) {
-        return { success: false, error: 'Engagement not found' }
+  private async handleChargeSuccess(data: any): Promise<void> {
+    // Update payment status
+    await prisma.payment.update({
+      where: { paystackPaymentId: data.reference },
+      data: {
+        status: 'completed',
+        verificationData: data,
+        processedAt: new Date()
       }
+    })
 
-      if (engagement.status !== 'active') {
-        return { success: false, error: 'Only active engagements can be completed' }
-      }
-
-      // Create completion verification record
-      await prisma.engagementVerification.create({
-        data: {
-          id: `VER-${Date.now()}`,
-          engagementId,
-          verifiedBy: verificationData.approvedBy,
-          verifiedAt: new Date(),
-          deliverables: JSON.stringify(verificationData.deliverables),
-          notes: verificationData.notes,
-          status: 'approved'
-        }
-      })
-
-      // Calculate remaining payment amount
-      const totalPaid = engagement.payments
-        .filter((p: any) => p.status === 'completed' && p.type === 'release')
-        .reduce((sum: number, p: any) => sum + Number(p.amount), 0)
-
-      const remainingAmount = Number(engagement.contract.offer.providerAmount) - totalPaid
-
-      if (remainingAmount > 0) {
-        // Release remaining payment
-        const releaseResult = await this.releasePayment({
-          engagementId,
-          amount: remainingAmount,
-          currency: engagement.contract.offer.currency,
-          reason: 'completion',
-          verificationData: {
-            deliverables: verificationData.deliverables,
-            approvedBy: verificationData.approvedBy,
-            approvedAt: new Date(),
-            notes: verificationData.notes
-          }
-        }, correlationId)
-
-        if (releaseResult.success) {
-          logInfo('Engagement completed and payment released', {
-            correlationId,
-            engagementId,
-            releasedAmount: remainingAmount
-          })
-
-          return {
-            success: true,
-            paymentReleased: true
-          }
-        } else {
-          return {
-            success: false,
-            error: `Completion verified but payment release failed: ${releaseResult.error}`
-          }
-        }
-      } else {
-        // Mark as completed (already fully paid)
-        await prisma.engagement.update({
-          where: { id: engagementId },
-          data: { 
-            status: 'completed',
-            completedAt: new Date()
-          }
-        })
-
-        logInfo('Engagement completed (already fully paid)', {
-          correlationId,
-          engagementId
-        })
-
-        return {
-          success: true,
-          paymentReleased: false
-        }
-      }
-
-    } catch (error) {
-      logError(createError.internal('COMPLETION_VERIFICATION_ERROR', 'Failed to verify completion', { 
-        error, 
-        correlationId,
-        engagementId 
-      }))
-      
-      return {
-        success: false,
-        error: 'Internal error verifying completion'
-      }
-    }
-  }
-
-  /**
-   * Mock Stripe payment processing (replace with actual Stripe integration)
-   */
-  private async processStripePayment(params: {
-    amount: number
-    currency: string
-    recipientAccountId: string
-    metadata: Record<string, string>
-  }): Promise<{ success: boolean; transactionId?: string; error?: string }> {
-    // TODO: Replace with actual Stripe API calls
-    // This is a mock implementation
-    
-    try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      // Mock success (90% success rate for testing)
-      if (Math.random() > 0.1) {
-        return {
-          success: true,
-          transactionId: `stripe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-        }
-      } else {
-        return {
-          success: false,
-          error: 'Insufficient funds in platform account'
-        }
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: 'Payment processor error'
-      }
-    }
-  }
-
-  /**
-   * Get payment history for an engagement
-   */
-  async getPaymentHistory(engagementId: string): Promise<unknown[]> {
-    return await prisma.payment.findMany({
-      where: { engagementId },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        milestone: true
-      }
+    logger.info('Payment completed successfully', {
+      reference: data.reference,
+      amount: data.amount / 100
     })
   }
 
-  /**
-   * Get pending payment releases
-   */
-  async getPendingReleases(): Promise<unknown[]> {
-    return await prisma.payment.findMany({
-      where: { 
-        status: 'processing',
-        type: 'release'
-      },
-      include: {
-        engagement: {
-          include: {
-            contract: {
-              include: {
-                offer: true
-              }
-            }
-          }
-        }
+  private async handleSubscriptionCreate(data: any): Promise<void> {
+    // Update subscription status
+    await prisma.subscription.update({
+      where: { paystackSubscriptionId: data.subscription_code },
+      data: {
+        status: data.status,
+        startDate: new Date(data.start),
+        endDate: new Date(data.next_payment_date)
       }
+    })
+
+    logger.info('Subscription created via webhook', {
+      subscriptionId: data.subscription_code,
+      status: data.status
+    })
+  }
+
+  private async handleSubscriptionDisable(data: any): Promise<void> {
+    // Update subscription status
+    await prisma.subscription.update({
+      where: { paystackSubscriptionId: data.subscription_code },
+      data: { status: 'cancelled' }
+    })
+
+    logger.info('Subscription disabled via webhook', {
+      subscriptionId: data.subscription_code
+    })
+  }
+
+  private async handleTransferSuccess(data: any): Promise<void> {
+    logger.info('Transfer completed successfully', {
+      reference: data.reference,
+      amount: data.amount / 100
+    })
+  }
+
+  private async handleTransferFailed(data: any): Promise<void> {
+    logger.error('Transfer failed', {
+      reference: data.reference,
+      reason: data.failure_reason
     })
   }
 }
 
-// Export singleton instance
 export const paymentManager = new PaymentManager()
 
