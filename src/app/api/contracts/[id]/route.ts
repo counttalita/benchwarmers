@@ -39,12 +39,12 @@ const signContractSchema = z.object({
 // GET /api/contracts/[id] - Get contract details
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const correlationId = uuidv4()
 
   try {
-    const contractId = params.id
+    const contractId = resolvedParams.id
 
     logInfo('Fetching contract details', {
       correlationId,
@@ -115,12 +115,12 @@ export async function GET(
 // PATCH /api/contracts/[id] - Update contract status or add signatures
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const correlationId = uuidv4()
 
   try {
-    const contractId = params.id
+    const contractId = resolvedParams.id
     const body = await request.json()
     
     logInfo('Updating contract', {
@@ -264,12 +264,12 @@ export async function PATCH(
 // POST /api/contracts/[id]/sign - Sign contract
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const correlationId = uuidv4()
 
   try {
-    const contractId = params.id
+    const contractId = resolvedParams.id
     const body = await request.json()
     
     logInfo('Signing contract', {
@@ -415,12 +415,12 @@ export async function POST(
 // DELETE /api/contracts/[id] - Cancel/void contract
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const correlationId = uuidv4()
 
   try {
-    const contractId = params.id
+    const contractId = resolvedParams.id
     const { searchParams } = new URL(request.url)
     const reason = searchParams.get('reason') || 'Contract cancelled'
 

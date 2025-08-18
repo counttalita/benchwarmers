@@ -18,12 +18,12 @@ const updateProfileSchema = z.object({
 })
 
 // GET /api/talent/profiles/[id] - Get a specific talent profile
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestLogger = logger
 
   try {
     const profile = await prisma.talentProfile.findUnique({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       include: {
         user: {
           select: { id: true, name: true, email: true, avatar: true }
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     })
 
     logger.info('Talent profile retrieved successfully', {
-      profileId: params.id
+      profileId: resolvedParams.id
     })
 
     return NextResponse.json({
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
   } catch (error) {
     logger.error('Failed to get talent profile', {
-      profileId: params.id,
+      profileId: resolvedParams.id,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
 
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT /api/talent/profiles/[id] - Update a talent profile
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestLogger = logger
 
   try {
@@ -101,7 +101,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     // Check if profile exists
     const existingProfile = await prisma.talentProfile.findUnique({
-      where: { id: params.id }
+      where: { id: resolvedParams.id }
     })
 
     if (!existingProfile) {
@@ -124,7 +124,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     // Update profile
     const updatedProfile = await prisma.talentProfile.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       data: validatedBody,
       include: {
         user: {
@@ -135,7 +135,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     })
 
     logger.info('Talent profile updated successfully', {
-      profileId: params.id,
+      profileId: resolvedParams.id,
       userId: user.id
     })
 
@@ -146,7 +146,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
   } catch (error) {
     logger.error('Failed to update talent profile', {
-      profileId: params.id,
+      profileId: resolvedParams.id,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
 
@@ -165,7 +165,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE /api/talent/profiles/[id] - Delete a talent profile
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestLogger = logger
 
   try {
@@ -180,7 +180,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     // Check if profile exists
     const existingProfile = await prisma.talentProfile.findUnique({
-      where: { id: params.id }
+      where: { id: resolvedParams.id }
     })
 
     if (!existingProfile) {
@@ -201,7 +201,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     // Check if profile has active engagements
     const activeEngagements = await prisma.engagement.count({
       where: {
-        talentProfileId: params.id,
+        talentProfileId: resolvedParams.id,
         status: { in: ['active', 'pending'] }
       }
     })
@@ -215,11 +215,11 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     // Delete profile
     await prisma.talentProfile.delete({
-      where: { id: params.id }
+      where: { id: resolvedParams.id }
     })
 
     logger.info('Talent profile deleted successfully', {
-      profileId: params.id,
+      profileId: resolvedParams.id,
       userId: user.id
     })
 
@@ -230,7 +230,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
   } catch (error) {
     logger.error('Failed to delete talent profile', {
-      profileId: params.id,
+      profileId: resolvedParams.id,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
 

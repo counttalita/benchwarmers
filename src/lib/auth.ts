@@ -2,6 +2,19 @@ import { NextRequest } from 'next/server'
 import { prisma } from './prisma'
 import logger from './logger'
 
+// NextAuth configuration for compatibility
+export const authOptions = {
+  providers: [],
+  callbacks: {
+    session: async ({ session, token }: any) => {
+      return session
+    },
+    jwt: async ({ token }: any) => {
+      return token
+    }
+  }
+}
+
 export interface User {
   id: string
   email: string

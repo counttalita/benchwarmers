@@ -4,13 +4,13 @@ import { logRequest, logError, logInfo } from '@/lib/logger'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const correlationId = `get-profile-reviews-${Date.now()}`
   
   try {
     const requestLogger = logRequest(request)
-    logInfo('Getting profile reviews', { correlationId, profileId: params.id })
+    logInfo('Getting profile reviews', { correlationId, profileId: resolvedParams.id })
 
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
@@ -19,7 +19,7 @@ export async function GET(
 
     // Verify profile exists
     const profile = await prisma.talentProfile.findUnique({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       include: { company: true }
     })
 
@@ -34,7 +34,7 @@ export async function GET(
     const [reviews, total] = await Promise.all([
       prisma.review.findMany({
         where: {
-          profileId: params.id,
+          profileId: resolvedParams.id,
           isPublic: true
         },
         include: {
@@ -54,7 +54,7 @@ export async function GET(
       }),
       prisma.review.count({
         where: {
-          profileId: params.id,
+          profileId: resolvedParams.id,
           isPublic: true
         }
       })
@@ -63,7 +63,7 @@ export async function GET(
     // Calculate profile statistics
     const stats = await prisma.review.aggregate({
       where: {
-        profileId: params.id,
+        profileId: resolvedParams.id,
         isPublic: true
       },
       _avg: {
@@ -84,7 +84,7 @@ export async function GET(
     const ratingDistribution = await prisma.review.groupBy({
       by: ['rating'],
       where: {
-        profileId: params.id,
+        profileId: resolvedParams.id,
         isPublic: true
       },
       _count: {
@@ -118,7 +118,7 @@ export async function GET(
   } catch (error) {
     logError('Failed to get profile reviews', {
       correlationId,
-      profileId: params.id,
+      profileId: resolvedParams.id,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
 

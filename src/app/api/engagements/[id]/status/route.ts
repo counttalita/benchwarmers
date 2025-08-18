@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+const resolvedParams = await params
 import { prisma } from '@/lib/prisma'
 import { engagementNotifications } from '@/lib/notifications/engagement-notifications'
 import { logInfo, logError } from '@/lib/logger'
@@ -11,10 +12,10 @@ const updateStatusSchema = z.object({
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const engagementId = params.id
+    const engagementId = resolvedParams.id
     const body = await request.json()
     const { status, notes } = updateStatusSchema.parse(body)
 
@@ -110,7 +111,7 @@ export async function PATCH(
   } catch (error) {
     logError('Failed to update engagement status', {
       error: error instanceof Error ? error.message : 'Unknown error',
-      engagementId: params.id
+      engagementId: resolvedParams.id
     })
 
     if (error instanceof z.ZodError) {
@@ -129,11 +130,11 @@ export async function PATCH(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const engagement = await prisma.engagement.findUnique({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       select: {
         id: true,
         status: true,
@@ -187,7 +188,7 @@ export async function GET(
   } catch (error) {
     logError('Failed to get engagement status', {
       error: error instanceof Error ? error.message : 'Unknown error',
-      engagementId: params.id
+      engagementId: resolvedParams.id
     })
 
     return NextResponse.json(

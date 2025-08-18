@@ -28,7 +28,7 @@ jest.mock('@/lib/twilio', () => ({
   sendOTP: jest.fn(() => Promise.resolve(true)),
   generateOTP: jest.fn(() => '123456'),
   validatePhoneNumber: jest.fn(() => true),
-  formatPhoneNumber: jest.fn((phone) => {
+  formatPhoneNumber: jest.fn((phone: string) => {
     if (phone.startsWith('+')) return phone
     return `+${phone}`
   }),
@@ -36,7 +36,7 @@ jest.mock('@/lib/twilio', () => ({
 }))
 
 // Helper function to create NextRequest
-function createNextRequest(url, body) {
+function createNextRequest(url: URL|RequestInfo, body: { phoneNumber?: string; otp?: string }) {
   const request = new Request(url, {
     method: 'POST',
     headers: {
@@ -44,7 +44,7 @@ function createNextRequest(url, body) {
     },
     body: body ? JSON.stringify(body) : undefined,
   })
-  return request
+  return request as any // Type assertion for test compatibility
 }
 
 describe('Phone Authentication API', () => {

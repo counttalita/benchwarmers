@@ -3,7 +3,7 @@ import { ApiError } from '@/lib/api-error'
 export type ErrorSeverity = 'low' | 'medium' | 'high' | 'critical'
 export type ErrorCategory = 'validation' | 'authentication' | 'authorization' | 'not_found' | 'conflict' | 'rate_limit' | 'internal' | 'external'
 
-export interface AppError extends Error {
+export interface AppErrorInterface extends Error {
   code: string
   category: ErrorCategory
   severity: ErrorSeverity
@@ -11,7 +11,7 @@ export interface AppError extends Error {
   correlationId?: string
 }
 
-export class AppErrorImpl extends Error implements AppError {
+export class AppError extends Error implements AppErrorInterface {
   constructor(
     public code: string,
     message: string,
@@ -40,42 +40,42 @@ interface CreateErrorMethods {
 
 export const createError: CreateErrorMethods = {
   validation: (code = 'VALIDATION_ERROR', message = 'Validation failed', context?: Record<string, any>): AppError => 
-    new AppErrorImpl(code, message, 'validation', 'medium', context),
+    new AppError(code, message, 'validation', 'medium', context),
 
   authentication: (code = 'AUTHENTICATION_ERROR', message = 'Authentication failed', context?: Record<string, any>): AppError => 
-    new AppErrorImpl(code, message, 'authentication', 'high', context),
+    new AppError(code, message, 'authentication', 'high', context),
 
   authorization: (code = 'AUTHORIZATION_ERROR', message = 'Access denied', context?: Record<string, any>): AppError => 
-    new AppErrorImpl(code, message, 'authorization', 'high', context),
+    new AppError(code, message, 'authorization', 'high', context),
 
   notFound: (code = 'NOT_FOUND', message = 'Resource not found', context?: Record<string, any>): AppError => 
-    new AppErrorImpl(code, message, 'not_found', 'medium', context),
+    new AppError(code, message, 'not_found', 'medium', context),
 
   conflict: (code = 'CONFLICT', message = 'Resource conflict', context?: Record<string, any>): AppError => 
-    new AppErrorImpl(code, message, 'conflict', 'medium', context),
+    new AppError(code, message, 'conflict', 'medium', context),
 
   tooManyRequests: (code = 'RATE_LIMIT_EXCEEDED', message = 'Too many requests', context?: Record<string, any>): AppError => 
-    new AppErrorImpl(code, message, 'rate_limit', 'medium', context),
+    new AppError(code, message, 'rate_limit', 'medium', context),
 
   internal: (code = 'INTERNAL_ERROR', message = 'Internal server error', context?: Record<string, any>): AppError => 
-    new AppErrorImpl(code, message, 'internal', 'high', context),
+    new AppError(code, message, 'internal', 'high', context),
 
   external: (code = 'EXTERNAL_ERROR', message = 'External service error', context?: Record<string, any>): AppError => 
-    new AppErrorImpl(code, message, 'external', 'medium', context),
+    new AppError(code, message, 'external', 'medium', context),
 
   custom: (code: string, message: string, category: ErrorCategory, severity: ErrorSeverity = 'medium', context?: Record<string, any>): AppError => 
-    new AppErrorImpl(code, message, category, severity, context)
+    new AppError(code, message, category, severity, context)
 }
 
 // Parse unknown error into AppError
 export function parseError(error: unknown, correlationId?: string): AppError {
-  if (error instanceof AppErrorImpl) {
+  if (error instanceof AppError) {
     if (correlationId) error.correlationId = correlationId
     return error
   }
 
   if (error instanceof ApiError) {
-    return new AppErrorImpl(
+    return new AppError(
       error.code,
       error.message,
       'internal',
@@ -86,7 +86,7 @@ export function parseError(error: unknown, correlationId?: string): AppError {
   }
 
   if (error instanceof Error) {
-    return new AppErrorImpl(
+    return new AppError(
       'UNKNOWN_ERROR',
       error.message,
       'internal',
@@ -96,7 +96,7 @@ export function parseError(error: unknown, correlationId?: string): AppError {
     )
   }
 
-  return new AppErrorImpl(
+  return new AppError(
     'UNKNOWN_ERROR',
     String(error),
     'internal',
@@ -133,4 +133,57 @@ export function logDebug(message: string, context?: Record<string, any>): void {
   if (process.env.NODE_ENV === 'development') {
     console.debug(`[DEBUG] ${message}`, context ? JSON.stringify(context, null, 2) : '')
   }
+}
+
+// User-friendly error message utilities
+export function getUserMessage(error: AppError | Error | unknown): string {
+  if (error instanceof AppError) {
+    switch (error.category) {
+      case 'validation':
+        return 'Please check your input and try again.'
+      case 'authentication':
+        return 'Please log in to continue.'
+      case 'authorization':
+        return 'You do not have permission to perform this action.'
+      case 'not_found':
+        return 'The requested resource was not found.'
+      case 'conflict':
+        return 'This action conflicts with existing data.'
+      case 'rate_limit':
+        return 'Too many requests. Please try again later.'
+      case 'external':
+        return 'External service is temporarily unavailable.'
+      default:
+        return 'An unexpected error occurred. Please try again.'
+    }
+  }
+  
+  if (error instanceof Error) {
+    return 'An error occurred. Please try again.'
+  }
+  
+  return 'Something went wrong. Please try again.'
+}
+
+// Fetch error handler
+export function handleFetchError(error: unknown): AppError {
+  if (error instanceof TypeError && error.message.includes('fetch')) {
+    return createError.external('NETWORK_ERROR', 'Network connection failed')
+  }
+  
+  if (error instanceof Error && error.message.includes('timeout')) {
+    return createError.external('TIMEOUT_ERROR', 'Request timed out')
+  }
+  
+  return parseError(error)
+}
+
+// User action logging
+export function logUserAction(action: string, userId?: string, context?: Record<string, any>): void {
+  logInfo(`User action: ${action}`, {
+    userId,
+    action,
+    timestamp: new Date().toISOString(),
+    ...context
+  })
 }

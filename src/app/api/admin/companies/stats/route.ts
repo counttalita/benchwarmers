@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     logError('Company stats error', error)
-    logger.error(error as Error, 500)
+    requestLogger.end(500)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

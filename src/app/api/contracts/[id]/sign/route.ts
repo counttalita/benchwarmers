@@ -20,12 +20,12 @@ const sendForSignatureSchema = z.object({
 // POST /api/contracts/[id]/sign - Send contract for e-signature
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const correlationId = uuidv4()
 
   try {
-    const contractId = params.id
+    const contractId = resolvedParams.id
     const body = await request.json()
     
     logInfo('Sending contract for e-signature', {

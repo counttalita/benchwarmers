@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+const resolvedParams = await params
 import { prisma } from '@/lib/prisma'
 import logger from '@/lib/logger'
 
 // POST /api/offers/[id]/respond - Respond to an offer (accept, decline, counter)
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const requestLogger = logger
 

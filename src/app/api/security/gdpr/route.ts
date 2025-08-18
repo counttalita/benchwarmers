@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Delete user data in transaction
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       // Delete reviews
       await tx.review.deleteMany({
         where: { reviewerId: userId }
@@ -104,13 +104,12 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Export the function for use in other modules
-export async function deleteUserData(userId: string, reason?: string) {
+// Internal function for deleting user data
+async function deleteUserData(userId: string) {
   const logger = require('@/lib/logger').logger
   
   try {
-    // Same deletion logic as above
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await tx.review.deleteMany({ where: { reviewerId: userId } })
       await tx.offer.deleteMany({ where: { talentId: userId } })
       await tx.talentProfile.deleteMany({ where: { userId } })
@@ -118,7 +117,7 @@ export async function deleteUserData(userId: string, reason?: string) {
       await tx.user.delete({ where: { id: userId } })
     })
 
-    logger.info('User data deleted successfully', { userId, reason })
+    logger.info('User data deleted successfully', { userId })
     return true
   } catch (error) {
     logger.error('Failed to delete user data', error)

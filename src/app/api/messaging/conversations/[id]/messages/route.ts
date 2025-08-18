@@ -27,7 +27,7 @@ const messageFilterSchema = z.object({
 // GET /api/messaging/conversations/[id]/messages - Get conversation messages
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const correlationId = uuidv4()
 
@@ -36,7 +36,7 @@ export async function GET(
     
     // Parse query parameters
     const filterData = {
-      conversationId: params.id,
+      conversationId: resolvedParams.id,
       senderId: searchParams.get('senderId') || undefined,
       recipientId: searchParams.get('recipientId') || undefined,
       messageType: searchParams.get('messageType') || undefined,
@@ -51,12 +51,12 @@ export async function GET(
 
     logInfo('Retrieving conversation messages', {
       correlationId,
-      conversationId: params.id,
+      conversationId: resolvedParams.id,
       filter: validatedFilter
     })
 
     const result = await messagingService.getMessages({
-      conversationId: params.id,
+      conversationId: resolvedParams.id,
       ...validatedFilter
     }, correlationId)
 
@@ -97,7 +97,7 @@ export async function GET(
 // POST /api/messaging/conversations/[id]/messages - Send message to conversation
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const correlationId = uuidv4()
 
@@ -106,7 +106,7 @@ export async function POST(
     
     logInfo('Sending message to conversation', {
       correlationId,
-      conversationId: params.id,
+      conversationId: resolvedParams.id,
       senderId: body.senderId,
       messageType: body.messageType
     })
@@ -115,7 +115,7 @@ export async function POST(
     const validatedData = sendMessageSchema.parse(body)
 
     const message = await messagingService.sendMessage({
-      conversationId: params.id,
+      conversationId: resolvedParams.id,
       senderId: validatedData.senderId,
       senderType: 'user',
       recipientId: validatedData.recipientId,

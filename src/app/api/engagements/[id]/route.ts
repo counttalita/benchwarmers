@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+const resolvedParams = await params
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import logger from '@/lib/logger'
@@ -18,7 +19,7 @@ const updateEngagementSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Authentication check
@@ -136,7 +137,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Authentication check
@@ -265,7 +266,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Authentication check

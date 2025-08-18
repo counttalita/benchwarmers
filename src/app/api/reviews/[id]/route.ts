@@ -11,12 +11,12 @@ const updateReviewSchema = z.object({
 })
 
 // GET /api/reviews/[id] - Get a specific review
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestLogger = logger
 
   try {
     const review = await prisma.review.findUnique({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       include: {
         reviewer: {
           select: { id: true, name: true, email: true }
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     logger.info('Review retrieved successfully', {
-      reviewId: params.id
+      reviewId: resolvedParams.id
     })
 
     return NextResponse.json({
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
   } catch (error) {
     logger.error('Failed to get review', {
-      reviewId: params.id,
+      reviewId: resolvedParams.id,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
 
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT /api/reviews/[id] - Update a review
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestLogger = logger
 
   try {
@@ -75,7 +75,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     // Check if review exists
     const existingReview = await prisma.review.findUnique({
-      where: { id: params.id }
+      where: { id: resolvedParams.id }
     })
 
     if (!existingReview) {
@@ -98,7 +98,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     // Update review
     const updatedReview = await prisma.review.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       data: validatedBody,
       include: {
         reviewer: {
@@ -111,7 +111,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     })
 
     logger.info('Review updated successfully', {
-      reviewId: params.id,
+      reviewId: resolvedParams.id,
       reviewerId: user.id
     })
 
@@ -122,7 +122,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
   } catch (error) {
     logger.error('Failed to update review', {
-      reviewId: params.id,
+      reviewId: resolvedParams.id,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
 
@@ -141,7 +141,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE /api/reviews/[id] - Delete a review
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestLogger = logger
 
   try {
@@ -156,7 +156,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     // Check if review exists
     const existingReview = await prisma.review.findUnique({
-      where: { id: params.id }
+      where: { id: resolvedParams.id }
     })
 
     if (!existingReview) {
@@ -176,11 +176,11 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     // Delete review
     await prisma.review.delete({
-      where: { id: params.id }
+      where: { id: resolvedParams.id }
     })
 
     logger.info('Review deleted successfully', {
-      reviewId: params.id,
+      reviewId: resolvedParams.id,
       deletedBy: user.id
     })
 
@@ -191,7 +191,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
   } catch (error) {
     logger.error('Failed to delete review', {
-      reviewId: params.id,
+      reviewId: resolvedParams.id,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
 

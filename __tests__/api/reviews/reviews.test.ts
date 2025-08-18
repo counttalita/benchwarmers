@@ -469,7 +469,7 @@ describe('Reviews API', () => {
         { rating: 5, createdAt: '2024-03-01' }
       ]
 
-      const monthlyAverages = mockReviews.reduce((acc, review) => {
+      const monthlyAverages = mockReviews.reduce((acc: Record<string, number[]>, review) => {
         const month = new Date(review.createdAt).toISOString().slice(0, 7) // YYYY-MM
         if (!acc[month]) acc[month] = []
         acc[month].push(review.rating)
@@ -478,7 +478,7 @@ describe('Reviews API', () => {
 
       const monthlyStats = Object.entries(monthlyAverages).map(([month, ratings]) => ({
         month,
-        average: ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length,
+        average: (ratings as number[]).reduce((sum: number, rating: number) => sum + rating, 0) / ratings.length,
         count: ratings.length
       }))
 

@@ -36,16 +36,16 @@ const updateRequestSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const correlationId = `get-request-${Date.now()}`
   
   try {
     const requestLogger = logger
-    logger.info('Getting talent request', { correlationId, requestId: params.id })
+    logger.info('Getting talent request', { correlationId, requestId: resolvedParams.id })
 
     const talentRequest = await prisma.talentRequest.findUnique({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       include: {
         company: {
           select: {
@@ -87,7 +87,7 @@ export async function GET(
   } catch (error) {
     logger.error('Failed to get talent request', {
       correlationId,
-      requestId: params.id,
+      requestId: resolvedParams.id,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
 
@@ -100,13 +100,13 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const correlationId = `update-request-${Date.now()}`
   
   try {
     const requestLogger = logger
-    logger.info('Updating talent request', { correlationId, requestId: params.id })
+    logger.info('Updating talent request', { correlationId, requestId: resolvedParams.id })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id')
@@ -131,7 +131,7 @@ export async function PUT(
     
     // Get the existing request
     const existingRequest = await prisma.talentRequest.findUnique({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       include: { company: true }
     })
 
@@ -179,7 +179,7 @@ export async function PUT(
     if (validatedBody.status) updateData.status = validatedBody.status
 
     const updatedRequest = await prisma.talentRequest.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       data: updateData,
       include: {
         company: {
@@ -199,7 +199,7 @@ export async function PUT(
   } catch (error) {
     logger.error('Failed to update talent request', {
       correlationId,
-      requestId: params.id,
+      requestId: resolvedParams.id,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
 
@@ -219,13 +219,13 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const correlationId = `delete-request-${Date.now()}`
   
   try {
     const requestLogger = logger
-    logger.info('Deleting talent request', { correlationId, requestId: params.id })
+    logger.info('Deleting talent request', { correlationId, requestId: resolvedParams.id })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id')
@@ -247,7 +247,7 @@ export async function DELETE(
 
     // Get the existing request
     const existingRequest = await prisma.talentRequest.findUnique({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       include: { company: true }
     })
 
@@ -275,7 +275,7 @@ export async function DELETE(
     }
 
     await prisma.talentRequest.delete({
-      where: { id: params.id }
+      where: { id: resolvedParams.id }
     })
 
     return new NextResponse(null, { status: 204 })
@@ -283,7 +283,7 @@ export async function DELETE(
   } catch (error) {
     logger.error('Failed to delete talent request', {
       correlationId,
-      requestId: params.id,
+      requestId: resolvedParams.id,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
 

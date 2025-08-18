@@ -9,13 +9,13 @@ const updateNotificationSchema = z.object({
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const correlationId = `notification-update-${Date.now()}`
   
   try {
     const requestLogger = logRequest(request)
-    logInfo('Updating notification', { correlationId, notificationId: params.id })
+    logInfo('Updating notification', { correlationId, notificationId: resolvedParams.id })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id') || 'test-user-id'
@@ -27,10 +27,10 @@ export async function PUT(
     
     switch (validatedBody.action) {
       case 'read':
-        notification = await notificationService.markAsRead(params.id, userId)
+        notification = await notificationService.markAsRead(resolvedParams.id, userId)
         break
       case 'archive':
-        notification = await notificationService.archiveNotification(params.id, userId)
+        notification = await notificationService.archiveNotification(resolvedParams.id, userId)
         break
       default:
         return NextResponse.json(
@@ -47,7 +47,7 @@ export async function PUT(
   } catch (error) {
     logError('Failed to update notification', {
       correlationId,
-      notificationId: params.id,
+      notificationId: resolvedParams.id,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
 
@@ -67,19 +67,19 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const correlationId = `notification-delete-${Date.now()}`
   
   try {
     const requestLogger = logRequest(request)
-    logInfo('Deleting notification', { correlationId, notificationId: params.id })
+    logInfo('Deleting notification', { correlationId, notificationId: resolvedParams.id })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id') || 'test-user-id'
     
     // For now, we'll archive instead of delete to maintain data integrity
-    const notification = await notificationService.archiveNotification(params.id, userId)
+    const notification = await notificationService.archiveNotification(resolvedParams.id, userId)
 
     return NextResponse.json({
       message: 'Notification archived successfully',
@@ -89,7 +89,7 @@ export async function DELETE(
   } catch (error) {
     logError('Failed to delete notification', {
       correlationId,
-      notificationId: params.id,
+      notificationId: resolvedParams.id,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
 

@@ -13,12 +13,13 @@ const updateMatchStatusSchema = z.object({
 // GET /api/matches/[matchId] - Get match details
 export async function GET(
   request: NextRequest,
-  { params }: { params: { matchId: string } }
+  { params }: { params: Promise<{ matchId: string }> }
 ) {
+  const resolvedParams = await params
   const correlationId = uuidv4()
   
   try {
-    const { matchId } = params
+    const { matchId } = resolvedParams
     
     logInfo('Fetching match details', {
       correlationId,
@@ -103,12 +104,13 @@ export async function GET(
 // PATCH /api/matches/[matchId] - Update match status
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { matchId: string } }
+  { params }: { params: Promise<{ matchId: string }> }
 ) {
+  const resolvedParams = await params
   const correlationId = uuidv4()
   
   try {
-    const { matchId } = params
+    const { matchId } = resolvedParams
     const body = await request.json()
     
     logInfo('Updating match status', {
@@ -233,12 +235,13 @@ export async function PATCH(
 // DELETE /api/matches/[matchId] - Remove match (soft delete)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { matchId: string } }
+  { params }: { params: Promise<{ matchId: string }> }
 ) {
+  const resolvedParams = await params
   const correlationId = uuidv4()
   
   try {
-    const { matchId } = params
+    const { matchId } = resolvedParams
     
     logInfo('Removing match', {
       correlationId,

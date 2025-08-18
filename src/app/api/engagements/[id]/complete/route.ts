@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+const resolvedParams = await params
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { logError, logInfo, createError, parseError } from '@/lib/errors'
@@ -17,12 +18,12 @@ const completeEngagementSchema = z.object({
 // POST /api/engagements/[id]/complete - Complete engagement and release payment
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const correlationId = uuidv4()
 
   try {
-    const engagementId = params.id
+    const engagementId = resolvedParams.id
     const body = await request.json()
     
     logInfo('Processing engagement completion', {

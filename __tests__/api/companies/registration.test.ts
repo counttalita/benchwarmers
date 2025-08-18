@@ -1,6 +1,16 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 import { NextRequest } from 'next/server'
 import { POST as registerCompany } from '@/app/api/auth/register/route'
+import { Mock,UnknownFunction } from 'jest-mock'
+import { Mock,UnknownFunction } from 'jest-mock'
+import { Mock,UnknownFunction } from 'jest-mock'
+import { Mock,UnknownFunction } from 'jest-mock'
+import { Mock,UnknownFunction } from 'jest-mock'
+import { Mock,UnknownFunction } from 'jest-mock'
+import { Mock,UnknownFunction } from 'jest-mock'
+import { Mock,UnknownFunction } from 'jest-mock'
+import { Mock,UnknownFunction } from 'jest-mock'
+import { Mock,UnknownFunction } from 'jest-mock'
 
 // Mock Prisma
 jest.mock('@/lib/prisma', () => ({
@@ -28,7 +38,7 @@ describe('Company Registration API', () => {
     jest.clearAllMocks()
     // Reset global mocks
     jest.mocked(require('@/lib/twilio').validatePhoneNumber).mockReturnValue(true)
-    jest.mocked(require('@/lib/twilio').formatPhoneNumber).mockImplementation((phone) => phone.startsWith('+') ? phone : `+${phone}`)
+    jest.mocked(require('@/lib/twilio').formatPhoneNumber).mockImplementation((phone: string) => phone.startsWith('+') ? phone : `+${phone}`)
     jest.mocked(require('@/lib/twilio').sendSMS).mockResolvedValue(true)
   })
 
@@ -82,7 +92,7 @@ describe('Company Registration API', () => {
           })
         }
       }
-      jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback) => {
+      jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback: (arg0: { company: { create: Mock<UnknownFunction> }; user: { create: Mock<UnknownFunction> } }) => any) => {
         return callback(mockTx)
       })
 
@@ -198,7 +208,7 @@ describe('Company Registration API', () => {
           })
         }
       }
-      jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback) => {
+      jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback: (arg0: { company: { create: Mock<UnknownFunction> }; user: { create: Mock<UnknownFunction> } }) => any) => {
         return callback(mockTx)
       })
 
@@ -385,7 +395,7 @@ describe('Company Registration API', () => {
           })
         }
       }
-      jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback) => {
+      jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback: (arg0: { company: { create: Mock<UnknownFunction> }; user: { create: Mock<UnknownFunction> } }) => any) => {
         return callback(mockTx)
       })
 
@@ -446,7 +456,7 @@ describe('Company Registration API', () => {
           })
         }
       }
-      jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback) => {
+      jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback: (arg0: { company: { create: Mock<UnknownFunction> }; user: { create: Mock<UnknownFunction> } }) => any) => {
         return callback(mockTx)
       })
 
@@ -1036,7 +1046,7 @@ describe('Company Registration API', () => {
             })
           }
         }
-        jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback) => {
+        jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback: (arg0: { company: { create: Mock<UnknownFunction> }; user: { create: Mock<UnknownFunction> } }) => any) => {
           return callback(mockTx)
         })
 
@@ -1095,7 +1105,7 @@ describe('Company Registration API', () => {
             })
           }
         }
-        jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback) => {
+        jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback: (arg0: { company: { create: Mock<UnknownFunction> }; user: { create: Mock<UnknownFunction> } }) => any) => {
           return callback(mockTx)
         })
 
@@ -1213,7 +1223,7 @@ describe('Company Registration API', () => {
 
         jest.mocked(require('@/lib/prisma').prisma.company.findUnique).mockResolvedValue(null)
         jest.mocked(require('@/lib/prisma').prisma.user.findFirst).mockResolvedValue(null)
-        jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback) => {
+        jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback: (arg0: { company: { create: Mock<UnknownFunction> }; user: { create: Mock<UnknownFunction> } }) => any) => {
           // Simulate transaction that fails during user creation
           const mockTx = {
             company: {
@@ -1342,7 +1352,7 @@ describe('Company Registration API', () => {
             })
           }
         }
-        jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback) => {
+        jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback: (arg0: { company: { create: Mock<UnknownFunction> }; user: { create: Mock<UnknownFunction> } }) => any) => {
           return callback(mockTx)
         })
 
@@ -1400,7 +1410,7 @@ describe('Company Registration API', () => {
             })
           }
         }
-        jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback) => {
+        jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback: (arg0: { company: { create: Mock<UnknownFunction> }; user: { create: Mock<UnknownFunction> } }) => any) => {
           return callback(mockTx)
         })
 
@@ -1460,7 +1470,7 @@ describe('Company Registration API', () => {
             })
           }
         }
-        jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback) => {
+        jest.mocked(require('@/lib/prisma').prisma.$transaction).mockImplementation(async (callback: (arg0: { company: { create: Mock<UnknownFunction> }; user: { create: Mock<UnknownFunction> } }) => any) => {
           return callback(mockTx)
         })
 

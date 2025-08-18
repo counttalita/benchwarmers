@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+const resolvedParams = await params
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
@@ -18,7 +19,7 @@ const updateInterviewStatusSchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getCurrentUser(request)
@@ -26,7 +27,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const engagementId = params.id
+    const engagementId = resolvedParams.id
     const body = await request.json()
     const validatedData = updateInterviewStatusSchema.parse(body)
 
@@ -264,7 +265,7 @@ export async function POST(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getCurrentUser(request)
@@ -272,7 +273,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const engagementId = params.id
+    const engagementId = resolvedParams.id
 
     const engagement = await prisma.engagement.findUnique({
       where: { id: engagementId },

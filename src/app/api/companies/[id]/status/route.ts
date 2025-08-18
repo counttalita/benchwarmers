@@ -9,17 +9,18 @@ const companyIdSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const resolvedParams = await params
   const startTime = Date.now()
   const requestLogger = logRequest(request, startTime)
 
   try {
     // Validate company ID
-    const validationResult = companyIdSchema.safeParse({ id: params.id })
+    const validationResult = companyIdSchema.safeParse({ id: resolvedParams.id })
     if (!validationResult.success) {
       logError('Company status check failed: Invalid ID', null, {
-        companyId: params.id,
+        companyId: resolvedParams.id,
         validationErrors: validationResult.error.issues
       })
       requestLogger.end(400)
@@ -90,7 +91,7 @@ export async function GET(
 
   } catch (error) {
     logError('Company status check unexpected error', error)
-    logger.error(error as Error, 500)
+    requestLogger.end(500)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

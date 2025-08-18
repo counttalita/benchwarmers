@@ -43,8 +43,8 @@ export async function GET(request: NextRequest) {
       newCompaniesLastMonth
     ] = await Promise.all([
       prisma.company.count(),
-      prisma.company.count({ where: { verified: true } }),
-      prisma.company.count({ where: { verified: false, status: 'PENDING_VERIFICATION' } }),
+      prisma.company.count({ where: { verifiedAt: { not: null } } }),
+      prisma.company.count({ where: { verifiedAt: null, status: 'pending' } }),
       prisma.company.count({
         where: { createdAt: { gte: startOfMonth } }
       }),
@@ -65,9 +65,9 @@ export async function GET(request: NextRequest) {
       disputedEngagements,
       totalEngagements
     ] = await Promise.all([
-      prisma.engagement.count({ where: { status: 'ACTIVE' } }),
-      prisma.engagement.count({ where: { status: 'COMPLETED' } }),
-      prisma.engagement.count({ where: { status: 'DISPUTED' } }),
+      prisma.engagement.count({ where: { status: 'active' } }),
+      prisma.engagement.count({ where: { status: 'completed' } }),
+      prisma.engagement.count({ where: { status: 'disputed' } }),
       prisma.engagement.count()
     ])
 
@@ -80,20 +80,18 @@ export async function GET(request: NextRequest) {
     ] = await Promise.all([
       prisma.payment.aggregate({
         where: { 
-          status: 'COMPLETED',
-          type: 'RELEASE'
+          status: 'released'
         },
-        _sum: { platformFee: true }
+        _sum: { amount: true }
       }),
       prisma.payment.aggregate({
         where: { 
-          status: 'COMPLETED',
-          type: 'RELEASE',
-          completedAt: { gte: startOfMonth }
+          status: 'released',
+          createdAt: { gte: startOfMonth }
         },
-        _sum: { platformFee: true }
+        _sum: { amount: true }
       }),
-      prisma.payment.count({ where: { status: 'PROCESSING' } }),
+      prisma.payment.count({ where: { status: 'pending' } }),
       prisma.payment.count()
     ])
 
@@ -103,8 +101,8 @@ export async function GET(request: NextRequest) {
       acceptedOffers,
       totalOffers
     ] = await Promise.all([
-      prisma.offer.count({ where: { status: 'PENDING' } }),
-      prisma.offer.count({ where: { status: 'ACCEPTED' } }),
+      prisma.offer.count({ where: { status: 'pending' } }),
+      prisma.offer.count({ where: { status: 'accepted' } }),
       prisma.offer.count()
     ])
 

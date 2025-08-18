@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
       // Revenue calculation
       prisma.engagement.aggregate({
         where: { status: 'completed' },
-        _sum: { budget: true }
+        _sum: { totalAmount: true }
       }),
       
       // Engagement status counts
@@ -108,38 +108,141 @@ export async function GET(request: NextRequest) {
       prisma.engagement.aggregate({
         where: { 
           status: 'completed',
-          completedAt: { gte: startDate }
+          updatedAt: { gte: startDate }
         },
-        _sum: { budget: true }
+        _sum: { totalAmount: true }
       })
     ])
+
+    const categories = ['category1', 'category2', 'category3', 'category4', 'category5']
+    const categoryStats = await Promise.all(
+      categories.map(async (cat: any) => {
+        const [
+          totalUsers,
+          totalCompanies,
+          totalTalentProfiles,
+          totalTalentRequests,
+          totalOffers,
+          totalEngagements,
+          totalRevenue,
+          activeEngagements,
+          completedEngagements,
+          pendingDisputes,
+          averageRating,
+          userGrowth,
+          engagementGrowth,
+          revenueGrowth
+        ] = await Promise.all([
+          // Total counts
+          prisma.user.count(),
+          prisma.company.count(),
+          prisma.talentProfile.count(),
+          prisma.talentRequest.count(),
+          prisma.offer.count(),
+          prisma.engagement.count(),
+          
+          // Revenue calculation
+          prisma.engagement.aggregate({
+            where: { status: 'completed' },
+            _sum: { totalAmount: true }
+          }),
+          
+          // Engagement status counts
+          prisma.engagement.count({
+            where: { status: 'active' }
+          }),
+          prisma.engagement.count({
+            where: { status: 'completed' }
+          }),
+          
+          // Disputes
+          prisma.dispute.count({
+            where: { status: 'open' }
+          }),
+          
+          // Average rating
+          prisma.review.aggregate({
+            _avg: { rating: true }
+          }),
+          
+          // Growth metrics (current period vs previous period)
+          prisma.user.count({
+            where: { createdAt: { gte: startDate } }
+          }),
+          prisma.engagement.count({
+            where: { createdAt: { gte: startDate } }
+          }),
+          prisma.engagement.aggregate({
+            where: { 
+              status: 'completed',
+              updatedAt: { gte: startDate }
+            },
+            _sum: { totalAmount: true }
+          })
+        ])
+
+        return {
+          category: cat,
+          totalUsers,
+          totalCompanies,
+          totalTalentProfiles,
+          totalTalentRequests,
+          totalOffers,
+          totalEngagements,
+          totalRevenue: totalRevenue._sum.totalAmount || 0,
+          activeEngagements,
+          completedEngagements,
+          pendingDisputes,
+          averageRating: averageRating._avg.rating || 0,
+          userGrowth,
+          engagementGrowth,
+          revenueGrowth: revenueGrowth._sum.totalAmount || 0,
+        }
+      })
+    )
 
     // Calculate growth percentages (simplified - in real app, compare with previous period)
     const userGrowthPercent = userGrowth > 0 ? Math.round((userGrowth / totalUsers) * 100) : 0
     const engagementGrowthPercent = engagementGrowth > 0 ? Math.round((engagementGrowth / totalEngagements) * 100) : 0
-    const revenueGrowthPercent = revenueGrowth._sum.budget && totalRevenue._sum.budget 
-      ? Math.round((Number(revenueGrowth._sum.budget) / Number(totalRevenue._sum.budget)) * 100) 
+    const revenueGrowthPercent = revenueGrowth._sum.totalAmount && totalRevenue._sum.totalAmount 
+      ? Math.round((Number(revenueGrowth._sum.totalAmount) / Number(totalRevenue._sum.totalAmount)) * 100) 
       : 0
 
-    // Get top performing categories
-    const topCategories = await prisma.talentRequest.groupBy({
-      by: ['category'],
-      _count: { category: true },
-      orderBy: { _count: { category: 'desc' } },
-      take: 5
-    })
-
-    // Get recent activity
-    const recentActivity = await prisma.engagement.findMany({
+    const engagements = await prisma.engagement.findMany({
       take: 10,
       orderBy: { createdAt: 'desc' },
       include: {
-        talentProfile: {
-          include: { user: true }
-        },
-        company: true
+        offer: {
+          include: {
+            match: {
+              include: {
+                profile: {
+                  include: { 
+                    company: true
+                  }
+                },
+                request: {
+                  include: { 
+                    company: true 
+                  }
+                }
+              }
+            },
+            seekerCompany: true,
+            providerCompany: true
+          }
+        }
       }
     })
+
+    const engagementsByMonth = engagements.reduce((acc: any, engagement: any) => {
+      const month = new Date(engagement.createdAt).toLocaleString('default', { month: 'long' })
+      if (!acc[month]) {
+        acc[month] = 0
+      }
+      acc[month]++
+      return acc
+    }, {})
 
     logger.info('Analytics retrieved successfully', {
       adminId: user.id,
@@ -156,7 +259,7 @@ export async function GET(request: NextRequest) {
           totalTalentRequests,
           totalOffers,
           totalEngagements,
-          totalRevenue: totalRevenue._sum.budget || 0,
+          totalRevenue: totalRevenue._sum.totalAmount || 0,
           activeEngagements,
           completedEngagements,
           pendingDisputes,
@@ -167,17 +270,14 @@ export async function GET(request: NextRequest) {
           engagementGrowth: engagementGrowthPercent,
           revenueGrowth: revenueGrowthPercent
         },
-        topCategories: topCategories.map(cat => ({
-          category: cat.category,
-          count: cat._count.category
-        })),
-        recentActivity: recentActivity.map(engagement => ({
+        categoryStats,
+        engagementsByMonth,
+        recentActivity: engagements.map((engagement: any) => ({
           id: engagement.id,
-          title: engagement.title,
           status: engagement.status,
-          budget: engagement.budget,
-          talent: engagement.talentProfile.user.name,
-          company: engagement.company.name,
+          totalAmount: engagement.totalAmount,
+          talent: engagement.offer.match.profile.company.name,
+          company: engagement.offer.match.request.company.name,
           createdAt: engagement.createdAt
         }))
       }

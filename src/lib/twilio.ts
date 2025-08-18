@@ -260,4 +260,14 @@ export function isWithinQuietHours(timezone: string = 'UTC'): boolean {
   return hour >= 22 || hour < 8
 }
 
+// OTP utilities
+export function generateOTP(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString()
+}
+
+export async function sendOTP(phoneNumber: string, otp: string): Promise<boolean> {
+  const result = await sendOTPSMS(phoneNumber, { otp, expiresIn: '10 minutes' })
+  return result.success
+}
+
 export { twilioClient }
