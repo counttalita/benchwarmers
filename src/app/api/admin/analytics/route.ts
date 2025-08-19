@@ -11,18 +11,12 @@ export async function GET(request: NextRequest) {
     // Check authentication
     const user = await getCurrentUser(request)
     if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
     // Check admin role
     if (user.role !== 'admin') {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      )
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -252,34 +246,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       analytics: {
-        overview: {
-          totalUsers,
-          totalCompanies,
-          totalTalentProfiles,
-          totalTalentRequests,
-          totalOffers,
-          totalEngagements,
-          totalRevenue: totalRevenue._sum.totalAmount || 0,
-          activeEngagements,
-          completedEngagements,
-          pendingDisputes,
-          averageRating: averageRating._avg.rating || 0
-        },
-        growth: {
-          userGrowth: userGrowthPercent,
-          engagementGrowth: engagementGrowthPercent,
-          revenueGrowth: revenueGrowthPercent
-        },
-        categoryStats,
-        engagementsByMonth,
-        recentActivity: engagements.map((engagement: any) => ({
-          id: engagement.id,
-          status: engagement.status,
-          totalAmount: engagement.totalAmount,
-          talent: engagement.offer.match.profile.company.name,
-          company: engagement.offer.match.request.company.name,
-          createdAt: engagement.createdAt
-        }))
+        totalUsers,
+        totalCompanies,
+        totalTalentRequests,
+        totalOffers,
+        totalEngagements
       }
     })
 

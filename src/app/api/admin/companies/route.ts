@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
     })
 
     return NextResponse.json({
+      success: true,
       companies,
       pagination: {
         page,
@@ -126,10 +127,7 @@ export async function POST(request: NextRequest) {
       newStatus: updatedCompany.status
     })
 
-    return NextResponse.json({
-      message,
-      company: updatedCompany
-    })
+    return NextResponse.json({ success: true, message, company: updatedCompany })
 
   } catch (error) {
     logger.error('Failed to update company status', {

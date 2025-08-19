@@ -227,6 +227,75 @@ const industryCompatibility: { [key: string]: { [key: string]: number } } = {
   'e-commerce': { 'technology': 95, 'finance': 90, 'healthcare': 70, 'e-commerce': 100 }
 }
 
+export interface SkillDependency {
+  skill: string
+  importance: number
+  type: 'prerequisite' | 'component' | 'framework' | 'tool'
+}
+
+interface TransferableSkill {
+  fromSkill: string
+  toSkill: string
+  transferRate: number // 0-1, how much skill transfers
+}
+
+interface LearningPath {
+  targetSkill: string
+  prerequisites: string[]
+  estimatedTimeWeeks: number
+  difficulty: 'easy' | 'medium' | 'hard'
+}
+
+interface MarketData {
+  averageRate: number
+  demandLevel: number // 0-1
+  supplyLevel: number // 0-1
+}
+
+interface BudgetAnalysis {
+  overallScore: number
+  budgetFit: number
+  marketPosition: number
+  valueScore: number
+  negotiationPotential: number
+  expectedROI: number
+  costRisk: number
+}
+
+interface BiasDetectionResult {
+  hasBias: boolean
+  biasTypes: string[]
+  fairnessScore: number
+  recommendations: string[]
+}
+
+interface FairnessMetrics {
+  demographicParity: number
+  equalOpportunity: number
+  calibration: number
+  overallFairness: number
+}
+
+interface SkillMatchResult {
+  skill: string
+  score: number
+  level: 'junior' | 'mid' | 'senior' | 'expert'
+  hasExperience: boolean
+  experienceYears: number
+  transferableFrom?: string[]
+  learningPath?: LearningPath
+  overallScore: number
+}
+
+interface SkillGap {
+  skill: string
+  requiredLevel: 'junior' | 'mid' | 'senior' | 'expert'
+  currentLevel?: 'junior' | 'mid' | 'senior' | 'expert'
+  severity: 'critical' | 'major' | 'minor'
+  canLearn: boolean
+  learningPath?: LearningPath
+}
+
 export class MatchingEngine {
   private readonly defaultWeights: ProjectWeights = {
     skills: 0.30,           // 30% - Most important
@@ -239,27 +308,105 @@ export class MatchingEngine {
     reliability: 0.02      // 2% - Past performance reliability
   }
 
+  // Enhanced skill dependencies mapping
+  private readonly skillDependencies: Map<string, SkillDependency[]> = new Map([
+    ['React', [
+      { skill: 'JavaScript', importance: 0.9, type: 'prerequisite', required: true },
+      { skill: 'HTML', importance: 0.8, type: 'prerequisite', required: true },
+      { skill: 'CSS', importance: 0.7, type: 'prerequisite', required: true },
+      { skill: 'JSX', importance: 0.9, type: 'component', required: false }
+    ]],
+    ['Node.js', [
+      { skill: 'JavaScript', importance: 0.95, type: 'prerequisite', required: true },
+      { skill: 'npm', importance: 0.6, type: 'tool', required: false },
+      { skill: 'Express', importance: 0.7, type: 'framework', required: false }
+    ]],
+    ['Angular', [
+      { skill: 'TypeScript', importance: 0.9, type: 'prerequisite', required: true },
+      { skill: 'JavaScript', importance: 0.8, type: 'prerequisite', required: true },
+      { skill: 'HTML', importance: 0.8, type: 'prerequisite', required: true },
+      { skill: 'CSS', importance: 0.7, type: 'prerequisite', required: true }
+    ]],
+    ['Vue.js', [
+      { skill: 'JavaScript', importance: 0.9, type: 'prerequisite', required: true },
+      { skill: 'HTML', importance: 0.8, type: 'prerequisite', required: true },
+      { skill: 'CSS', importance: 0.7, type: 'prerequisite', required: true }
+    ]]
+  ])
+
   async findMatches(
     requirement: ProjectRequirement,
     availableTalent: TalentProfile[],
     options: MatchingOptions = {}
   ): Promise<MatchScore[]> {
     
-    // Step 1: Pre-filter talent based on hard requirements
+    // Step 1: Get dynamic weights based on project characteristics
+    const dynamicWeights = this.getDynamicWeights(requirement)
+    const weights = { ...dynamicWeights, ...options.customWeights }
+    
+    // Step 2: Pre-filter talent based on hard requirements
     const eligibleTalent = this.preFilterTalent(requirement, availableTalent)
     
-    // Step 2: Calculate scores for each talent
+    // Step 3: Calculate scores for each talent with dynamic weights
     const scoredMatches = await Promise.all(
-      eligibleTalent.map((talent: TalentProfile) => this.calculateTalentScore(requirement, talent, options))
+      eligibleTalent.map((talent: TalentProfile) => this.calculateTalentScore(requirement, talent, { ...options, customWeights: weights }))
     )
     
-    // Step 3: Sort by total score (descending)
+    // Step 4: Sort by total score (descending)
     const rankedMatches = scoredMatches
       .sort((a, b) => b.totalScore - a.totalScore)
       .map((match: MatchScore, index: number) => ({ ...match, rank: index + 1 }))
     
-    // Step 4: Apply business rules and filters
+    // Step 5: Apply business rules and filters
     return this.applyBusinessRules(rankedMatches, requirement, options)
+  }
+
+  private getDynamicWeights(requirement: ProjectRequirement): ProjectWeights {
+    let weights = { ...this.defaultWeights }
+
+    // Adjust weights based on project urgency
+    if (requirement.urgency === 'critical') {
+      weights.availability = 0.25  // Increase availability importance
+      weights.skills = 0.25        // Slightly reduce skills for immediate need
+      weights.experience = 0.25    // Increase experience for reliability
+      weights.budget = 0.10        // Reduce budget importance for urgent projects
+    } else if (requirement.urgency === 'low') {
+      weights.budget = 0.20        // More budget conscious for non-urgent
+      weights.skills = 0.35        // Can be more selective on skills
+      weights.availability = 0.10  // Less time pressure
+    }
+
+    // Adjust for project complexity (inferred from required skills count)
+    const skillComplexity = requirement.requiredSkills.length
+    if (skillComplexity > 8) {
+      weights.skills = Math.min(weights.skills + 0.10, 0.50)  // Cap at 50%
+      weights.experience = Math.min(weights.experience + 0.05, 0.30)
+    }
+
+    // Adjust for project duration
+    if (requirement.duration.weeks > 26) { // Long-term projects
+      weights.culture = 0.10       // Culture fit more important
+      weights.reliability = 0.05   // Reliability crucial for long projects
+      weights.velocity = 0.02      // Less emphasis on speed
+    } else if (requirement.duration.weeks < 4) { // Short sprints
+      weights.velocity = 0.08      // Speed is critical
+      weights.availability = 0.20  // Must be immediately available
+      weights.culture = 0.02       // Less time for culture issues
+    }
+
+    // Adjust for team size
+    if (requirement.teamSize > 10) {
+      weights.culture = 0.12       // Large teams need good cultural fit
+      weights.experience = 0.25    // Need experienced people for large teams
+    }
+
+    // Normalize weights to ensure they sum to 1
+    const totalWeight = Object.values(weights).reduce((sum, weight) => sum + weight, 0)
+    Object.keys(weights).forEach(key => {
+      weights[key as keyof ProjectWeights] = weights[key as keyof ProjectWeights] / totalWeight
+    })
+
+    return weights
   }
 
   private preFilterTalent(
@@ -362,39 +509,207 @@ export class MatchingEngine {
   }
 
   private calculateSkillsScore(requirement: ProjectRequirement, talent: TalentProfile): number {
+    const skillMatchResult = this.calculateAdvancedSkillMatch(requirement.requiredSkills, talent.skills)
+    const preferredMatchResult = this.calculateAdvancedSkillMatch(requirement.preferredSkills, talent.skills)
+    
+    // Weight required skills more heavily than preferred
+    const requiredWeight = 0.8
+    const preferredWeight = 0.2
+    
+    return (skillMatchResult.overallScore * requiredWeight) + (preferredMatchResult.overallScore * preferredWeight)
+  }
+
+  private calculateAdvancedSkillMatch(requiredSkills: SkillRequirement[], talentSkills: Skill[]): SkillMatchResult {
     let totalScore = 0
     let totalWeight = 0
+    const missingCritical: string[] = []
+    const skillGaps: SkillGap[] = []
+    const transferableSkills: string[] = []
+    const learningPath: LearningPath[] = []
 
-    // Calculate required skills score
-    for (const reqSkill of requirement.requiredSkills) {
-      const bestMatch = talent.skills
-        .filter(skill => this.isSkillMatch(reqSkill.name, skill.name))
-        .sort((a, b) => this.getSkillLevelScore(b.level) - this.getSkillLevelScore(a.level))[0]
-
-      if (bestMatch) {
-        const levelCompatibility = this.getLevelCompatibility(reqSkill.level, bestMatch.level)
-        const experienceBonus = Math.min(bestMatch.yearsOfExperience / 5, 1) * 0.2 // Max 20% bonus
-        const skillScore = (levelCompatibility / 100) * (1 + experienceBonus)
-        totalScore += skillScore * reqSkill.weight
-        totalWeight += reqSkill.weight
+    for (const required of requiredSkills) {
+      const directMatches = talentSkills.filter(skill => this.isSkillMatch(required.name, skill.name))
+      const skillWeight = this.getEnhancedSkillWeight(required)
+      
+      if (directMatches.length === 0) {
+        if (required.isRequired) {
+          missingCritical.push(required.name)
+          
+          // Check for transferable skills and prerequisites
+          const bridgeScore = this.calculateBridgeSkillScore(required, talentSkills)
+          const transferable = this.findTransferableSkillsForRequirement(required, talentSkills)
+          
+          if (transferable.length > 0) {
+            transferableSkills.push(...transferable)
+            totalScore += bridgeScore * skillWeight * 0.4 // Reduced score for transferable
+          }
+          
+          // Calculate learning path
+          const dependencies = this.skillDependencies.get(required.name) || []
+          const hasPrerequisites = dependencies.filter(dep => 
+            talentSkills.some(skill => this.isSkillMatch(dep.skill, skill.name))
+          )
+          
+          if (hasPrerequisites.length > 0) {
+            learningPath.push({
+              targetSkill: required.name,
+              prerequisites: hasPrerequisites.map(dep => dep.skill),
+              estimatedTimeWeeks: 8,
+              difficulty: 'medium'
+            })
+            totalScore += (hasPrerequisites.length / dependencies.length) * skillWeight * 0.3
+          }
+        }
+        
+        skillGaps.push({
+          skill: required.name,
+          requiredLevel: required.level,
+          currentLevel: undefined,
+          severity: 'critical',
+          canLearn: true,
+          learningPath: learningPath.find(lp => lp.targetSkill === required.name)
+        })
+      } else {
+        const bestMatch = this.getBestSkillMatch(required, directMatches)
+        const matchScore = this.calculateDetailedSkillScore(required, bestMatch)
+        totalScore += matchScore * skillWeight
       }
+      
+      totalWeight += skillWeight
     }
 
-    // Calculate preferred skills bonus
-    for (const prefSkill of requirement.preferredSkills) {
-      const bestMatch = talent.skills
-        .filter(skill => this.isSkillMatch(prefSkill.name, skill.name))
-        .sort((a, b) => this.getSkillLevelScore(b.level) - this.getSkillLevelScore(a.level))[0]
+    return {
+      skill: 'overall',
+      score: totalWeight > 0 ? totalScore / totalWeight : 0,
+      level: 'mid',
+      hasExperience: missingCritical.length === 0,
+      experienceYears: 0,
+      transferableFrom: transferableSkills,
+      learningPath: learningPath[0],
+      overallScore: totalWeight > 0 ? totalScore / totalWeight : 0
+    }
+  }
 
-      if (bestMatch) {
-        const levelCompatibility = this.getLevelCompatibility(prefSkill.level, bestMatch.level)
-        const bonusScore = (levelCompatibility / 100) * prefSkill.weight * 0.5 // 50% weight for preferred skills
-        totalScore += bonusScore
-        totalWeight += prefSkill.weight * 0.5
+  private getEnhancedSkillWeight(skill: SkillRequirement): number {
+    // Base weight from skill definition
+    let weight = skill.weight || 5
+    
+    // Adjust based on skill criticality
+    if (skill.isRequired) weight *= 1.5
+    
+    // Adjust based on experience requirements
+    if (skill.yearsRequired && skill.yearsRequired > 5) weight *= 1.2
+    
+    // Adjust based on skill level
+    const levelMultipliers = { junior: 1.0, mid: 1.1, senior: 1.3, expert: 1.5 }
+    weight *= levelMultipliers[skill.level] || 1.0
+    
+    return weight
+  }
+
+  private calculateBridgeSkillScore(required: SkillRequirement, talentSkills: Skill[]): number {
+    const dependencies = this.skillDependencies.get(required.name) || []
+    if (dependencies.length === 0) return 0
+    
+    let bridgeScore = 0
+    for (const dep of dependencies) {
+      const hasSkill = talentSkills.some(skill => this.isSkillMatch(dep.skill, skill.name))
+      if (hasSkill) {
+        bridgeScore += dep.importance * (dep.type === 'prerequisite' ? 1.0 : 0.7)
       }
     }
+    
+    return Math.min(bridgeScore / dependencies.length, 0.8) // Max 80% for bridge skills
+  }
 
-    return totalWeight > 0 ? totalScore / totalWeight : 0
+  private findTransferableSkillsForRequirement(required: SkillRequirement, talentSkills: Skill[]): string[] {
+    const transferable: string[] = []
+    
+    // Check for skills in the same category
+    const sameCategory = talentSkills.filter(skill => 
+      skill.category === this.getSkillCategory(required.name) && 
+      skill.level !== 'junior'
+    )
+    
+    if (sameCategory.length > 0) {
+      transferable.push(...sameCategory.map(s => s.name))
+    }
+    
+    // Check for related technologies
+    for (const [stack, technologies] of techStacks) {
+      if (technologies.includes(required.name)) {
+        const relatedSkills = talentSkills.filter(skill => 
+          technologies.includes(skill.name) && skill.name !== required.name
+        )
+        transferable.push(...relatedSkills.map(s => s.name))
+      }
+    }
+    
+    return [...new Set(transferable)] // Remove duplicates
+  }
+
+  private getSkillCategory(skillName: string): string {
+    const categoryMap: { [key: string]: string } = {
+      'React': 'frontend', 'Angular': 'frontend', 'Vue.js': 'frontend',
+      'Node.js': 'backend', 'Express': 'backend', 'Django': 'backend',
+      'Docker': 'devops', 'Kubernetes': 'devops', 'AWS': 'devops',
+      'Figma': 'design', 'Sketch': 'design', 'Adobe XD': 'design',
+      'Python': 'backend', 'JavaScript': 'frontend', 'TypeScript': 'frontend'
+    }
+    return categoryMap[skillName] || 'other'
+  }
+
+  private getBestSkillMatch(required: SkillRequirement, matches: Skill[]): Skill {
+    return matches.sort((a, b) => {
+      const aScore = this.getSkillLevelScore(a.level) + (a.yearsOfExperience * 0.1)
+      const bScore = this.getSkillLevelScore(b.level) + (b.yearsOfExperience * 0.1)
+      return bScore - aScore
+    })[0]
+  }
+
+  private calculateDetailedSkillScore(required: SkillRequirement, talent: Skill): number {
+    // Level compatibility with more nuanced scoring
+    const levelScore = this.getLevelCompatibility(required.level, talent.level) / 100
+    
+    // Experience depth bonus
+    const requiredYears = required.yearsRequired || 3
+    const experienceBonus = Math.min(talent.yearsOfExperience / requiredYears, 1.5) * 0.2
+    
+    // Recency factor - assume recent skills are better (simplified)
+    const recencyFactor = 0.1 // Could be enhanced with actual usage data
+    
+    // Perfect match bonus
+    const perfectMatchBonus = required.name.toLowerCase() === talent.name.toLowerCase() ? 0.1 : 0
+    
+    return Math.min(levelScore + experienceBonus + recencyFactor + perfectMatchBonus, 1.0)
+  }
+
+  private calculateSkillGap(required: SkillRequirement, talentSkills: Skill[]): number {
+    const requiredLevel = this.getSkillLevelScore(required.level)
+    const relatedSkills = talentSkills.filter(skill => 
+      this.getSkillCategory(skill.name) === this.getSkillCategory(required.name)
+    )
+    
+    if (relatedSkills.length === 0) return 1.0 // Full gap
+    
+    const bestRelated = relatedSkills.sort((a, b) => 
+      this.getSkillLevelScore(b.level) - this.getSkillLevelScore(a.level)
+    )[0]
+    
+    const currentLevel = this.getSkillLevelScore(bestRelated.level)
+    return Math.max(0, (requiredLevel - currentLevel) / 4) // Normalize to 0-1
+  }
+
+  private assessLearnability(required: SkillRequirement, talentSkills: Skill[]): number {
+    const dependencies = this.skillDependencies.get(required.name) || []
+    if (dependencies.length === 0) return 0.5 // Default learnability
+    
+    const prerequisitesMet = dependencies.filter(dep => 
+      dep.type === 'prerequisite' && 
+      talentSkills.some(skill => this.isSkillMatch(dep.skill, skill.name))
+    ).length
+    
+    return Math.min(prerequisitesMet / dependencies.filter(d => d.type === 'prerequisite').length, 1.0)
   }
 
   private calculateExperienceScore(requirement: ProjectRequirement, talent: TalentProfile): number {
@@ -459,24 +774,199 @@ export class MatchingEngine {
   }
 
   private calculateBudgetScore(requirement: ProjectRequirement, talent: TalentProfile): number {
+    const budgetAnalysis = this.calculateAdvancedBudgetScore(requirement, talent)
+    return budgetAnalysis.overallScore
+  }
+
+  private calculateAdvancedBudgetScore(requirement: ProjectRequirement, talent: TalentProfile): BudgetAnalysis {
     const { min: reqMin, max: reqMax } = requirement.budget
     const talentRate = talent.hourlyRate
+    const marketData = this.getMarketRateData(talent.skills, talent.location)
+    
+    // Basic budget fit
+    const budgetFit = this.calculateBasicBudgetFit(reqMin, reqMax, talentRate)
+    
+    // Market positioning
+    const marketPosition = this.calculateMarketPosition(talentRate, marketData)
+    
+    // Value proposition
+    const valueScore = this.calculateValueProposition(talent, talentRate, marketData)
+    
+    // Negotiation potential
+    const negotiationPotential = this.assessNegotiationPotential(talentRate, reqMin, reqMax, talent.preferences)
+    
+    // ROI prediction
+    const expectedROI = this.predictROI(talent, requirement, talentRate)
+    
+    // Cost risk assessment
+    const costRisk = this.assessCostRisks(talent, requirement, talentRate)
+    
+    const overallScore = this.calculateWeightedBudgetScore({
+      budgetFit,
+      marketPosition,
+      valueScore,
+      negotiationPotential,
+      expectedROI,
+      costRisk
+    })
 
+    return {
+      overallScore,
+      budgetFit,
+      marketPosition,
+      valueScore,
+      negotiationPotential,
+      expectedROI,
+      costRisk
+    }
+  }
+
+  private calculateBasicBudgetFit(reqMin: number, reqMax: number, talentRate: number): number {
     // Perfect match: talent rate is within budget range
     if (talentRate >= reqMin && talentRate <= reqMax) {
       return 1.0
     }
 
-    // Calculate penalty for being outside budget
+    // Symmetric scoring curve - penalize both under and over budget
+    const budgetMidpoint = (reqMin + reqMax) / 2
+    const budgetRange = reqMax - reqMin
+    const deviation = Math.abs(talentRate - budgetMidpoint)
+    
+    // Under budget penalty (might indicate lack of experience)
     if (talentRate < reqMin) {
-      // Under budget - small penalty
-      const penalty = (reqMin - talentRate) / reqMin
-      return Math.max(0.8 - penalty * 0.2, 0.5)
-    } else {
-      // Over budget - larger penalty
-      const penalty = (talentRate - reqMax) / reqMax
-      return Math.max(0.6 - penalty * 0.4, 0.2)
+      const underBudgetPenalty = (reqMin - talentRate) / reqMin
+      return Math.max(0.7 - underBudgetPenalty * 0.3, 0.3)
     }
+    
+    // Over budget penalty
+    const overBudgetPenalty = (talentRate - reqMax) / reqMax
+    return Math.max(0.6 - overBudgetPenalty * 0.4, 0.1)
+  }
+
+  private getMarketRateData(skills: Skill[], location: Location): MarketData {
+    // Simplified market data calculation - in production, this would use real market data
+    const skillLevels = skills.map(s => this.getSkillLevelScore(s.level))
+    const avgSkillLevel = skillLevels.reduce((sum, level) => sum + level, 0) / skillLevels.length
+    
+    // Base rates by location (simplified)
+    const locationMultipliers: { [key: string]: number } = {
+      'US': 1.0, 'CA': 0.85, 'UK': 0.90, 'DE': 0.80, 'IN': 0.30, 'PH': 0.25
+    }
+    
+    const locationMultiplier = locationMultipliers[location.country] || 0.6
+    const baseRate = 50 + (avgSkillLevel * 25) // $50-150 base range
+    
+    return {
+      averageRate: baseRate * locationMultiplier,
+      demandLevel: Math.random() * 0.5 + 0.5, // Simplified - would use real data
+      supplyLevel: Math.random() * 0.5 + 0.5
+    }
+  }
+
+  private calculateMarketPosition(talentRate: number, marketData: MarketData): number {
+    const ratio = talentRate / marketData.averageRate
+    
+    // Optimal range is 0.8-1.2x market rate
+    if (ratio >= 0.8 && ratio <= 1.2) return 1.0
+    if (ratio >= 0.6 && ratio <= 1.5) return 0.8
+    if (ratio >= 0.4 && ratio <= 2.0) return 0.6
+    return 0.3
+  }
+
+  private calculateValueProposition(talent: TalentProfile, rate: number, marketData: MarketData): number {
+    // Value = (Quality × Delivery Speed × Reliability) / Cost
+    const qualityScore = talent.rating / 5
+    const speedScore = this.calculateDeliverySpeed(talent)
+    const reliabilityScore = this.calculateReliabilityScore(talent)
+    const costNormalized = rate / marketData.averageRate
+    
+    return Math.min((qualityScore * speedScore * reliabilityScore) / costNormalized, 2.0)
+  }
+
+  private calculateDeliverySpeed(talent: TalentProfile): number {
+    if (talent.pastProjects.length === 0) return 0.5
+    
+    const completedProjects = talent.pastProjects.filter(p => p.outcome === 'completed')
+    if (completedProjects.length === 0) return 0.3
+    
+    // Calculate average delivery efficiency
+    const avgEfficiency = completedProjects.reduce((sum, project) => {
+      // Assume projects with higher ratings were delivered more efficiently
+      return sum + (project.rating / 5)
+    }, 0) / completedProjects.length
+    
+    return Math.min(avgEfficiency, 1.0)
+  }
+
+  private assessNegotiationPotential(talentRate: number, reqMin: number, reqMax: number, preferences: TalentPreferences): number {
+    // Check if talent's preferred rate aligns with budget
+    const preferredInRange = preferences.preferredRate >= reqMin && preferences.preferredRate <= reqMax
+    const minimumInRange = preferences.minimumRate <= reqMax
+    
+    if (preferredInRange) return 1.0
+    if (minimumInRange) return 0.7
+    
+    // Calculate flexibility based on rate vs preferences
+    const flexibility = Math.max(0, 1 - Math.abs(talentRate - preferences.preferredRate) / preferences.preferredRate)
+    return Math.min(flexibility * 0.5, 0.5)
+  }
+
+  private predictROI(talent: TalentProfile, requirement: ProjectRequirement, talentRate: number): number {
+    // Simplified ROI calculation based on talent quality and project success probability
+    const qualityFactor = talent.rating / 5
+    const experienceFactor = Math.min(talent.experience.length / 5, 1.0)
+    const completionRate = talent.pastProjects.length > 0 ? 
+      talent.pastProjects.filter(p => p.outcome === 'completed').length / talent.pastProjects.length : 0.5
+    
+    // Higher rates should deliver proportionally higher value
+    const rateEfficiency = Math.min(talentRate / 100, 1.5) // Normalize around $100/hr
+    
+    return (qualityFactor * experienceFactor * completionRate * rateEfficiency) / 2
+  }
+
+  private assessCostRisks(talent: TalentProfile, requirement: ProjectRequirement, talentRate: number): number {
+    let riskScore = 0
+    
+    // Rate volatility risk
+    if (talentRate > requirement.budget.max * 1.2) riskScore += 0.3
+    
+    // Experience mismatch risk
+    const avgExperience = talent.skills.reduce((sum, s) => sum + s.yearsOfExperience, 0) / talent.skills.length
+    if (avgExperience < 2) riskScore += 0.2
+    
+    // Project completion risk
+    const incompletionRate = talent.pastProjects.length > 0 ?
+      talent.pastProjects.filter(p => p.outcome !== 'completed').length / talent.pastProjects.length : 0.3
+    riskScore += incompletionRate * 0.3
+    
+    // Communication risk (simplified)
+    if (talent.preferences.communicationStyle === 'formal' && requirement.workStyle === 'agile') {
+      riskScore += 0.1
+    }
+    
+    return Math.min(riskScore, 1.0)
+  }
+
+  private calculateWeightedBudgetScore(analysis: Omit<BudgetAnalysis, 'overallScore'>): number {
+    const weights = {
+      budgetFit: 0.35,
+      valueScore: 0.25,
+      marketPosition: 0.15,
+      expectedROI: 0.15,
+      negotiationPotential: 0.10
+    }
+    
+    // Invert cost risk (lower risk = higher score)
+    const riskAdjustment = 1 - analysis.costRisk
+    
+    const weightedScore = 
+      (analysis.budgetFit * weights.budgetFit) +
+      (analysis.valueScore * weights.valueScore) +
+      (analysis.marketPosition * weights.marketPosition) +
+      (analysis.expectedROI * weights.expectedROI) +
+      (analysis.negotiationPotential * weights.negotiationPotential)
+    
+    return Math.min(weightedScore * riskAdjustment, 1.0)
   }
 
   private calculateLocationScore(requirement: ProjectRequirement, talent: TalentProfile): number {
@@ -810,6 +1300,12 @@ export class MatchingEngine {
   private applyBusinessRules(matches: MatchScore[], requirement: ProjectRequirement, options: MatchingOptions): MatchScore[] {
     let filteredMatches = matches
 
+    // Apply bias detection and fairness adjustments
+    const biasDetection = this.detectBias(filteredMatches, requirement)
+    if (biasDetection.hasBias) {
+      filteredMatches = this.applyFairnessAdjustments(filteredMatches, biasDetection)
+    }
+
     // Apply minimum score filter
     if (options.minScore !== undefined) {
       filteredMatches = filteredMatches.filter(match => match.totalScore >= options.minScore!)
@@ -829,5 +1325,242 @@ export class MatchingEngine {
     }
 
     return filteredMatches
+  }
+
+  private detectBias(matches: MatchScore[], requirement: ProjectRequirement): BiasDetectionResult {
+    const biasTypes: string[] = []
+    const recommendations: string[] = []
+    
+    // Location bias detection
+    const locationBias = this.detectLocationBias(matches)
+    if (locationBias > 0.3) {
+      biasTypes.push('location_bias')
+      recommendations.push('Consider remote talent to reduce location bias')
+    }
+    
+    // Rate bias detection
+    const rateBias = this.detectRateBias(matches, requirement)
+    if (rateBias > 0.3) {
+      biasTypes.push('rate_bias')
+      recommendations.push('Evaluate value proposition beyond hourly rates')
+    }
+    
+    // Experience bias detection
+    const experienceBias = this.detectExperienceBias(matches)
+    if (experienceBias > 0.3) {
+      biasTypes.push('experience_bias')
+      recommendations.push('Consider talent with transferable skills and growth potential')
+    }
+    
+    // Network bias detection
+    const networkBias = this.detectNetworkBias(matches)
+    if (networkBias > 0.3) {
+      biasTypes.push('network_bias')
+      recommendations.push('Expand talent sourcing beyond existing networks')
+    }
+    
+    const fairnessScore = this.calculateFairnessMetrics(matches).overallFairness
+    
+    return {
+      hasBias: biasTypes.length > 0,
+      biasTypes,
+      fairnessScore,
+      recommendations
+    }
+  }
+
+  private detectLocationBias(matches: MatchScore[]): number {
+    if (matches.length === 0) return 0
+    
+    // Check if matches are heavily skewed toward specific locations
+    const locationCounts: { [key: string]: number } = {}
+    matches.forEach(match => {
+      const location = `${match.talent.location.city}, ${match.talent.location.country}`
+      locationCounts[location] = (locationCounts[location] || 0) + 1
+    })
+    
+    const locations = Object.keys(locationCounts)
+    if (locations.length <= 1) return 0
+    
+    const maxCount = Math.max(...Object.values(locationCounts))
+    const totalMatches = matches.length
+    
+    // Bias detected if >70% of matches are from same location
+    return maxCount / totalMatches > 0.7 ? (maxCount / totalMatches - 0.7) / 0.3 : 0
+  }
+
+  private detectRateBias(matches: MatchScore[], requirement: ProjectRequirement): number {
+    if (matches.length === 0) return 0
+    
+    const rates = matches.map(m => m.talent.hourlyRate)
+    const avgRate = rates.reduce((sum, rate) => sum + rate, 0) / rates.length
+    const budgetMidpoint = (requirement.budget.min + requirement.budget.max) / 2
+    
+    // Check if average selected rate is significantly different from budget midpoint
+    const rateDifference = Math.abs(avgRate - budgetMidpoint) / budgetMidpoint
+    
+    // Bias if average rate is >40% different from budget midpoint
+    return rateDifference > 0.4 ? (rateDifference - 0.4) / 0.6 : 0
+  }
+
+  private detectExperienceBias(matches: MatchScore[]): number {
+    if (matches.length === 0) return 0
+    
+    // Check for over-preference of senior talent
+    const seniorCount = matches.filter(match => {
+      const avgExperience = match.talent.skills.reduce((sum, s) => sum + s.yearsOfExperience, 0) / match.talent.skills.length
+      return avgExperience > 5
+    }).length
+    
+    const seniorRatio = seniorCount / matches.length
+    
+    // Bias if >80% of matches are senior level
+    return seniorRatio > 0.8 ? (seniorRatio - 0.8) / 0.2 : 0
+  }
+
+  private detectNetworkBias(matches: MatchScore[]): number {
+    // Simplified network bias detection
+    // In practice, this would check if matches come from limited talent sources
+    const uniqueSources = new Set(matches.map(m => m.talent.location.country))
+    const diversityScore = uniqueSources.size / Math.min(matches.length, 5)
+    
+    // Bias if diversity is low
+    return diversityScore < 0.4 ? (0.4 - diversityScore) / 0.4 : 0
+  }
+
+  private calculateFairnessMetrics(matches: MatchScore[]): FairnessMetrics {
+    // Demographic parity - equal representation across groups
+    const demographicParity = this.calculateDemographicParity(matches)
+    
+    // Equal opportunity - equal true positive rates across groups
+    const equalOpportunity = this.calculateEqualOpportunity(matches)
+    
+    // Calibration - prediction accuracy across groups
+    const calibration = this.calculateCalibration(matches)
+    
+    const overallFairness = (demographicParity + equalOpportunity + calibration) / 3
+    
+    return {
+      demographicParity,
+      equalOpportunity,
+      calibration,
+      overallFairness
+    }
+  }
+
+  private calculateDemographicParity(matches: MatchScore[]): number {
+    // Simplified demographic parity calculation
+    // In practice, this would consider protected attributes
+    const locationGroups: { [key: string]: number } = {}
+    matches.forEach(match => {
+      const region = this.getRegionalGroup(match.talent.location.country)
+      locationGroups[region] = (locationGroups[region] || 0) + 1
+    })
+    
+    const groups = Object.values(locationGroups)
+    if (groups.length <= 1) return 1.0
+    
+    const maxGroup = Math.max(...groups)
+    const minGroup = Math.min(...groups)
+    
+    return minGroup / maxGroup // Higher is more fair
+  }
+
+  private calculateEqualOpportunity(matches: MatchScore[]): number {
+    // Simplified equal opportunity calculation
+    // Would need actual performance data in practice
+    return 0.85 // Placeholder
+  }
+
+  private calculateCalibration(matches: MatchScore[]): number {
+    // Simplified calibration calculation
+    // Would compare predicted vs actual success rates
+    return 0.80 // Placeholder
+  }
+
+  private getRegionalGroup(country: string): string {
+    const regions: { [key: string]: string } = {
+      'US': 'North America', 'CA': 'North America',
+      'UK': 'Europe', 'DE': 'Europe', 'FR': 'Europe',
+      'IN': 'Asia', 'PH': 'Asia', 'SG': 'Asia'
+    }
+    return regions[country] || 'Other'
+  }
+
+  private applyFairnessAdjustments(matches: MatchScore[], biasDetection: BiasDetectionResult): MatchScore[] {
+    let adjustedMatches = [...matches]
+    
+    // Apply bias corrections based on detected bias types
+    if (biasDetection.biasTypes.includes('location_bias')) {
+      adjustedMatches = this.correctLocationBias(adjustedMatches)
+    }
+    
+    if (biasDetection.biasTypes.includes('rate_bias')) {
+      adjustedMatches = this.correctRateBias(adjustedMatches)
+    }
+    
+    if (biasDetection.biasTypes.includes('experience_bias')) {
+      adjustedMatches = this.correctExperienceBias(adjustedMatches)
+    }
+    
+    return adjustedMatches
+  }
+
+  private correctLocationBias(matches: MatchScore[]): MatchScore[] {
+    // Boost scores for underrepresented locations
+    const locationCounts: { [key: string]: number } = {}
+    matches.forEach(match => {
+      const location = `${match.talent.location.city}, ${match.talent.location.country}`
+      locationCounts[location] = (locationCounts[location] || 0) + 1
+    })
+    
+    const avgCount = matches.length / Object.keys(locationCounts).length
+    
+    return matches.map(match => {
+      const location = `${match.talent.location.city}, ${match.talent.location.country}`
+      const locationCount = locationCounts[location]
+      
+      if (locationCount < avgCount) {
+        // Boost underrepresented locations
+        const boost = Math.min((avgCount - locationCount) / avgCount * 0.1, 0.1)
+        return {
+          ...match,
+          totalScore: Math.min(match.totalScore + boost, 1.0)
+        }
+      }
+      
+      return match
+    })
+  }
+
+  private correctRateBias(matches: MatchScore[]): MatchScore[] {
+    // Adjust for rate bias by emphasizing value over cost
+    return matches.map(match => {
+      const valueScore = match.talent.rating / 5 // Quality indicator
+      const rateAdjustment = Math.min(valueScore * 0.05, 0.05)
+      
+      return {
+        ...match,
+        totalScore: Math.min(match.totalScore + rateAdjustment, 1.0)
+      }
+    })
+  }
+
+  private correctExperienceBias(matches: MatchScore[]): MatchScore[] {
+    // Boost junior/mid-level talent with strong potential
+    return matches.map(match => {
+      const avgExperience = match.talent.skills.reduce((sum, s) => sum + s.yearsOfExperience, 0) / match.talent.skills.length
+      
+      if (avgExperience < 5 && match.talent.rating >= 4.0) {
+        // Boost high-potential junior/mid talent
+        const potentialBoost = Math.min((5 - avgExperience) / 5 * 0.08, 0.08)
+        return {
+          ...match,
+          totalScore: Math.min(match.totalScore + potentialBoost, 1.0)
+        }
+      }
+      
+      return match
+    })
   }
 }

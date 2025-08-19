@@ -10,6 +10,7 @@ export async function GET(
   
   try {
     const requestLogger = logRequest(request)
+    const resolvedParams = await params
     logInfo('Getting profile reviews', { correlationId, profileId: resolvedParams.id })
 
     const { searchParams } = new URL(request.url)
@@ -116,6 +117,7 @@ export async function GET(
     })
 
   } catch (error) {
+    const resolvedParams = await params
     logError('Failed to get profile reviews', {
       correlationId,
       profileId: resolvedParams.id,

@@ -15,6 +15,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const requestLogger = logger
 
   try {
+    const resolvedParams = await params
     const review = await prisma.review.findUnique({
       where: { id: resolvedParams.id },
       include: {
@@ -37,9 +38,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    logger.info('Review retrieved successfully', {
-      reviewId: resolvedParams.id
-    })
+    logger.info('Review retrieved successfully', { reviewId: resolvedParams.id })
 
     return NextResponse.json({
       success: true,
@@ -47,10 +46,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     })
 
   } catch (error) {
-    logger.error('Failed to get review', {
-      reviewId: resolvedParams.id,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    })
+    const resolvedParams = await params
+    logger.error('Failed to get review', { reviewId: resolvedParams.id, error: error instanceof Error ? error.message : 'Unknown error' })
 
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -73,6 +70,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
+    const resolvedParams = await params
     // Check if review exists
     const existingReview = await prisma.review.findUnique({
       where: { id: resolvedParams.id }
@@ -110,10 +108,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     })
 
-    logger.info('Review updated successfully', {
-      reviewId: resolvedParams.id,
-      reviewerId: user.id
-    })
+    logger.info('Review updated successfully', { reviewId: resolvedParams.id, reviewerId: user.id })
 
     return NextResponse.json({
       success: true,
@@ -121,10 +116,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     })
 
   } catch (error) {
-    logger.error('Failed to update review', {
-      reviewId: resolvedParams.id,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    })
+    const resolvedParams = await params
+    logger.error('Failed to update review', { reviewId: resolvedParams.id, error: error instanceof Error ? error.message : 'Unknown error' })
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -154,6 +147,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       )
     }
 
+    const resolvedParams = await params
     // Check if review exists
     const existingReview = await prisma.review.findUnique({
       where: { id: resolvedParams.id }
@@ -166,34 +160,29 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       )
     }
 
-    // Check if user is the reviewer or an admin
-    if (existingReview.reviewerId !== user.id && user.role !== 'admin') {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      )
+    // If admin, hide review instead of hard-delete (moderation)
+    if (user.role === 'admin') {
+      await prisma.review.update({
+        where: { id: resolvedParams.id },
+        data: { isPublic: false }
+      })
+      return NextResponse.json({ success: true, message: 'Review removed by admin' })
     }
 
-    // Delete review
-    await prisma.review.delete({
-      where: { id: resolvedParams.id }
-    })
+    // Otherwise allow author to delete their own review
+    if (existingReview.reviewerId !== user.id) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
 
-    logger.info('Review deleted successfully', {
-      reviewId: resolvedParams.id,
-      deletedBy: user.id
-    })
+    await prisma.review.delete({ where: { id: resolvedParams.id } })
 
-    return NextResponse.json({
-      success: true,
-      message: 'Review deleted successfully'
-    })
+    logger.info('Review deleted successfully', { reviewId: resolvedParams.id, deletedBy: user.id })
+
+    return NextResponse.json({ success: true, message: 'Review deleted successfully' })
 
   } catch (error) {
-    logger.error('Failed to delete review', {
-      reviewId: resolvedParams.id,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    })
+    const resolvedParams = await params
+    logger.error('Failed to delete review', { reviewId: resolvedParams.id, error: error instanceof Error ? error.message : 'Unknown error' })
 
     return NextResponse.json(
       { error: 'Internal server error' },
