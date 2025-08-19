@@ -14,6 +14,10 @@ jest.mock('@/lib/prisma', () => ({
       findMany: jest.fn(),
       count: jest.fn()
     },
+    talentProfile: {
+      findMany: jest.fn(),
+      count: jest.fn()
+    },
     talentRequest: {
       findMany: jest.fn(),
       count: jest.fn()
@@ -447,9 +451,9 @@ describe('Admin API', () => {
         },
         body: JSON.stringify({
           disputeId: 'dispute-123',
-          resolution: 'refund',
-          amount: 1000,
-          reason: 'Service not delivered as promised'
+          resolution: 'refund_full',
+          adminNotes: 'Service not delivered as promised',
+          refundAmount: 1000
         })
       })
 
@@ -473,8 +477,8 @@ describe('Admin API', () => {
         resolution: 'refund'
       })
 
-      const { PUT } = await import('@/app/api/admin/disputes/route')
-      const response = await PUT(request)
+      const { POST } = await import('@/app/api/admin/disputes/resolve/route')
+      const response = await POST(request)
       const data = await response.json()
 
       expect(response.status).toBe(200)
@@ -491,9 +495,9 @@ describe('Admin API', () => {
         },
         body: JSON.stringify({
           disputeId: 'dispute-123',
-          resolution: 'refund',
-          amount: 1000,
-          reason: 'Service not delivered as promised'
+          resolution: 'refund_full',
+          adminNotes: 'Service not delivered as promised',
+          refundAmount: 1000
         })
       })
 
@@ -517,8 +521,8 @@ describe('Admin API', () => {
         resolution: 'refund'
       })
 
-      const { PUT } = await import('@/app/api/admin/disputes/route')
-      const response = await PUT(request)
+      const { POST } = await import('@/app/api/admin/disputes/resolve/route')
+      const response = await POST(request)
       const data = await response.json()
 
       expect(response.status).toBe(200)
@@ -545,10 +549,13 @@ describe('Admin API', () => {
       // Mock analytics data
       jest.mocked(require('@/lib/prisma').prisma.user.count).mockResolvedValue(100)
       jest.mocked(require('@/lib/prisma').prisma.company.count).mockResolvedValue(50)
+      jest.mocked(require('@/lib/prisma').prisma.talentProfile.count).mockResolvedValue(150)
       jest.mocked(require('@/lib/prisma').prisma.talentRequest.count).mockResolvedValue(200)
       jest.mocked(require('@/lib/prisma').prisma.offer.count).mockResolvedValue(150)
       jest.mocked(require('@/lib/prisma').prisma.engagement.count).mockResolvedValue(75)
-      jest.mocked(require('@/lib/prisma').prisma.transaction.count).mockResolvedValue(300)
+      jest.mocked(require('@/lib/prisma').prisma.engagement.count).mockResolvedValueOnce(25) // active
+      jest.mocked(require('@/lib/prisma').prisma.engagement.count).mockResolvedValueOnce(50) // completed
+      jest.mocked(require('@/lib/prisma').prisma.dispute.count).mockResolvedValue(5)
 
       const { GET } = await import('@/app/api/admin/analytics/route')
       const response = await GET(request)

@@ -200,6 +200,7 @@ export async function PUT(
     })
 
   } catch (error) {
+    const resolvedParams = await params
     logger.error('Failed to update talent request', {
       correlationId,
       requestId: resolvedParams.id,

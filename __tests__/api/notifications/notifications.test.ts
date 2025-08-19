@@ -7,6 +7,7 @@ import { POST as createNotification, PUT as bulkCreateNotifications } from '@/ap
 
 // Mock the notification service
 jest.mock('@/lib/notifications/notification-service', () => ({
+  __esModule: true,
   notificationService: {
     getUserNotifications: jest.fn(),
     getNotificationStats: jest.fn(),
@@ -14,7 +15,8 @@ jest.mock('@/lib/notifications/notification-service', () => ({
     getNotificationPreferences: jest.fn(),
     markAsRead: jest.fn(),
     archiveNotification: jest.fn(),
-    createNotification: jest.fn()
+    createNotification: jest.fn(),
+    bulkCreateNotifications: jest.fn()
   }
 }))
 
@@ -35,11 +37,16 @@ jest.mock('@/lib/pusher/config', () => ({
 
 // Mock the logger
 jest.mock('@/lib/logger', () => ({
-  logRequest: jest.fn(),
-  logError: jest.fn()
+  __esModule: true,
+  default: {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn()
+  }
 }))
 
-const mockNotificationService = require('@/lib/notifications/notification-service').notificationService
+const { notificationService: mockNotificationService } = require('@/lib/notifications/notification-service')
 
 function createNextRequest(url: string, method: string = 'GET', body?: any): NextRequest {
   const fullUrl = url.startsWith('http') ? url : `http://localhost:3000${url}`

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { notificationService } from '@/lib/notifications/notification-service'
-import { logRequest, logError, logInfo } from '@/lib/logger'
+import logger from '@/lib/logger'
 import { z } from 'zod'
 
 const getNotificationsSchema = z.object({
@@ -24,8 +24,7 @@ export async function GET(request: NextRequest) {
   const correlationId = `notifications-get-${Date.now()}`
   
   try {
-    const requestLogger = logRequest(request)
-    logInfo('Getting notifications', { correlationId })
+    logger.info('Getting notifications', { correlationId })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id') || 'test-user-id'
@@ -53,7 +52,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    logError('Failed to get notifications', {
+    logger.error('Failed to get notifications', {
       correlationId,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
@@ -76,8 +75,7 @@ export async function POST(request: NextRequest) {
   const correlationId = `notifications-post-${Date.now()}`
   
   try {
-    const requestLogger = logRequest(request)
-    logInfo('Creating notification via POST', { correlationId })
+    logger.info('Creating notification via POST', { correlationId })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id') || 'test-user-id'
@@ -98,7 +96,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    logError('Failed to update notification preferences', {
+    logger.error('Failed to update notification preferences', {
       correlationId,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
