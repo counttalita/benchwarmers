@@ -1,260 +1,268 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import logger from '@/lib/logger'
-import { getCurrentUser } from '@/lib/auth'
 
-// GET /api/admin/dashboard - Get admin dashboard metrics
 export async function GET(request: NextRequest) {
-  const requestLogger = logger
-
   try {
-    // Check authentication
+    const startTime = Date.now()
+    
+    // Check authentication and admin role
     const user = await getCurrentUser(request)
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      )
+    if (!user || user.role !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check admin role
-    if (user.role !== 'admin') {
-      return NextResponse.json(
-        { error: 'Admin access required' },
-        { status: 403 }
-      )
-    }
-
-    logger.info('Fetching admin dashboard metrics')
-
-    // Get current date ranges
-    const now = new Date()
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0)
-    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()))
-
-    // Company metrics
+    // Get all statistics in parallel for better performance
     const [
-      totalCompanies,
-      verifiedCompanies,
-      pendingVerification,
-      newCompaniesThisMonth,
-      newCompaniesLastMonth
+      userStats,
+      companyStats,
+      engagementStats,
+      paymentStats,
+      subscriptionStats,
+      matchStats,
+      recentActivity
     ] = await Promise.all([
-      prisma.company.count(),
-      prisma.company.count({ where: { verifiedAt: { not: null } } }),
-      prisma.company.count({ where: { verifiedAt: null, status: 'pending' } }),
-      prisma.company.count({
-        where: { createdAt: { gte: startOfMonth } }
+      // User statistics
+      prisma.user.groupBy({
+        by: ['isActive'],
+        _count: true
       }),
-      prisma.company.count({
-        where: { 
-          createdAt: { 
-            gte: startOfLastMonth,
-            lte: endOfLastMonth
+      
+      // Company statistics
+      prisma.company.groupBy({
+        by: ['type', 'status'],
+        _count: true
+      }),
+      
+      // Engagement statistics
+      prisma.engagement.groupBy({
+        by: ['status'],
+        _count: true,
+        _sum: {
+          totalAmount: true,
+          platformFee: true
+        }
+      }),
+      
+      // Payment statistics
+      prisma.payment.groupBy({
+        by: ['status'],
+        _count: true,
+        _sum: {
+          amount: true,
+          platform_fee_amount: true
+        }
+      }),
+      
+      // Subscription statistics
+      prisma.subscription.groupBy({
+        by: ['status'],
+        _count: true,
+        _sum: {
+          amount: true
+        }
+      }),
+      
+      // Match statistics
+      prisma.match.groupBy({
+        by: ['status'],
+        _count: true
+      }),
+      
+      // Recent activity (last 10 activities)
+      prisma.notification.findMany({
+        where: {
+          type: {
+            in: [
+              'engagement_started',
+              'payment_released',
+              'user_registered',
+              'company_verified',
+              'interview_scheduled',
+              'subscription_cancelled'
+            ]
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        take: 10,
+        include: {
+          user: {
+            select: {
+              name: true,
+              email: true
+            }
+          },
+          company: {
+            select: {
+              name: true
+            }
           }
         }
       })
     ])
 
-    // Engagement metrics
-    const [
-      activeEngagements,
-      completedEngagements,
-      disputedEngagements,
-      totalEngagements
-    ] = await Promise.all([
-      prisma.engagement.count({ where: { status: 'active' } }),
-      prisma.engagement.count({ where: { status: 'completed' } }),
-      prisma.engagement.count({ where: { status: 'disputed' } }),
-      prisma.engagement.count()
-    ])
-
-    // Financial metrics
-    const [
-      totalRevenue,
-      monthlyRevenue,
-      pendingPayments,
-      totalPayments
-    ] = await Promise.all([
-      prisma.payment.aggregate({
-        where: { 
-          status: 'released'
-        },
-        _sum: { amount: true }
-      }),
-      prisma.payment.aggregate({
-        where: { 
-          status: 'released',
-          createdAt: { gte: startOfMonth }
-        },
-        _sum: { amount: true }
-      }),
-      prisma.payment.count({ where: { status: 'pending' } }),
-      prisma.payment.count()
-    ])
-
-    // Offer metrics
-    const [
-      pendingOffers,
-      acceptedOffers,
-      totalOffers
-    ] = await Promise.all([
-      prisma.offer.count({ where: { status: 'pending' } }),
-      prisma.offer.count({ where: { status: 'accepted' } }),
-      prisma.offer.count()
-    ])
-
-    // Contract metrics
-    const [
-      pendingContracts,
-      signedContracts,
-      totalContracts
-    ] = await Promise.all([
-      prisma.contract.count({ 
-        where: { 
-          status: { in: ['DRAFT', 'SENT_FOR_SIGNATURE', 'PARTIALLY_SIGNED'] }
-        }
-      }),
-      prisma.contract.count({ where: { status: 'FULLY_SIGNED' } }),
-      prisma.contract.count()
-    ])
-
-    // Recent activity (last 7 days)
-    const recentActivity = await prisma.$queryRaw`
-      SELECT 
-        'company_registration' as type,
-        c.name as description,
-        c.created_at as timestamp,
-        c.id as entity_id
-      FROM companies c 
-      WHERE c.created_at >= ${startOfWeek}
-      
-      UNION ALL
-      
-      SELECT 
-        'offer_created' as type,
-        CONCAT('Offer for ', tr.title) as description,
-        o.created_at as timestamp,
-        o.id as entity_id
-      FROM offers o
-      JOIN matches m ON o.match_id = m.id
-      JOIN talent_requests tr ON m.request_id = tr.id
-      WHERE o.created_at >= ${startOfWeek}
-      
-      UNION ALL
-      
-      SELECT 
-        'engagement_completed' as type,
-        CONCAT('Engagement completed for ', tr.title) as description,
-        e.completed_at as timestamp,
-        e.id as entity_id
-      FROM engagements e
-      JOIN contracts c ON e.contract_id = c.id
-      JOIN offers o ON c.offer_id = o.id
-      JOIN matches m ON o.match_id = m.id
-      JOIN talent_requests tr ON m.request_id = tr.id
-      WHERE e.completed_at >= ${startOfWeek}
-      
-      ORDER BY timestamp DESC
-      LIMIT 20
-    `
-
-    // System health metrics
-    const systemHealth = {
-      databaseConnections: await prisma.$queryRaw`SELECT count(*) as active_connections FROM pg_stat_activity WHERE state = 'active'`,
-      apiResponseTime: 245, // This would come from monitoring service
-      errorRate: 0.12, // This would come from error tracking
-      uptime: 99.8 // This would come from monitoring service
+    // Process user statistics
+    const users = {
+      total: userStats.reduce((sum: number, stat: any) => sum + stat._count, 0),
+      active: userStats.find((stat: any) => stat.isActive)?._count || 0,
+      pending: userStats.find((stat: any) => !stat.isActive)?._count || 0,
+      verified: 0 // Would need additional field for verification status
     }
 
-    // Calculate growth rates
-    const companyGrowthRate = newCompaniesLastMonth > 0 
-      ? ((newCompaniesThisMonth - newCompaniesLastMonth) / newCompaniesLastMonth) * 100 
-      : 0
-
-    const engagementSuccessRate = totalEngagements > 0 
-      ? (completedEngagements / totalEngagements) * 100 
-      : 0
-
-    const offerAcceptanceRate = totalOffers > 0 
-      ? (acceptedOffers / totalOffers) * 100 
-      : 0
-
-    const dashboardData = {
-      // Company metrics
-      companies: {
-        total: totalCompanies,
-        verified: verifiedCompanies,
-        pendingVerification,
-        newThisMonth: newCompaniesThisMonth,
-        growthRate: Math.round(companyGrowthRate * 100) / 100
-      },
-
-      // Engagement metrics
-      engagements: {
-        active: activeEngagements,
-        completed: completedEngagements,
-        disputed: disputedEngagements,
-        total: totalEngagements,
-        successRate: Math.round(engagementSuccessRate * 100) / 100
-      },
-
-      // Financial metrics
-      revenue: {
-        total: Number(totalRevenue._sum.platformFee || 0),
-        monthly: Number(monthlyRevenue._sum.platformFee || 0),
-        pendingPayments,
-        totalPayments
-      },
-
-      // Offer metrics
-      offers: {
-        pending: pendingOffers,
-        accepted: acceptedOffers,
-        total: totalOffers,
-        acceptanceRate: Math.round(offerAcceptanceRate * 100) / 100
-      },
-
-      // Contract metrics
-      contracts: {
-        pending: pendingContracts,
-        signed: signedContracts,
-        total: totalContracts
-      },
-
-      // Recent activity
-      recentActivity,
-
-      // System health
-      systemHealth: {
-        apiResponseTime: systemHealth.apiResponseTime,
-        errorRate: systemHealth.errorRate,
-        uptime: systemHealth.uptime,
-        databaseConnections: Number(systemHealth.databaseConnections[0]?.active_connections || 0)
-      }
+    // Process company statistics
+    const companies = {
+      total: companyStats.reduce((sum: number, stat: any) => sum + stat._count, 0),
+      providers: companyStats.find((stat: any) => stat.type === 'provider')?._count || 0,
+      seekers: companyStats.find((stat: any) => stat.type === 'seeker')?._count || 0,
+      pending: companyStats.find((stat: any) => stat.status === 'pending')?._count || 0,
+      verified: companyStats.find((stat: any) => stat.status === 'active')?._count || 0
     }
 
-    logger.info('Admin dashboard metrics retrieved successfully', {
-      totalCompanies,
-      activeEngagements,
-      totalRevenue: dashboardData.revenue.total
+    // Process engagement statistics
+    const engagements = {
+      total: engagementStats.reduce((sum: number, stat: any) => sum + stat._count, 0),
+      staged: engagementStats.find((stat: any) => stat.status === 'staged')?._count || 0,
+      interviewing: engagementStats.find((stat: any) => stat.status === 'interviewing')?._count || 0,
+      accepted: engagementStats.find((stat: any) => stat.status === 'accepted')?._count || 0,
+      active: engagementStats.find((stat: any) => stat.status === 'active')?._count || 0,
+      completed: engagementStats.find((stat: any) => stat.status === 'completed')?._count || 0,
+      rejected: engagementStats.find((stat: any) => stat.status === 'rejected')?._count || 0,
+      terminated: engagementStats.find((stat: any) => stat.status === 'terminated')?._count || 0,
+      disputed: engagementStats.find((stat: any) => stat.status === 'disputed')?._count || 0
+    }
+
+    // Process payment statistics
+    const payments = {
+      total: paymentStats.reduce((sum: number, stat: any) => sum + stat._count, 0),
+      pending: paymentStats.find((stat: any) => stat.status === 'pending')?._count || 0,
+      completed: paymentStats.find((stat: any) => stat.status === 'released')?._count || 0,
+      failed: paymentStats.find((stat: any) => stat.status === 'refunded')?._count || 0,
+      revenue: paymentStats.reduce((sum: number, stat: any) => sum + (stat._sum.amount || 0), 0),
+      facilitationFees: paymentStats.reduce((sum: number, stat: any) => sum + (stat._sum.platform_fee_amount || 0), 0)
+    }
+
+    // Process subscription statistics
+    const subscriptions = {
+      total: subscriptionStats.reduce((sum: number, stat: any) => sum + stat._count, 0),
+      active: subscriptionStats.find((stat: any) => stat.status === 'active')?._count || 0,
+      cancelled: subscriptionStats.find((stat: any) => stat.status === 'cancelled')?._count || 0,
+      revenue: subscriptionStats.reduce((sum: number, stat: any) => sum + (stat._sum.amount || 0), 0)
+    }
+
+    // Process match statistics
+    const totalMatches = matchStats.reduce((sum: number, stat: any) => sum + stat._count, 0)
+    const acceptedMatches = matchStats.find((stat: any) => stat.status === 'interested')?._count || 0
+    const matches = {
+      total: totalMatches,
+      pending: matchStats.find((stat: any) => stat.status === 'pending')?._count || 0,
+      accepted: acceptedMatches,
+      rejected: matchStats.find((stat: any) => stat.status === 'not_interested')?._count || 0,
+      successRate: totalMatches > 0 ? Math.round((acceptedMatches / totalMatches) * 100) : 0
+    }
+
+    // Mock system health data (in production, this would come from monitoring systems)
+    const system = {
+      uptime: 99.9,
+      errorRate: 0.1,
+      responseTime: 150,
+      activeUsers: Math.floor(Math.random() * 50) + 10 // Mock data
+    }
+
+    // Process recent activity
+    const processedActivity = recentActivity.map((notification: any) => ({
+      id: notification.id,
+      type: notification.type as any,
+      title: getActivityTitle(notification.type, notification.user?.name, notification.company?.name),
+      description: getActivityDescription(notification.type, notification.user?.name, notification.company?.name),
+      timestamp: notification.createdAt.toISOString(),
+      severity: getActivitySeverity(notification.type)
+    }))
+
+    const stats = {
+      users,
+      companies,
+      engagements,
+      payments,
+      subscriptions,
+      matches,
+      system
+    }
+
+    logger.info('Admin dashboard data retrieved successfully', {
+      userId: user.id,
+      duration: Date.now() - startTime
     })
 
     return NextResponse.json({
-      success: true,
-      dashboard: dashboardData
+      stats,
+      recentActivity: processedActivity
     })
 
   } catch (error) {
-    logger.error('Failed to retrieve dashboard metrics', {
-      error: error instanceof Error ? error.message : 'Unknown error'
+    logger.error('Failed to load admin dashboard data', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
     })
-    
-    return NextResponse.json({
-      success: false,
-      error: 'Failed to retrieve dashboard metrics'
-    }, { status: 500 })
+
+    return NextResponse.json(
+      { error: 'Failed to load dashboard data' },
+      { status: 500 }
+    )
+  }
+}
+
+function getActivityTitle(type: string, userName?: string, companyName?: string): string {
+  switch (type) {
+    case 'engagement_started':
+      return 'New Engagement Started'
+    case 'payment_released':
+      return 'Payment Released'
+    case 'user_registered':
+      return `New User Registered: ${userName || 'Unknown'}`
+    case 'company_verified':
+      return `Company Verified: ${companyName || 'Unknown'}`
+    case 'interview_scheduled':
+      return 'Interview Scheduled'
+    case 'subscription_cancelled':
+      return 'Subscription Cancelled'
+    default:
+      return 'System Activity'
+  }
+}
+
+function getActivityDescription(type: string, userName?: string, companyName?: string): string {
+  switch (type) {
+    case 'engagement_started':
+      return 'A new engagement has been created and is now active'
+    case 'payment_released':
+      return 'Payment has been successfully released to the provider'
+    case 'user_registered':
+      return `${userName || 'A new user'} has registered on the platform`
+    case 'company_verified':
+      return `${companyName || 'A company'} has been verified and activated`
+    case 'interview_scheduled':
+      return 'An interview has been scheduled between a seeker and talent'
+    case 'subscription_cancelled':
+      return 'A user has cancelled their subscription'
+    default:
+      return 'System activity occurred'
+  }
+}
+
+function getActivitySeverity(type: string): 'info' | 'warning' | 'error' | 'success' {
+  switch (type) {
+    case 'engagement_started':
+    case 'payment_released':
+    case 'company_verified':
+      return 'success'
+    case 'interview_scheduled':
+      return 'info'
+    case 'subscription_cancelled':
+      return 'warning'
+    default:
+      return 'info'
   }
 }
