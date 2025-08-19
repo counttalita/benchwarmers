@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { signIn } from "next-auth/react"
+
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -107,17 +107,28 @@ export function LoginForm() {
     setError("")
 
     try {
-      const result = await signIn("phone-otp", {
-        phoneNumber: data.phoneNumber,
-        otp: data.otp,
-        redirect: false,
+      const response = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          phoneNumber: data.phoneNumber,
+          otp: data.otp,
+        }),
       })
 
-      if (result?.error) {
-        throw new Error(result.error)
+      const result = await response.json()
+
+      if (!response.ok) {
+        // Handle structured error response
+        const errorMessage = result.error?.message || result.error || "Failed to verify OTP"
+        throw new Error(errorMessage)
       }
 
-      if (result?.ok) {
+      // Store user session data (you might want to use a proper session management solution)
+      if (result.user) {
+        localStorage.setItem('user', JSON.stringify(result.user))
         router.push("/dashboard")
         router.refresh()
       }

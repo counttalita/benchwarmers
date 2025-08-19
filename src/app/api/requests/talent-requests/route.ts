@@ -118,10 +118,7 @@ export async function POST(request: NextRequest) {
     }, { status: 201 })
 
   } catch (error) {
-    logger.error('Failed to create talent request', {
-      correlationId,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    })
+    logger.error('Failed to create talent request', error)
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(

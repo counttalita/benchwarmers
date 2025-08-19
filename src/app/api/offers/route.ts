@@ -248,7 +248,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid query parameters', details: error.errors }, { status: 400 })
     }
 
-    logger.error(error as Error, 'Failed to list offers')
+    logger.error('Failed to list offers', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

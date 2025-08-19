@@ -259,10 +259,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid query parameters', details: error.errors }, { status: 400 })
     }
 
-    logger.error('Failed to list engagements', {
-      correlationId: 'GET_engagements',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    })
+    logger.error('Failed to list engagements', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
