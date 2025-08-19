@@ -3,6 +3,7 @@ import { logger } from '@/lib/logger'
 import { z } from 'zod'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { notificationService } from '@/lib/notifications/notification-service'
 
 const completeEngagementSchema = z.object({
   engagementId: z.string().min(1),
@@ -100,6 +101,9 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Send invoicing notifications to all stakeholders
+    await sendInvoicingNotifications(updatedEngagement, user)
+
     logger.info('Engagement completed successfully', {
       engagementId: validatedBody.engagementId,
       userId: user.id,
@@ -128,6 +132,92 @@ export async function POST(request: NextRequest) {
       { error: 'Internal server error' },
       { status: 500 }
     )
+  }
+
+  /**
+   * Send invoicing notifications to all stakeholders when engagement is completed
+   */
+  async function sendInvoicingNotifications(engagement: any, user: any) {
+    try {
+      const { talentProfile, company } = engagement
+      
+      // Calculate payment amounts
+      const totalAmount = engagement.totalAmount || 0
+      const platformFee = totalAmount * 0.05 // 5% facilitation fee
+      const providerAmount = totalAmount - platformFee
+
+      // Notification data for manual invoicing process
+      const notificationData = {
+        engagementId: engagement.id,
+        totalAmount,
+        platformFee,
+        providerAmount,
+        engagementTitle: engagement.title || 'Completed Engagement',
+        talentName: talentProfile?.user?.name || 'Talent',
+        companyName: company?.name || 'Company'
+      }
+
+      // Notify talent seeker (company) - they need to pay the platform
+      await notificationService.createNotification({
+        userId: company?.userId,
+        companyId: company?.id,
+        type: 'manual_invoice_required',
+        title: 'Payment Required - Engagement Completed',
+        message: `Your engagement "${engagement.title || 'Project'}" has been completed. Please pay ${totalAmount.toFixed(2)} ZAR to the platform.`,
+        data: {
+          ...notificationData,
+          action: 'pay_platform',
+          amount: totalAmount
+        },
+        priority: 'high',
+        channels: ['in_app', 'email']
+      })
+
+      // Notify talent provider - they need to invoice the platform
+      await notificationService.createNotification({
+        userId: talentProfile?.user?.id,
+        companyId: talentProfile?.companyId,
+        type: 'manual_invoice_required',
+        title: 'Invoice Required - Engagement Completed',
+        message: `Your engagement "${engagement.title || 'Project'}" has been completed. Please invoice the platform for ${providerAmount.toFixed(2)} ZAR.`,
+        data: {
+          ...notificationData,
+          action: 'invoice_platform',
+          amount: providerAmount
+        },
+        priority: 'high',
+        channels: ['in_app', 'email']
+      })
+
+      // Notify platform admin (optional)
+      await notificationService.createNotification({
+        userId: 'admin', // This would be the admin user ID
+        type: 'manual_invoice_required',
+        title: 'Manual Invoicing Required',
+        message: `Engagement ${engagement.id} completed. Manual invoicing process required.`,
+        data: {
+          ...notificationData,
+          action: 'manual_process',
+          seekerAmount: totalAmount,
+          providerAmount
+        },
+        priority: 'medium',
+        channels: ['in_app', 'email']
+      })
+
+      logger.info('Invoicing notifications sent successfully', {
+        engagementId: engagement.id,
+        totalAmount,
+        platformFee,
+        providerAmount
+      })
+
+    } catch (error) {
+      logger.error('Failed to send invoicing notifications', {
+        engagementId: engagement.id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
   }
 }
 

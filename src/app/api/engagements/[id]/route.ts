@@ -1,10 +1,8 @@
 import { v4 as uuidv4 } from 'uuid'
-import { v4 as uuidv4 } from 'uuid'
 import { NextRequest, NextResponse } from 'next/server'
-const resolvedParams = await params
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import logger from '@/lib/logger'
+import { logger } from '@/lib/logger'
 import { getCurrentUser } from '@/lib/auth'
 
 const updateEngagementSchema = z.object({

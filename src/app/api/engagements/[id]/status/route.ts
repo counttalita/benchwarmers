@@ -1,9 +1,7 @@
-import { v4 as uuidv4 } from 'uuid'
-import { v4 as uuidv4 } from 'uuid'
 import { NextRequest, NextResponse } from 'next/server'
-const resolvedParams = await params
 import { prisma } from '@/lib/prisma'
 import { engagementNotifications } from '@/lib/notifications/engagement-notifications'
+import { notificationService } from '@/lib/notifications/notification-service'
 import { logInfo, logError } from '@/lib/logger'
 import { z } from 'zod'
 
@@ -17,6 +15,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const resolvedParams = await params
     const engagementId = resolvedParams.id
     const body = await request.json()
     const { status, notes } = updateStatusSchema.parse(body)
@@ -81,6 +80,9 @@ export async function PATCH(
           newStatus: status,
           changedBy: 'system' // TODO: Get actual user ID from auth
         })
+
+        // Send invoicing notifications for accepted engagements
+        await sendAcceptedEngagementNotifications(updatedEngagement)
       } catch (notificationError) {
         logError('Failed to send engagement notifications', {
           error: notificationError instanceof Error ? notificationError.message : 'Unknown error',
@@ -111,6 +113,7 @@ export async function PATCH(
     })
 
   } catch (error) {
+    const resolvedParams = await params
     logError('Failed to update engagement status', {
       error: error instanceof Error ? error.message : 'Unknown error',
       engagementId: resolvedParams.id
@@ -130,11 +133,99 @@ export async function PATCH(
   }
 }
 
+/**
+ * Send invoicing notifications when engagement is accepted
+ */
+async function sendAcceptedEngagementNotifications(engagement: any) {
+  try {
+    const { offer } = engagement
+    const { request, talentProfile, providerCompany } = offer
+    
+    // Calculate payment amounts
+    const totalAmount = engagement.totalAmount || offer.amount || 0
+    const platformFee = totalAmount * 0.05 // 5% facilitation fee
+    const providerAmount = totalAmount - platformFee
+
+    // Notification data for manual invoicing process
+    const notificationData = {
+      engagementId: engagement.id,
+      totalAmount,
+      platformFee,
+      providerAmount,
+      engagementTitle: request.title || 'Accepted Engagement',
+      talentName: talentProfile?.user?.name || 'Talent',
+      companyName: request.seekerCompany?.name || 'Company'
+    }
+
+    // Notify talent seeker (company) - they need to pay the platform
+    await notificationService.createNotification({
+      userId: request.seekerCompany?.userId,
+      companyId: request.seekerCompany?.id,
+      type: 'manual_invoice_required',
+      title: 'Payment Required - Engagement Accepted',
+      message: `Your engagement "${request.title || 'Project'}" has been accepted. Please pay ${totalAmount.toFixed(2)} ZAR to the platform.`,
+      data: {
+        ...notificationData,
+        action: 'pay_platform',
+        amount: totalAmount
+      },
+      priority: 'high',
+      channels: ['in_app', 'email']
+    })
+
+    // Notify talent provider - they need to invoice the platform
+    await notificationService.createNotification({
+      userId: talentProfile?.user?.id,
+      companyId: talentProfile?.companyId,
+      type: 'manual_invoice_required',
+      title: 'Invoice Required - Engagement Accepted',
+      message: `Your engagement "${request.title || 'Project'}" has been accepted. Please invoice the platform for ${providerAmount.toFixed(2)} ZAR.`,
+      data: {
+        ...notificationData,
+        action: 'invoice_platform',
+        amount: providerAmount
+      },
+      priority: 'high',
+      channels: ['in_app', 'email']
+    })
+
+    // Notify platform admin (optional)
+    await notificationService.createNotification({
+      userId: 'admin', // This would be the admin user ID
+      type: 'manual_invoice_required',
+      title: 'Manual Invoicing Required - Engagement Accepted',
+      message: `Engagement ${engagement.id} accepted. Manual invoicing process required.`,
+      data: {
+        ...notificationData,
+        action: 'manual_process',
+        seekerAmount: totalAmount,
+        providerAmount
+      },
+      priority: 'medium',
+      channels: ['in_app', 'email']
+    })
+
+    logInfo('Accepted engagement invoicing notifications sent successfully', {
+      engagementId: engagement.id,
+      totalAmount,
+      platformFee,
+      providerAmount
+    })
+
+  } catch (error) {
+    logError('Failed to send accepted engagement invoicing notifications', {
+      engagementId: engagement.id,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const resolvedParams = await params
     const engagement = await prisma.engagement.findUnique({
       where: { id: resolvedParams.id },
       select: {
@@ -188,6 +279,7 @@ export async function GET(
     return NextResponse.json({ engagement })
 
   } catch (error) {
+    const resolvedParams = await params
     logError('Failed to get engagement status', {
       error: error instanceof Error ? error.message : 'Unknown error',
       engagementId: resolvedParams.id

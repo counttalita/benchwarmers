@@ -14,6 +14,7 @@ export async function PUT(
   const correlationId = `notification-update-${Date.now()}`
   
   try {
+    const resolvedParams = await params
     const requestLogger = logRequest(request)
     logInfo('Updating notification', { correlationId, notificationId: resolvedParams.id })
 
@@ -45,6 +46,7 @@ export async function PUT(
     })
 
   } catch (error) {
+    const resolvedParams = await params
     logError('Failed to update notification', {
       correlationId,
       notificationId: resolvedParams.id,
@@ -72,6 +74,7 @@ export async function DELETE(
   const correlationId = `notification-delete-${Date.now()}`
   
   try {
+    const resolvedParams = await params
     const requestLogger = logRequest(request)
     logInfo('Deleting notification', { correlationId, notificationId: resolvedParams.id })
 
@@ -87,6 +90,7 @@ export async function DELETE(
     })
 
   } catch (error) {
+    const resolvedParams = await params
     logError('Failed to delete notification', {
       correlationId,
       notificationId: resolvedParams.id,
