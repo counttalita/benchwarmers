@@ -1,12 +1,9 @@
 import { v4 as uuidv4 } from 'uuid'
-import { v4 as uuidv4 } from 'uuid'
 import { NextRequest, NextResponse } from 'next/server'
-const resolvedParams = await params
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { logError, logInfo, createError, parseError } from '@/lib/errors'
 import { paymentManager } from '@/lib/payments/payment-manager'
-import { v4 as uuidv4 } from 'uuid'
 
 // Validation schema
 const completeEngagementSchema = z.object({

@@ -1,8 +1,9 @@
 import { prisma } from '@/lib/prisma'
 import { MatchingEngine, ProjectRequirement, TalentProfile, MatchScore } from './matching-engine'
 import { AvailabilityChecker, ProjectTimeframe } from './availability-checker'
-import { logError, logInfo } from '@/lib/errors'
+import { logInfo, logError, createError } from '@/lib/errors'
 import { v4 as uuidv4 } from 'uuid'
+import { jobQueue } from '@/lib/queue/job-queue'
 
 export interface MatchGenerationOptions {
   maxMatches?: number
@@ -289,13 +290,30 @@ export class MatchGenerator {
       take: 100 // Limit to prevent performance issues
     })
 
-    return talents.map(talent => this.convertToTalentProfile(talent))
+    return talents.map((talent: any) => this.convertToTalentProfile(talent))
   }
 
   /**
    * Convert database talent to matching engine format
    */
-  private convertToTalentProfile(talent: any): TalentProfile {
+  private convertToTalentProfile(talent: {
+    id: string;
+    name: string;
+    skills?: any[];
+    experience?: any[];
+    availability?: any[];
+    rate?: { min?: number; max?: number };
+    location?: string;
+    timezone?: string;
+    remotePreference?: string;
+    languages?: string[];
+    certifications?: any[];
+    companyId: string;
+    isAvailable?: boolean;
+    rating?: number;
+    reviewCount?: number;
+    company: { id: string; name: string };
+  }): TalentProfile {
     return {
       id: talent.id,
       name: talent.name,
@@ -324,7 +342,7 @@ export class MatchGenerator {
         country: talent.location?.split(',')[1]?.trim() || 'Unknown',
         city: talent.location?.split(',')[0]?.trim() || 'Unknown',
         timezone: talent.timezone || 'UTC',
-        remotePreference: talent.remotePreference || 'remote'
+        remotePreference: (talent.remotePreference as 'remote' | 'hybrid' | 'onsite') || 'remote'
       },
       languages: talent.languages || ['English'],
       certifications: (talent.certifications || []).map((cert: any) => ({
@@ -354,11 +372,13 @@ export class MatchGenerator {
   /**
    * Categorize skill for matching engine
    */
-  private categorizeSkill(skillName: string): string {
-    const categories: Record<string, string> = {
+  private categorizeSkill(skillName: string): 'frontend' | 'backend' | 'devops' | 'mobile' | 'design' | 'data' | 'other' {
+    const categories: Record<string, 'frontend' | 'backend' | 'devops' | 'mobile' | 'design' | 'data' | 'other'> = {
       'React': 'frontend',
       'Vue.js': 'frontend',
       'Angular': 'frontend',
+      'TypeScript': 'frontend',
+      'JavaScript': 'frontend',
       'Node.js': 'backend',
       'Python': 'backend',
       'Java': 'backend',
@@ -366,7 +386,11 @@ export class MatchGenerator {
       'Docker': 'devops',
       'Kubernetes': 'devops',
       'Figma': 'design',
-      'Adobe Creative Suite': 'design'
+      'Adobe Creative Suite': 'design',
+      'React Native': 'mobile',
+      'Flutter': 'mobile',
+      'SQL': 'data',
+      'MongoDB': 'data'
     }
     return categories[skillName] || 'other'
   }
@@ -513,14 +537,14 @@ export class MatchGenerator {
         deadline: match.responseDeadline
       })
       
-      // TODO: Schedule actual notification job
-      // await jobQueue.add('response-deadline-notification', {
-      //   matchId: match.id,
-      //   talentId: match.talentId,
-      //   talentRequestId: match.talentRequestId
-      // }, {
-      //   delay: match.responseDeadline.getTime() - Date.now()
-      // })
+      // Schedule actual notification job
+      jobQueue.add('response-deadline-notification', {
+        matchId: match.id,
+        talentId: match.talentId,
+        talentRequestId: match.talentRequestId
+      }, {
+        delay: match.responseDeadline.getTime() - Date.now()
+      })
     }
   }
 
@@ -550,7 +574,7 @@ export class MatchGenerator {
       }
     })
 
-    return matches.map(match => ({
+    return matches.map((match: any) => ({
       id: match.id,
       talentRequestId: match.requestId,
       talentId: match.profileId,
@@ -613,7 +637,7 @@ export class MatchGenerator {
     })
 
     const totalMatches = matches.length
-    const averageScore = matches.reduce((sum: any, m: any) => sum + Number(m.score), 0) / totalMatches
+    const averageScore = matches.reduce((sum: number, m: any) => sum + Number(m.score), 0) / totalMatches
     
     const statusBreakdown = matches.reduce((acc: any, match: any) => {
       acc[match.status] = (acc[match.status] || 0) + 1
@@ -621,7 +645,7 @@ export class MatchGenerator {
     }, {} as Record<string, number>)
 
     const skillCounts = new Map<string, number>()
-    matches.forEach(match => {
+    matches.forEach((match: any) => {
       const skills = match.profile?.skills as any[] || []
       skills.forEach(skill => {
         skillCounts.set(skill.name, (skillCounts.get(skill.name) || 0) + 1)
@@ -633,7 +657,7 @@ export class MatchGenerator {
       .slice(0, 5)
       .map(([skill]) => skill)
 
-    const respondedMatches = matches.filter(m => 
+    const respondedMatches = matches.filter((m: any) => 
       ['interested', 'not_interested', 'contacted', 'hired'].includes(m.status)
     ).length
     

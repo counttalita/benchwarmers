@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         matches: [],
-        message: 'No available talent found'
+        message: 'No matching profiles found'
       })
     }
 

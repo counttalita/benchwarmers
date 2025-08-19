@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import logger from '@/lib/logger'
+import { logger } from '@/lib/logger'
 import { getCurrentUser } from '@/lib/auth'
 
 const createOfferSchema = z.object({
-  talentRequestId: z.string().uuid(),
-  talentProfileId: z.string().uuid(),
+  talentRequestId: z.string().min(1),
+  talentProfileId: z.string().min(1),
   amount: z.number().min(10, 'Amount must be at least $10'),
   message: z.string().max(1000, 'Message must be less than 1000 characters').optional(),
   startDate: z.string().datetime().optional(),
@@ -134,7 +134,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request data', details: error.errors }, { status: 400 })
     }
 
-    logger.error(error as Error, 'Failed to create offer')
+    logger.error('Failed to create offer', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

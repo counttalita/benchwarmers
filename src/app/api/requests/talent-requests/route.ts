@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import logger from '@/lib/logger'
+import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
 
@@ -118,7 +118,9 @@ export async function POST(request: NextRequest) {
     }, { status: 201 })
 
   } catch (error) {
-    logger.error('Failed to create talent request', error)
+    logger.error('Failed to create talent request', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(

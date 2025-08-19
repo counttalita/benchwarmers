@@ -242,14 +242,13 @@ describe('Database Integration Tests', () => {
           title: 'Senior React Developer',
           bio: 'Experienced React developer',
           skills: ['React', 'TypeScript', 'Node.js'],
-          experienceLevel: 'senior',
-          hourlyRate: 85,
+          rateMin: 80,
+          rateMax: 90,
           availability: 'available',
           location: 'Remote',
-          yearsOfExperience: 6,
           languages: ['English'],
           timezone: 'UTC',
-          isActive: true
+          status: 'active'
         }
       })
     })
@@ -264,14 +263,15 @@ describe('Database Integration Tests', () => {
           companyId: seekerCompanyId,
           title: 'Senior React Developer Needed',
           description: 'Looking for experienced React developer',
-          budget: 5000,
-          duration: 30,
-          skillsRequired: ['React', 'TypeScript'],
-          experienceLevel: 'senior',
-          projectType: 'contract',
+          budgetMin: 5000,
+          budgetMax: 8000,
+          durationWeeks: 4,
+          requiredSkills: ['React', 'TypeScript'],
+          projectType: 'development',
           urgency: 'medium',
           location: 'Remote',
-          status: 'active'
+          status: 'open',
+          startDate: new Date()
         }
       })
 
@@ -279,12 +279,11 @@ describe('Database Integration Tests', () => {
       const matchingProfiles = await prisma.talentProfile.findMany({
         where: {
           AND: [
-            { experienceLevel: talentRequest.experienceLevel },
             { availability: 'available' },
-            { isActive: true },
+            { status: 'active' },
             {
               skills: {
-                hasSome: talentRequest.skillsRequired
+                hasSome: talentRequest.requiredSkills
               }
             }
           ]
@@ -342,13 +341,14 @@ describe('Database Integration Tests', () => {
           companyId: seekerCompanyId,
           title: 'React Developer',
           description: 'Need React developer',
-          budget: 5000,
-          duration: 30,
-          skillsRequired: ['React'],
-          experienceLevel: 'senior',
-          projectType: 'contract',
+          budgetMin: 5000,
+          budgetMax: 8000,
+          durationWeeks: 4,
+          requiredSkills: ['React'],
+          projectType: 'development',
           urgency: 'medium',
-          status: 'active'
+          status: 'open',
+          startDate: new Date()
         }
       })
     })
@@ -360,10 +360,12 @@ describe('Database Integration Tests', () => {
       const offer = await prisma.offer.create({
         data: {
           id: offerId,
+          matchId: randomUUID(),
           talentRequestId,
-          providerUserId,
-          proposedRate: 80,
-          proposedDuration: 30,
+          talentId: randomUUID(),
+          companyId: seekerCompanyId,
+          userId: providerUserId,
+          amount: 8000,
           message: 'I would love to work on this project',
           status: 'pending'
         }
@@ -584,13 +586,14 @@ describe('Database Integration Tests', () => {
         companyId,
         title: `Request ${i + 1}`,
         description: `Description for request ${i + 1}`,
-        budget: 1000 + i * 100,
-        duration: 30,
-        skillsRequired: ['React', 'TypeScript'],
-        experienceLevel: 'senior' as const,
-        projectType: 'contract' as const,
-        urgency: 'medium' as const,
-        status: 'active' as const
+        budgetMin: 1000 + i * 100,
+        budgetMax: 2000 + i * 100,
+        durationWeeks: 4,
+        requiredSkills: ['React', 'TypeScript'],
+        projectType: 'development',
+        urgency: 'medium',
+        status: 'open',
+        startDate: new Date()
       }))
 
       await prisma.talentRequest.createMany({
@@ -617,10 +620,12 @@ describe('Database Integration Tests', () => {
         prisma.offer.create({
           data: {
             id: randomUUID(),
+            matchId: randomUUID(),
             talentRequestId: 'non-existent-request',
-            providerUserId: randomUUID(),
-            proposedRate: 80,
-            proposedDuration: 30,
+            talentId: randomUUID(),
+            companyId: randomUUID(),
+            userId: randomUUID(),
+            amount: 8000,
             message: 'Test offer',
             status: 'pending'
           }
@@ -664,13 +669,14 @@ describe('Database Integration Tests', () => {
           companyId,
           title: 'Delete Test Request',
           description: 'This will be deleted',
-          budget: 1000,
-          duration: 30,
-          skillsRequired: ['React'],
-          experienceLevel: 'junior',
-          projectType: 'contract',
+          budgetMin: 1000,
+          budgetMax: 2000,
+          durationWeeks: 4,
+          requiredSkills: ['React'],
+          projectType: 'development',
           urgency: 'low',
-          status: 'active'
+          status: 'open',
+          startDate: new Date()
         }
       })
 

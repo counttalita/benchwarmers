@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import logger from '@/lib/logger'
+import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
 const updateRequestSchema = z.object({
@@ -228,6 +228,7 @@ export async function DELETE(
   
   try {
     const requestLogger = logger
+    const resolvedParams = await params
     logger.info('Deleting talent request', { correlationId, requestId: resolvedParams.id })
 
     // TODO: Get user from session/auth

@@ -90,6 +90,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const requestLogger = logger
 
   try {
+    const resolvedParams = await params
     // Check authentication
     const user = await getCurrentUser(request)
     if (!user) {
@@ -169,6 +170,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const requestLogger = logger
 
   try {
+    const resolvedParams = await params
     // Check authentication
     const user = await getCurrentUser(request)
     if (!user) {
