@@ -89,6 +89,8 @@ enum NotificationType {
   dispute_created
   dispute_resolved
   system_alert
+  interview_request
+  interview_initiated
 }
 
 enum NotificationStatus {
@@ -100,6 +102,7 @@ enum NotificationStatus {
 enum NotificationChannel {
   in_app
   email
+  sms
   push
 }
 
@@ -111,515 +114,571 @@ enum NotificationPriority {
 }
 
 enum ConversationType {
-  direct
-  group
+  engagement
   support
+  general
 }
 
 enum ConversationStatus {
   active
   archived
-  closed
+  deleted
+}
+
+enum SenderType {
+  talent
+  seeker
+  admin
+  system
 }
 
 enum MessageType {
   text
   file
-  system
-  offer
-  contract
-}
-
-enum SenderType {
-  user
+  image
   system
 }
 
-model Company {
-  id                    String        @id @default(cuid())
-  name                  String
-  domain                String        @unique
-  type                  CompanyType
-  status                CompanyStatus @default(pending)
-  stripeAccountId       String?       @map("stripe_account_id")
-  verifiedAt            DateTime?     @map("verified_at")
-  domainVerified        Boolean       @default(false) @map("domain_verified")
-  domainVerificationToken String?     @unique @map("domain_verification_token")
-  domainVerifiedAt      DateTime?     @map("domain_verified_at")
-  adminNotes            String?       @map("admin_notes")
-  rejectionReason       String?       @map("rejection_reason")
-  createdAt             DateTime      @default(now()) @map("created_at")
-  updatedAt             DateTime      @updatedAt @map("updated_at")
+enum ContractStatus {
+  DRAFT
+  SENT_FOR_SIGNATURE
+  PARTIALLY_SIGNED
+  SIGNED
+  EXPIRED
+  CANCELLED
+}
 
-  // Relations
-  users           User[]
-  talentProfiles  TalentProfile[]
-  talentRequests  TalentRequest[]
-  sentOffers      Offer[]       @relation("SeekerOffers")
-  receivedOffers  Offer[]       @relation("ProviderOffers")
-  notifications   Notification[]
-  notificationPreferences NotificationPreference[]
-  subscriptions   Subscription[]
+enum ContractType {
+  ENGAGEMENT
+  NDA
+  MSA
+  SOW
+}
 
-  @@index([domain])
-  @@index([status])
-  @@index([type])
-  @@index([domainVerified])
-  @@map("companies")
+enum SignatureStatus {
+  PENDING
+  SIGNED
+  DECLINED
+  EXPIRED
+}
+
+enum InterviewStatus {
+  scheduled
+  completed
+  cancelled
+  rescheduled
+}
+
+enum MeetingType {
+  video
+  audio
+  in_person
+}
+
+enum CalendarIntegrationType {
+  google
+  outlook
+  zoom
+  teams
 }
 
 model User {
-  id               String    @id @default(cuid())
-  companyId        String    @map("company_id")
-  phoneNumber      String    @unique @map("phone_number")
-  email            String?   // Optional, only for transaction notifications
-  name             String
-  role             UserRole
-  phoneVerified    Boolean   @default(false) @map("phone_verified")
-  phoneVerifiedAt  DateTime? @map("phone_verified_at")
-  lastLoginAt      DateTime? @map("last_login_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  id                String    @id @default(cuid())
+  name              String
+  email             String    @unique
+  phone             String?   @unique
+  passwordHash      String?   @map("password_hash")
+  role              UserRole  @default(member)
+  isEmailVerified   Boolean   @default(false) @map("is_email_verified")
+  isPhoneVerified   Boolean   @default(false) @map("is_phone_verified")
+  emailVerificationToken String? @map("email_verification_token")
+  phoneVerificationToken String? @map("phone_verification_token")
+  resetPasswordToken String? @map("reset_password_token")
+  resetPasswordExpires DateTime? @map("reset_password_expires")
+  lastLoginAt       DateTime? @map("last_login_at")
+  isActive          Boolean   @default(true) @map("is_active")
+  paystackCustomerId String? @map("paystack_customer_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  otpCodes OTPCode[]
-  notifications Notification[]
+  company           Company?
+  talentProfiles    TalentProfile[]
+  talentRequests    TalentRequest[]
+  offers            Offer[]
+  engagements       Engagement[]
+  payments          Payment[]
+  notifications     Notification[]
   notificationPreferences NotificationPreference[]
-  subscriptions Subscription[]
+  contracts         Contract[]
+  contractSignatures ContractSignature[]
+  calendarIntegrations CalendarIntegration[]
+  interviewSchedules InterviewSchedule[]
 
-  @@index([companyId])
-  @@index([phoneNumber])
-  @@index([phoneVerified])
+  @@index([email])
+  @@index([phone])
+  @@index([role])
+  @@index([isActive])
   @@map("users")
 }
 
-model OTPCode {
-  id          String   @id @default(cuid())
-  userId      String   @map("user_id")
-  phoneNumber String   @map("phone_number")
-  code        String
-  expiresAt   DateTime @map("expires_at")
-  verified    Boolean  @default(false)
-  attempts    Int      @default(0)
-  createdAt   DateTime @default(now()) @map("created_at")
+model Company {
+  id                String        @id @default(cuid())
+  name              String
+  type              CompanyType
+  status            CompanyStatus @default(pending)
+  industry          String?
+  size              String?
+  website           String?
+  description       String?
+  logoUrl           String?       @map("logo_url")
+  address           String?
+  city              String?
+  state             String?
+  country           String?
+  postalCode        String?       @map("postal_code")
+  phone             String?
+  email             String?
+  taxId             String?       @map("tax_id")
+  registrationNumber String?      @map("registration_number")
+  verificationToken String?       @map("verification_token")
+  isVerified        Boolean       @default(false) @map("is_verified")
+  verifiedAt        DateTime?     @map("verified_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  users             User[]
+  talentProfiles    TalentProfile[]
+  talentRequests    TalentRequest[]
+  offers            Offer[]
+  engagements       Engagement[]
+  payments          Payment[]
+  notifications     Notification[]
+  notificationPreferences NotificationPreference[]
+  contracts         Contract[]
+  contractSignatures ContractSignature[]
 
-  @@map("otp_codes")
+  @@index([type])
+  @@index([status])
+  @@index([industry])
+  @@index([isVerified])
+  @@map("companies")
 }
 
 model TalentProfile {
-  id                   String         @id @default(cuid())
-  companyId            String         @map("company_id")
-  name                 String
-  title                String
-  seniorityLevel       SeniorityLevel @map("seniority_level")
-  skills               Json           // Array of {name, level, yearsExperience}
-  certifications       Json?          // Array of certification objects
-  experience           Json?          // Array of work experience objects
-  location             String
-  timezone             String?
-  remotePreference     String         @map("remote_preference")
-  rateMin              Decimal?       @map("rate_min") @db.Decimal(10, 2)
-  rateMax              Decimal?       @map("rate_max") @db.Decimal(10, 2)
-  currency             String         @default("USD")
-  availabilityCalendar Json?          @map("availability_calendar")
-  preferences          Json?          // Work preferences, company size, etc.
-  pastProjects         Json?          // Array of past project performance data
-  languages            Json?          // Array of languages spoken
-  isVisible            Boolean        @default(true) @map("is_visible")
-  rating               Decimal        @default(0) @db.Decimal(3, 2)
-  reviewCount          Int            @default(0) @map("review_count")
-  createdAt            DateTime       @default(now()) @map("created_at")
-  updatedAt            DateTime       @updatedAt @map("updated_at")
+  id                String    @id @default(cuid())
+  userId            String    @map("user_id")
+  companyId         String    @map("company_id")
+  name              String
+  title             String?
+  bio               String?
+  skills            Json      // Array of skill objects
+  experience        Json      // Array of experience objects
+  education         Json?     // Array of education objects
+  certifications    Json?     // Array of certification objects
+  portfolio         Json?     // Array of portfolio items
+  availability      String?   // available, partially_available, unavailable
+  rateMin           Decimal   @map("rate_min")
+  rateMax           Decimal   @map("rate_max")
+  currency          String    @default("ZAR")
+  location          String?
+  timezone          String    @default("UTC")
+  languages         String[]  // Array of language codes
+  remotePreference  String?   @map("remote_preference") // remote, hybrid, onsite
+  workingHours      Json?     @map("working_hours") // Working hours configuration
+  preferredCompanySize String? @map("preferred_company_size")
+  workStyle         String?   @map("work_style") // agile, waterfall, hybrid
+  communicationStyle String? @map("communication_style") // formal, casual, mixed
+  isVisible         Boolean   @default(true) @map("is_visible")
+  status            String    @default("active")
+  rating            Decimal?  @default(0)
+  totalReviews      Int       @default(0) @map("total_reviews")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  matches Match[]
-  reviews Review[] @relation("ProfileReviews")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  offers            Offer[]
+  engagements       Engagement[]
+  reviews           Review[]
+  interviewSchedules InterviewSchedule[]
 
+  @@index([userId])
   @@index([companyId])
-  @@index([seniorityLevel])
+  @@index([status])
   @@index([isVisible])
   @@index([rating])
   @@map("talent_profiles")
 }
 
 model TalentRequest {
-  id                 String        @id @default(cuid())
-  companyId          String        @map("company_id")
-  title              String
-  description        String
-  requiredSkills     Json          @map("required_skills") // Array of {name, level, weight, mandatory}
-  preferredSkills    Json?         @map("preferred_skills") // Array of {name, level, weight}
-  budgetMin          Decimal?      @map("budget_min") @db.Decimal(10, 2)
-  budgetMax          Decimal?      @map("budget_max") @db.Decimal(10, 2)
-  budgetIdeal        Decimal?      @map("budget_ideal") @db.Decimal(10, 2)
-  currency           String        @default("USD")
-  startDate          DateTime      @map("start_date")
-  durationWeeks      Int           @map("duration_weeks")
-  hoursPerWeek       Int?          @map("hours_per_week")
-  locationPreference String        @map("location_preference")
-  urgency            String        @default("medium") // low, medium, high, critical
-  companySize        String?       @map("company_size") // startup, small, medium, enterprise
-  industry           String?
-  customWeights      Json?         @map("custom_weights") // Custom algorithm weights
-  status             RequestStatus @default(open)
-  createdAt          DateTime      @default(now()) @map("created_at")
-  updatedAt          DateTime      @updatedAt @map("updated_at")
+  id                String        @id @default(cuid())
+  userId            String        @map("user_id")
+  companyId         String        @map("company_id")
+  title             String
+  description       String
+  requiredSkills    Json          @map("required_skills") // Array of skill requirements
+  preferredSkills   Json?         @map("preferred_skills") // Array of preferred skills
+  budgetMin         Decimal       @map("budget_min")
+  budgetMax         Decimal       @map("budget_max")
+  currency          String        @default("ZAR")
+  durationWeeks     Int           @map("duration_weeks")
+  startDate         DateTime      @map("start_date")
+  urgency           String        @default("medium") // low, medium, high, critical
+  projectType       String?       @map("project_type") // development, consulting, design, data, other
+  teamSize          Int           @default(1) @map("team_size")
+  industry          String?
+  companySize       String?       @map("company_size")
+  workStyle         String?       @map("work_style") // agile, waterfall, hybrid
+  location          String?
+  remotePreference  String?       @map("remote_preference") // remote, hybrid, onsite
+  timezone          String?
+  status            RequestStatus @default(open)
+  isVisible         Boolean       @default(true) @map("is_visible")
+  expiresAt         DateTime?     @map("expires_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  matches Match[]
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company           Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  offers            Offer[]
+  matches           Match[]
 
+  @@index([userId])
   @@index([companyId])
   @@index([status])
-  @@index([startDate])
-  @@index([urgency])
+  @@index([isVisible])
+  @@index([expiresAt])
   @@map("talent_requests")
 }
 
 model Match {
-  id             String      @id @default(cuid())
-  requestId      String      @map("request_id")
-  profileId      String      @map("profile_id")
-  score          Decimal     @db.Decimal(5, 2)
-  scoreBreakdown Json        @map("score_breakdown")
-  status         MatchStatus @default(pending)
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
+  id                String      @id @default(cuid())
+  talentRequestId   String      @map("talent_request_id")
+  talentId          String      @map("talent_id")
+  score             Decimal
+  breakdown         Json        // Detailed scoring breakdown
+  reasons           String[]    // Array of match reasons
+  concerns          String[]    // Array of potential concerns
+  rank              Int
+  confidence        Decimal
+  predictedSuccess  Decimal     @map("predicted_success")
+  status            MatchStatus @default(pending)
+  viewedAt          DateTime?   @map("viewed_at")
+  respondedAt       DateTime?   @map("responded_at")
+  expiresAt         DateTime?   @map("expires_at")
+  responseDeadline  DateTime?   @map("response_deadline")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
 
   // Relations
-  request TalentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  profile TalentProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  offers  Offer[]
+  talentRequest     TalentRequest @relation(fields: [talentRequestId], references: [id], onDelete: Cascade)
+  talent            TalentProfile @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  offers            Offer[]
 
+  @@index([talentRequestId])
+  @@index([talentId])
+  @@index([status])
+  @@index([score])
+  @@index([expiresAt])
   @@map("matches")
 }
 
 model Offer {
-  id             String      @id @default(cuid())
-  matchId        String      @map("match_id")
-  seekerCompanyId String     @map("seeker_company_id")
-  providerCompanyId String   @map("provider_company_id")
-  rate           Decimal     @db.Decimal(10, 2)
-  currency       String      @default("USD")
-  startDate      DateTime    @map("start_date")
-  durationWeeks  Int         @map("duration_weeks")
-  terms          String?
-  totalAmount    Decimal     @map("total_amount") @db.Decimal(10, 2)
-  platformFee    Decimal     @map("platform_fee") @db.Decimal(10, 2)
-  providerAmount Decimal     @map("provider_amount") @db.Decimal(10, 2)
-  status         OfferStatus @default(pending)
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
+  id                String      @id @default(cuid())
+  matchId           String      @map("match_id")
+  talentRequestId   String      @map("talent_request_id")
+  talentId          String      @map("talent_id")
+  companyId         String      @map("company_id")
+  amount            Decimal
+  currency          String      @default("ZAR")
+  message           String?
+  terms             Json?       // Additional terms and conditions
+  status            OfferStatus @default(pending)
+  respondedAt       DateTime?   @map("responded_at")
+  expiresAt         DateTime?   @map("expires_at")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
 
   // Relations
-  match           Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  seekerCompany   Company     @relation("SeekerOffers", fields: [seekerCompanyId], references: [id])
-  providerCompany Company     @relation("ProviderOffers", fields: [providerCompanyId], references: [id])
-  payments        Payment[]
-  engagements     Engagement[]
+  match             Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  talentRequest     TalentRequest @relation(fields: [talentRequestId], references: [id], onDelete: Cascade)
+  talent            TalentProfile @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  company           Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  engagements       Engagement[]
+  contracts         Contract[]
 
+  @@index([matchId])
+  @@index([talentRequestId])
+  @@index([talentId])
+  @@index([companyId])
+  @@index([status])
+  @@index([expiresAt])
   @@map("offers")
 }
 
-model Payment {
-  id                     String        @id @default(cuid())
-  offerId                String        @map("offer_id")
-  engagementId           String?       @map("engagement_id")
-  paystackPaymentId      String?       @unique @map("paystack_payment_id")
-  amount                 Decimal       @db.Decimal(10, 2)
-  currency               String        @default("ZAR")
-  type                   String        @default("escrow") // escrow, release, refund, facilitation_fee
-  platformFeeAmount      Decimal       @map("platform_fee_amount") @db.Decimal(10, 2)
-  providerAmount         Decimal       @map("provider_amount") @db.Decimal(10, 2)
-  status                 PaymentStatus @default(pending)
-  reason                 String?       // completion, milestone, dispute_resolution, etc.
-  verificationData       Json?         @map("verification_data")
-  milestoneId            String?       @map("milestone_id")
-  heldAt                 DateTime?     @map("held_at")
-  releasedAt             DateTime?     @map("released_at")
-  processedAt            DateTime?     @map("processed_at")
-  createdAt              DateTime      @default(now()) @map("created_at")
-  updatedAt              DateTime      @updatedAt @map("updated_at")
+model Engagement {
+  id                String            @id @default(cuid())
+  offerId           String            @map("offer_id")
+  talentRequestId   String            @map("talent_request_id")
+  talentId          String            @map("talent_id")
+  seekerCompanyId   String            @map("seeker_company_id")
+  providerCompanyId String            @map("provider_company_id")
+  title             String
+  description       String?
+  status            EngagementStatus  @default(staged)
+  startDate         DateTime?         @map("start_date")
+  endDate           DateTime?         @map("end_date")
+  hourlyRate        Decimal?          @map("hourly_rate")
+  totalHours        Int?              @map("total_hours")
+  totalAmount       Decimal?          @map("total_amount")
+  providerAmount    Decimal?          @map("provider_amount")
+  platformFee       Decimal?          @map("platform_fee")
+  currency          String            @default("ZAR")
+  milestones        Json?             // Array of milestone objects
+  progress          Json?             // Progress tracking data
+  rating            Decimal?          @default(0)
+  feedback          String?
+  interviewDate     DateTime?         @map("interview_date")
+  interviewNotes    String?           @map("interview_notes")
+  disputedAt        DateTime?         @map("disputed_at")
+  disputeReason     String?           @map("dispute_reason")
+  completedAt       DateTime?         @map("completed_at")
+  terminatedAt      DateTime?         @map("terminated_at")
+  terminationReason String?           @map("termination_reason")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
 
   // Relations
-  offer      Offer       @relation(fields: [offerId], references: [id], onDelete: Cascade)
-  engagement Engagement? @relation(fields: [engagementId], references: [id])
+  offer             Offer       @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  talentRequest     TalentRequest @relation(fields: [talentRequestId], references: [id], onDelete: Cascade)
+  talent            TalentProfile @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  seekerCompany     Company     @relation("SeekerEngagements", fields: [seekerCompanyId], references: [id], onDelete: Cascade)
+  providerCompany   Company     @relation("ProviderEngagements", fields: [providerCompanyId], references: [id], onDelete: Cascade)
+  payments          Payment[]
+  contracts         Contract[]
+  conversations     Conversation[]
 
   @@index([offerId])
-  @@index([engagementId])
+  @@index([talentRequestId])
+  @@index([talentId])
+  @@index([seekerCompanyId])
+  @@index([providerCompanyId])
   @@index([status])
-  @@index([type])
-  @@map("payments")
-}
-
-model Engagement {
-  id                   String            @id @default(cuid())
-  offerId              String            @map("offer_id")
-  status               EngagementStatus  @default(active)
-  startDate            DateTime          @map("start_date")
-  endDate              DateTime?         @map("end_date")
-  totalHours           Decimal?          @map("total_hours") @db.Decimal(8, 2)
-  totalAmount          Decimal           @map("total_amount") @db.Decimal(10, 2)
-  completionVerified   Boolean           @default(false) @map("completion_verified")
-  createdAt            DateTime          @default(now()) @map("created_at")
-  updatedAt            DateTime          @updatedAt @map("updated_at")
-
-  // Relations
-  offer           Offer           @relation(fields: [offerId], references: [id], onDelete: Cascade)
-  reviews         Review[]
-  timesheetEntries TimesheetEntry[]
-  transactions    Transaction[]
-  payments        Payment[]
-  invoices        Invoice[]
-  manualPayments  ManualPayment[]
-
+  @@index([startDate])
+  @@index([endDate])
   @@map("engagements")
 }
 
-enum TimesheetStatus {
-  draft
-  submitted
-  approved
-  rejected
-}
-
-model TimesheetEntry {
-  id            String          @id @default(cuid())
-  engagementId  String          @map("engagement_id")
-  date          DateTime
-  hours         Decimal         @db.Decimal(4, 2)
-  description   String
-  status        TimesheetStatus @default(draft)
-  submittedAt   DateTime?       @map("submitted_at")
-  approvedAt    DateTime?       @map("approved_at")
-  rejectedAt    DateTime?       @map("rejected_at")
-  rejectionReason String?       @map("rejection_reason")
-  createdAt     DateTime        @default(now()) @map("created_at")
-  updatedAt     DateTime        @updatedAt @map("updated_at")
+model Payment {
+  id                String        @id @default(cuid())
+  engagementId      String        @map("engagement_id")
+  userId            String        @map("user_id")
+  amount            Decimal
+  currency          String        @default("ZAR")
+  type              String        // subscription, transaction, transfer, escrow
+  status            PaymentStatus @default(pending)
+  paystackPaymentId String?       @map("paystack_payment_id")
+  reason            String?       // completion, milestone, partial, dispute_resolution
+  verificationData  Json?         @map("verification_data")
+  milestoneId       String?       @map("milestone_id")
+  processedAt       DateTime?     @map("processed_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  engagement Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  engagement        Engagement    @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([engagementId])
-  @@index([date])
-  @@index([status])
-  @@map("timesheet_entries")
-}
-
-enum TransactionStatus {
-  pending
-  completed
-  failed
-  cancelled
-}
-
-enum TransactionType {
-  payment
-  transfer
-  refund
-  fee
-}
-
-model Transaction {
-  id                   String            @id @default(cuid())
-  engagementId         String?           @map("engagement_id")
-  type                 TransactionType
-  amount               Decimal           @db.Decimal(10, 2)
-  facilitationFee      Decimal?          @map("facilitation_fee") @db.Decimal(10, 2)
-  netAmount            Decimal?          @map("net_amount") @db.Decimal(10, 2)
-  currency             String            @default("ZAR")
-  status               TransactionStatus @default(pending)
-  reason               String?
-  paystackPaymentId    String?           @map("paystack_payment_id")
-  milestoneId          String?           @map("milestone_id")
-  processedAt          DateTime?         @map("processed_at")
-  description          String?
-  metadata             Json?
-  createdAt            DateTime          @default(now()) @map("created_at")
-  updatedAt            DateTime          @updatedAt @map("updated_at")
-
-  // Relations
-  engagement Engagement? @relation(fields: [engagementId], references: [id])
-
+  @@index([userId])
   @@index([status])
   @@index([type])
-  @@index([engagementId])
-  @@index([createdAt])
-  @@map("transactions")
+  @@index([processedAt])
+  @@map("payments")
 }
 
 model Subscription {
-  id                      String    @id @default(cuid())
-  userId                  String    @map("user_id")
-  companyId               String?   @map("company_id")
-  paystackSubscriptionId  String    @unique @map("paystack_subscription_id")
-  paystackCustomerId      String    @map("paystack_customer_id")
-  planType                String    @map("plan_type") // monthly, yearly
-  amount                  Decimal   @db.Decimal(10, 2)
-  currency                String    @default("ZAR")
-  status                  String    @default("active") // active, cancelled, expired
-  startDate               DateTime  @map("start_date")
-  nextBillingDate         DateTime  @map("next_billing_date")
-  lastBillingDate         DateTime? @map("last_billing_date")
-  cancelledAt             DateTime? @map("cancelled_at")
-  metadata                Json?
-  createdAt               DateTime  @default(now()) @map("created_at")
-  updatedAt               DateTime  @updatedAt @map("updated_at")
-
-  // Relations
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company Company? @relation(fields: [companyId], references: [id])
+  id                    String    @id @default(cuid())
+  userId                String    @map("user_id")
+  paystackSubscriptionId String   @map("paystack_subscription_id")
+  paystackCustomerId    String    @map("paystack_customer_id")
+  paystackPlanCode      String    @map("paystack_plan_code")
+  status                String    @default("active")
+  startDate             DateTime  @map("start_date")
+  endDate               DateTime  @map("end_date")
+  amount                Decimal
+  currency              String    @default("ZAR")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
 
   @@index([userId])
+  @@index([paystackSubscriptionId])
   @@index([status])
-  @@index([nextBillingDate])
   @@map("subscriptions")
 }
 
-model Invoice {
-  id              String    @id @default(cuid())
-  invoiceNumber   String    @unique @map("invoice_number")
-  type            String    // 'seeker' or 'provider'
-  engagementId    String    @map("engagement_id")
-  fromCompany     String    @map("from_company")
-  toCompany       String    @map("to_company")
-  subtotal        Decimal   @db.Decimal(10, 2)
-  vatAmount       Decimal   @map("vat_amount") @db.Decimal(10, 2)
-  total           Decimal   @db.Decimal(10, 2)
-  currency        String    @default("ZAR")
-  issueDate       DateTime  @map("issue_date")
-  dueDate         DateTime  @map("due_date")
-  paidDate        DateTime? @map("paid_date")
-  status          String    @default("pending") // pending, paid, overdue, cancelled
-  items           Json      // Invoice line items
-  notes           String?
-  paymentReference String?  @map("payment_reference")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-
-  // Relations
-  engagement Engagement @relation(fields: [engagementId], references: [id])
-
-  @@index([engagementId])
-  @@index([status])
-  @@index([type])
-  @@index([dueDate])
-  @@map("invoices")
-}
-
-model ManualPayment {
+model Review {
   id                String    @id @default(cuid())
   engagementId      String    @map("engagement_id")
-  type              String    // 'seeker_payment' or 'provider_payment'
-  amount            Decimal   @db.Decimal(10, 2)
-  facilitationFee   Decimal?  @map("facilitation_fee") @db.Decimal(10, 2)
-  netAmount         Decimal?  @map("net_amount") @db.Decimal(10, 2)
-  currency          String    @default("ZAR")
-  paymentDate       DateTime  @map("payment_date")
-  paymentMethod     String    @map("payment_method") // bank_transfer, eft, etc
-  reference         String    @unique
-  description       String
-  status            String    @default("pending") // pending, completed, failed
-  invoiceId         String?   @map("invoice_id")
-  processedBy       String    @map("processed_by") // User ID who processed
-  notes             String?
+  talentId          String    @map("talent_id")
+  reviewerId        String    @map("reviewer_id")
+  rating            Decimal
+  title             String?
+  comment           String?
+  categories        String[]  // Array of review categories
+  isPublic          Boolean   @default(true) @map("is_public")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  engagement Engagement @relation(fields: [engagementId], references: [id])
+  engagement        Engagement    @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  talent            TalentProfile @relation(fields: [talentId], references: [id], onDelete: Cascade)
 
   @@index([engagementId])
-  @@index([type])
-  @@index([status])
-  @@index([paymentDate])
-  @@map("manual_payments")
-}
-
-enum EscrowStatus {
-  pending
-  held
-  released
-  refunded
-  disputed
-}
-
-model EscrowPayment {
-  id            String        @id @default(cuid())
-  engagementId  String        @map("engagement_id")
-  amount        Decimal       @db.Decimal(10, 2)
-  currency      String        @default("USD")
-  status        EscrowStatus  @default(pending)
-  stripePaymentIntentId String? @map("stripe_payment_intent_id")
-  releasedAt    DateTime?     @map("released_at")
-  refundedAt    DateTime?     @map("refunded_at")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
-
-  // Relations
-  disputes      Dispute[]
-
-  @@index([engagementId])
-  @@index([status])
-  @@index([stripePaymentIntentId])
-  @@map("escrow_payments")
-}
-
-enum DisputeStatus {
-  open
-  in_review
-  resolved
-  closed
-}
-
-model Dispute {
-  id              String        @id @default(cuid())
-  escrowPaymentId String        @map("escrow_payment_id")
-  reason          String
-  description     String
-  evidence        String[]
-  raisedBy        String        @map("raised_by")
-  status          DisputeStatus @default(open)
-  resolution      String?
-  resolvedAt      DateTime?     @map("resolved_at")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
-
-  // Relations
-  escrowPayment   EscrowPayment @relation(fields: [escrowPaymentId], references: [id], onDelete: Cascade)
-
-  @@index([escrowPaymentId])
-  @@index([status])
-  @@index([raisedBy])
-  @@map("disputes")
-}
-
-model Review {
-  id           String  @id @default(cuid())
-  engagementId String  @map("engagement_id")
-  profileId    String  @map("profile_id")
-  rating       Int
-  comment      String?
-  isPublic     Boolean @default(true) @map("is_public")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  engagement Engagement    @relation(fields: [engagementId], references: [id], onDelete: Cascade)
-  profile    TalentProfile @relation("ProfileReviews", fields: [profileId], references: [id], onDelete: Cascade)
-
+  @@index([talentId])
+  @@index([reviewerId])
+  @@index([rating])
+  @@index([isPublic])
   @@map("reviews")
 }
 
+model Contract {
+  id                String        @id @default(cuid())
+  engagementId      String        @map("engagement_id")
+  offerId           String        @map("offer_id")
+  userId            String        @map("user_id")
+  companyId         String        @map("company_id")
+  type              ContractType  @default(ENGAGEMENT)
+  status            ContractStatus @default(DRAFT)
+  title             String
+  content           String        // Contract content/template
+  terms             Json?         // Additional terms and conditions
+  metadata          Json?         // Additional contract metadata
+  sentAt            DateTime?     @map("sent_at")
+  expiresAt         DateTime?     @map("expires_at")
+  signedAt          DateTime?     @map("signed_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  engagement        Engagement    @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  offer             Offer         @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company           Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  signatures        ContractSignature[]
+  amendments        ContractAmendment[]
+  conversations     Conversation[]
+
+  @@index([engagementId])
+  @@index([offerId])
+  @@index([userId])
+  @@index([companyId])
+  @@index([status])
+  @@index([type])
+  @@index([expiresAt])
+  @@map("contracts")
+}
+
+model ContractSignature {
+  id                String          @id @default(cuid())
+  contractId        String          @map("contract_id")
+  userId            String          @map("user_id")
+  companyId         String          @map("company_id")
+  status            SignatureStatus @default(PENDING)
+  signedAt          DateTime?       @map("signed_at")
+  signatureData     Json?           @map("signature_data")
+  ipAddress         String?         @map("ip_address")
+  userAgent         String?         @map("user_agent")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  contract          Contract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@index([userId])
+  @@index([companyId])
+  @@index([status])
+  @@map("contract_signatures")
+}
+
+model ContractAmendment {
+  id                String    @id @default(cuid())
+  contractId        String    @map("contract_id")
+  userId            String    @map("user_id")
+  description       String
+  changes           Json      // Detailed changes made
+  approvedAt        DateTime? @map("approved_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  contract          Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@index([userId])
+  @@map("contract_amendments")
+}
+
+model InterviewSchedule {
+  id                String          @id @default(cuid())
+  talentId          String          @map("talent_id")
+  seekerId          String          @map("seeker_id")
+  title             String
+  description       String?
+  startTime         DateTime        @map("start_time")
+  endTime           DateTime        @map("end_time")
+  timezone          String          @default("UTC")
+  meetingType       MeetingType     @map("meeting_type")
+  meetingUrl        String?         @map("meeting_url")
+  location          String?
+  status            InterviewStatus @default(scheduled)
+  notes             String?
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  talent            TalentProfile @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  seeker            User          @relation(fields: [seekerId], references: [id], onDelete: Cascade)
+
+  @@index([talentId])
+  @@index([seekerId])
+  @@index([status])
+  @@index([startTime])
+  @@index([endTime])
+  @@map("interview_schedules")
+}
+
+model CalendarIntegration {
+  id                String                    @id @default(cuid())
+  userId            String                    @map("user_id")
+  type              CalendarIntegrationType
+  accessToken       String                    @map("access_token")
+  refreshToken      String?                   @map("refresh_token")
+  calendarId        String?                   @map("calendar_id")
+  isActive          Boolean                   @default(true) @map("is_active")
+  createdAt         DateTime                  @default(now()) @map("created_at")
+  updatedAt         DateTime                  @updatedAt @map("updated_at")
+
+  // Relations
+  user              User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@index([userId])
+  @@index([type])
+  @@index([isActive])
+  @@map("calendar_integrations")
+}
+
 model Notification {
-  id                String             @id @default(cuid())
-  userId            String             @map("user_id")
-  companyId         String?            @map("company_id")
+  id                String              @id @default(cuid())
+  userId            String              @map("user_id")
+  companyId         String?             @map("company_id")
   type              NotificationType
   title             String
   message           String
@@ -675,24 +734,20 @@ model NotificationPreference {
 model Conversation {
   id           String             @id @default(cuid())
   participants String[]           // Array of user IDs
-  type         ConversationType
-  subject      String?
-  engagementId String?            @map("engagement_id")
-  contractId   String?            @map("contract_id")
-  offerId      String?            @map("offer_id")
-  status       ConversationStatus @default(active)
-  metadata     Json?              // Additional context data
+  participantNames Json           @map("participant_names") // Record of participant names
+  participantTypes Json           @map("participant_types") // Record of participant types
+  unreadCount  Json               @map("unread_count") // Record of unread counts per user
+  lastMessageId String?           @map("last_message_id")
+  context      String?            // JSON string for context data
+  isActive     Boolean            @default(true) @map("is_active")
   createdAt    DateTime           @default(now()) @map("created_at")
   updatedAt    DateTime           @updatedAt @map("updated_at")
 
   // Relations
   messages Message[]
 
-  @@index([status])
-  @@index([type])
-  @@index([engagementId])
-  @@index([contractId])
-  @@index([offerId])
+  @@index([participants])
+  @@index([isActive])
   @@map("conversations")
 }
 
@@ -700,23 +755,24 @@ model Message {
   id             String      @id @default(cuid())
   conversationId String      @map("conversation_id")
   senderId       String      @map("sender_id")
+  senderName     String      @map("sender_name")
   senderType     SenderType  @map("sender_type")
-  recipientId    String      @map("recipient_id")
-  recipientType  SenderType  @map("recipient_type")
   content        String
   messageType    MessageType @map("message_type")
-  metadata       Json?       // Additional context data
-  readAt         DateTime?   @map("read_at")
+  fileUrl        String?     @map("file_url")
+  fileName       String?     @map("file_name")
+  fileSize       Int?        @map("file_size")
+  isRead         Boolean     @default(false) @map("is_read")
   createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
 
   // Relations
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
   @@index([senderId])
-  @@index([recipientId])
   @@index([messageType])
-  @@index([readAt])
+  @@index([isRead])
   @@index([createdAt])
   @@map("messages")
 }
