@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import logger from '@/lib/logger'
-import Stripe from 'stripe'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2023-10-16'
-})
+import { paystackService } from '@/lib/paystack'
 
 export async function POST(request: NextRequest) {
   const requestLogger = logger
@@ -52,21 +48,15 @@ export async function POST(request: NextRequest) {
     const platformFee = Math.round(transaction.amount * 0.15)
     const providerAmount = transaction.amount - platformFee
 
-    // Create Stripe transfer to provider
+    // Create Paystack transfer to provider
     let transfer
     try {
-      transfer = await stripe.transfers.create({
-        amount: Math.round(providerAmount * 100), // Convert to cents
-        currency: 'usd',
-        destination: providerAccountId,
-        description: `Payment for engagement ${transaction.engagementId}`,
-        metadata: {
-          transactionId: transaction.id,
-          engagementId: transaction.engagementId,
-          platformFee: platformFee.toString()
-        }
-      })
-    } catch (stripeError) {
+      transfer = await paystackService.createTransfer(
+        providerAmount,
+        providerAccountId,
+        `Payment for engagement ${transaction.engagementId}`
+      )
+    } catch (paystackError) {
       return NextResponse.json(
         { error: 'Failed to create transfer' },
         { status: 500 }
@@ -79,7 +69,7 @@ export async function POST(request: NextRequest) {
       data: {
         status: 'released',
         releasedAt: new Date(),
-        stripeTransferId: transfer.id,
+        paystackTransferId: transfer.id,
         platformFee,
         providerAmount
       }
@@ -91,7 +81,7 @@ export async function POST(request: NextRequest) {
       amount: transaction.amount,
       platformFee,
       providerAmount,
-      stripeTransferId: transfer.id
+      paystackTransferId: transfer.id
     })
 
     return NextResponse.json({

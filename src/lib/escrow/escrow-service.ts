@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { stripe } from '@/lib/stripe'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 
 export interface EscrowPayment {
   id: string

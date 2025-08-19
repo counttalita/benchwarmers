@@ -3,7 +3,7 @@ import { GET } from '@/app/api/payments/route'
 import { POST as ProcessPayment } from '@/app/api/payments/process/route'
 import { POST as ReleasePayment } from '@/app/api/payments/release/route'
 import { prisma } from '@/lib/prisma'
-import Stripe from 'stripe'
+import { paystackService } from '@/lib/paystack'
 
 // Mock authentication
 jest.mock('@/lib/auth', () => ({
@@ -23,27 +23,21 @@ jest.mock('@/lib/logger', () => ({
 
 // Mock dependencies
 jest.mock('@/lib/prisma')
-jest.mock('stripe')
+jest.mock('@/lib/paystack', () => ({
+  paystackService: {
+    createPaymentIntent: jest.fn(),
+    verifyPayment: jest.fn(),
+    createTransfer: jest.fn(),
+    createTransferRecipient: jest.fn()
+  }
+}))
 
 describe('/api/payments', () => {
   const mockPrisma = prisma as jest.Mocked<typeof prisma>
-  const mockStripe = {
-    paymentIntents: {
-      create: jest.fn(),
-      retrieve: jest.fn(),
-      confirm: jest.fn()
-    },
-    transfers: {
-      create: jest.fn()
-    },
-    accounts: {
-      retrieve: jest.fn()
-    }
-  } as any
+
 
   beforeEach(() => {
     jest.clearAllMocks()
-    ;(Stripe as any).mockImplementation(() => mockStripe)
   })
 
   describe('GET /api/payments', () => {
@@ -54,7 +48,7 @@ describe('/api/payments', () => {
         amount: 5000,
         status: 'completed',
         type: 'milestone',
-        stripePaymentIntentId: 'pi_test123',
+        paystackTransactionId: 'tr_test123',
         createdAt: new Date(),
         engagement: {
           id: 'engagement-1',
@@ -145,7 +139,7 @@ describe('/api/payments', () => {
       })
 
       mockPrisma.engagement.findUnique.mockResolvedValue(mockEngagement as any)
-      mockStripe.paymentIntents.create.mockResolvedValue(mockPaymentIntent)
+      paystackService.createPaymentIntent.mockResolvedValue(mockPaymentIntent)
       mockPrisma.transaction.create.mockResolvedValue({
         id: 'txn-123',
         ...validPaymentData,
@@ -167,10 +161,13 @@ describe('/api/payments', () => {
 
       expect(response.status).toBe(200)
       expect(data.transaction.status).toBe('completed')
-      expect(mockStripe.paymentIntents.create).toHaveBeenCalledWith(
+      expect(paystackService.createPaymentIntent).toHaveBeenCalledWith(
+        5000,
+        'ZAR',
         expect.objectContaining({
-          amount: 500000, // Converted to cents
-          currency: 'usd'
+          engagementId: 'engagement-1',
+          milestoneId: 'milestone-1',
+          paymentMethodId: 'pm_test123'
         })
       )
     })
@@ -195,13 +192,13 @@ describe('/api/payments', () => {
       expect(response.status).toBe(400)
     })
 
-    it('should handle Stripe payment failures', async () => {
+    it('should handle Paystack payment failures', async () => {
       mockPrisma.engagement.findUnique.mockResolvedValue({
         id: 'engagement-1',
         status: 'active'
       } as any)
       
-      mockStripe.paymentIntents.create.mockRejectedValue(
+      paystackService.createPaymentIntent.mockRejectedValue(
         new Error('Your card was declined')
       )
 
@@ -249,20 +246,20 @@ describe('/api/payments', () => {
         amount: 5000,
         status: 'escrowed',
         engagementId: 'engagement-1',
-        stripePaymentIntentId: 'pi_test123'
+        paystackTransactionId: 'tr_test123'
       }
 
       const mockEngagement = {
         id: 'engagement-1',
         providerUserId: 'user-1',
         providerUser: {
-          stripeAccountId: 'acct_provider123'
+          paystackRecipientCode: 'RCP_provider123'
         }
       }
 
       mockPrisma.transaction.findUnique.mockResolvedValue(mockTransaction as any)
       mockPrisma.engagement.findUnique.mockResolvedValue(mockEngagement as any)
-      mockStripe.transfers.create.mockResolvedValue({
+      paystackService.createTransfer.mockResolvedValue({
         id: 'tr_test123',
         amount: 4500
       })
@@ -285,11 +282,10 @@ describe('/api/payments', () => {
 
       expect(response.status).toBe(200)
       expect(data.transaction.status).toBe('released')
-      expect(mockStripe.transfers.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          amount: 450000, // Converted to cents
-          destination: 'acct_provider123'
-        })
+      expect(paystackService.createTransfer).toHaveBeenCalledWith(
+        4250,
+        'acct_provider123',
+        'Payment for engagement engagement-1'
       )
     })
 
@@ -315,7 +311,7 @@ describe('/api/payments', () => {
       expect(response.status).toBe(400)
     })
 
-    it('should handle Stripe transfer failures', async () => {
+    it('should handle Paystack transfer failures', async () => {
       const mockTransaction = {
         id: 'txn-123',
         status: 'escrowed',
@@ -324,10 +320,10 @@ describe('/api/payments', () => {
 
       mockPrisma.transaction.findUnique.mockResolvedValue(mockTransaction as any)
       mockPrisma.engagement.findUnique.mockResolvedValue({
-        providerUser: { stripeAccountId: 'acct_provider123' }
+        providerUser: { paystackRecipientCode: 'RCP_provider123' }
       } as any)
       
-      mockStripe.transfers.create.mockRejectedValue(
+      paystackService.createTransfer.mockRejectedValue(
         new Error('Insufficient funds in platform account')
       )
 
@@ -403,13 +399,13 @@ describe('/api/payments', () => {
       const data = await response.json()
 
       expect(data.payments).toHaveLength(1)
-      expect(data.payments[0]).not.toHaveProperty('stripePaymentIntentId')
+      expect(data.payments[0]).not.toHaveProperty('paystackTransactionId')
       expect(data.payments[0]).not.toHaveProperty('internalNotes')
     })
   })
 
   describe('Payment Webhooks', () => {
-    it('should handle Stripe webhook events', async () => {
+    it('should handle Paystack webhook events', async () => {
       const webhookPayload = {
         type: 'payment_intent.succeeded',
         data: {
