@@ -7,12 +7,12 @@ import { Mock, UnknownFunction } from 'jest-mock'
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     company: {
-      findUnique: jest.fn(),
-      create: jest.fn()
+      findUnique: jest.fn() as jest.MockedFunction<any>,
+      create: jest.fn() as jest.MockedFunction<any>
     },
     user: {
-      findUnique: jest.fn(),
-      create: jest.fn()
+      findUnique: jest.fn() as jest.MockedFunction<any>,
+      create: jest.fn() as jest.MockedFunction<any>
     }
   }
 }))
@@ -911,7 +911,7 @@ describe('Company Registration API', () => {
       it('should reject invalid company type values', async () => {
         const invalidTypes = ['client', 'vendor', 'customer', 'supplier', 'partner', 'invalid']
 
-        invalidTypes.forEach(async (type) => {
+        invalidTypes.forEach(async (type: any) => {
           const request = new NextRequest('http://localhost:3000/api/auth/register', {
             method: 'POST',
             body: JSON.stringify({

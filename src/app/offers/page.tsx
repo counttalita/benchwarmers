@@ -174,7 +174,7 @@ export default function OffersPage() {
             </CardContent>
           </Card>
         ) : (
-          filteredOffers.map((offer) => (
+          filteredOffers.map((offer: any) => (
             <OfferCard
               key={offer.id}
               offer={offer}

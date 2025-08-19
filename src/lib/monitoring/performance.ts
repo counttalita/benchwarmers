@@ -23,7 +23,7 @@ class PerformanceMonitor {
     const startTime = Date.now()
     
     return Promise.resolve(fn())
-      .then((result) => {
+      .then((result: any) => {
         const duration = Date.now() - startTime
         this.recordMetric({
           operation,
@@ -33,7 +33,7 @@ class PerformanceMonitor {
         })
         return result
       })
-      .catch((error) => {
+      .catch((error: any) => {
         const duration = Date.now() - startTime
         this.recordMetric({
           operation,
@@ -93,7 +93,7 @@ class PerformanceMonitor {
 
     if (filteredMetrics.length === 0) return 0
 
-    const totalDuration = filteredMetrics.reduce((sum, m) => sum + m.duration, 0)
+    const totalDuration = filteredMetrics.reduce((sum: any, m: any) => sum + m.duration, 0)
     return totalDuration / filteredMetrics.length
   }
 

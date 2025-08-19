@@ -39,12 +39,12 @@ export const registrationSchema = z.object({
     .string()
     .min(2, "Company name must be at least 2 characters")
     .max(100, "Company name must be less than 100 characters")
-    .refine((val) => val.trim().length >= 2, "Company name cannot be only whitespace"),
+    .refine((val: any) => val.trim().length >= 2, "Company name cannot be only whitespace"),
   companyEmail: z
     .string()
     .email("Please enter a valid email address")
     .min(1, "Company email is required")
-    .refine((email) => {
+    .refine((email: any) => {
       // Validate that email has a proper domain
       const domain = email.split('@')[1]
       return domain && domain.includes('.') && !domain.startsWith('.') && !domain.endsWith('.')
@@ -54,8 +54,8 @@ export const registrationSchema = z.object({
     .string()
     .min(2, "Contact name must be at least 2 characters")
     .max(50, "Contact name must be less than 50 characters")
-    .refine((val) => val.trim().length >= 2, "Contact name cannot be only whitespace"),
-  companyType: z.enum(["provider", "seeker", "both"]).refine((val) => val !== undefined, {
+    .refine((val: any) => val.trim().length >= 2, "Contact name cannot be only whitespace"),
+  companyType: z.enum(["provider", "seeker", "both"]).refine((val: any) => val !== undefined, {
     message: "Please select a company type",
   }),
 })
@@ -66,7 +66,7 @@ export const userProfileSchema = z.object({
     .string()
     .min(2, "Name must be at least 2 characters")
     .max(50, "Name must be less than 50 characters"),
-  role: z.enum(["admin", "member"]).refine((val) => val !== undefined, {
+  role: z.enum(["admin", "member"]).refine((val: any) => val !== undefined, {
     message: "Please select a role",
   }),
   email: z

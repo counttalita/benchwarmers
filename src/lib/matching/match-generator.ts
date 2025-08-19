@@ -126,7 +126,7 @@ export class MatchGenerator {
       logInfo('Match generation completed', {
         correlationId,
         matchesGenerated: generatedMatches.length,
-        averageScore: generatedMatches.reduce((sum, m) => sum + m.score, 0) / generatedMatches.length
+        averageScore: generatedMatches.reduce((sum: any, m: any) => sum + m.score, 0) / generatedMatches.length
       })
 
       return generatedMatches
@@ -613,9 +613,9 @@ export class MatchGenerator {
     })
 
     const totalMatches = matches.length
-    const averageScore = matches.reduce((sum, m) => sum + Number(m.score), 0) / totalMatches
+    const averageScore = matches.reduce((sum: any, m: any) => sum + Number(m.score), 0) / totalMatches
     
-    const statusBreakdown = matches.reduce((acc, match) => {
+    const statusBreakdown = matches.reduce((acc: any, match: any) => {
       acc[match.status] = (acc[match.status] || 0) + 1
       return acc
     }, {} as Record<string, number>)

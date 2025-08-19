@@ -374,7 +374,7 @@ export default function ProfilePreview({
             talentProfileId={profile.id}
             requestId="sample-request-id" // TODO: Pass actual request ID
             currentStatus={null} // TODO: Pass actual engagement status
-            onStatusChange={(newStatus) => {
+            onStatusChange={(newStatus: any) => {
               console.log('Status changed to:', newStatus)
             }}
           />

@@ -134,7 +134,7 @@ export default function ProfileVisibilityControls({
             <Switch
               id="profile-visible"
               checked={settings.isVisible}
-              onCheckedChange={(checked) => updateSetting('isVisible', checked)}
+              onCheckedChange={(checked: any) => updateSetting('isVisible', checked)}
             />
           </div>
 
@@ -143,7 +143,7 @@ export default function ProfileVisibilityControls({
               <div>
                 <Label className="text-base font-medium mb-3 block">Profile Access Level</Label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {ACCESS_LEVELS.map((level) => {
+                  {ACCESS_LEVELS.map((level: any) => {
                     const Icon = level.icon
                     const isSelected = settings.profileAccess === level.value
                     const isDisabled = level.value === 'premium' && !isPremium
@@ -191,7 +191,7 @@ export default function ProfileVisibilityControls({
                 <Switch
                   id="searchable"
                   checked={settings.searchable}
-                  onCheckedChange={(checked) => updateSetting('searchable', checked)}
+                  onCheckedChange={(checked: any) => updateSetting('searchable', checked)}
                   disabled={settings.profileAccess === 'private'}
                 />
               </div>
@@ -226,7 +226,7 @@ export default function ProfileVisibilityControls({
                 <Switch
                   id="show-rate"
                   checked={settings.showRate}
-                  onCheckedChange={(checked) => updateSetting('showRate', checked)}
+                  onCheckedChange={(checked: any) => updateSetting('showRate', checked)}
                 />
               </div>
 
@@ -242,7 +242,7 @@ export default function ProfileVisibilityControls({
                 <Switch
                   id="show-availability"
                   checked={settings.showAvailability}
-                  onCheckedChange={(checked) => updateSetting('showAvailability', checked)}
+                  onCheckedChange={(checked: any) => updateSetting('showAvailability', checked)}
                 />
               </div>
 
@@ -258,7 +258,7 @@ export default function ProfileVisibilityControls({
                 <Switch
                   id="show-contact"
                   checked={settings.showContactInfo}
-                  onCheckedChange={(checked) => updateSetting('showContactInfo', checked)}
+                  onCheckedChange={(checked: any) => updateSetting('showContactInfo', checked)}
                 />
               </div>
 
@@ -274,7 +274,7 @@ export default function ProfileVisibilityControls({
                 <Switch
                   id="show-experience"
                   checked={settings.showExperience}
-                  onCheckedChange={(checked) => updateSetting('showExperience', checked)}
+                  onCheckedChange={(checked: any) => updateSetting('showExperience', checked)}
                 />
               </div>
 
@@ -290,7 +290,7 @@ export default function ProfileVisibilityControls({
                 <Switch
                   id="show-skills"
                   checked={settings.showSkills}
-                  onCheckedChange={(checked) => updateSetting('showSkills', checked)}
+                  onCheckedChange={(checked: any) => updateSetting('showSkills', checked)}
                 />
               </div>
             </div>
@@ -323,7 +323,7 @@ export default function ProfileVisibilityControls({
               <Switch
                 id="direct-contact"
                 checked={settings.allowDirectContact}
-                onCheckedChange={(checked) => updateSetting('allowDirectContact', checked)}
+                onCheckedChange={(checked: any) => updateSetting('allowDirectContact', checked)}
               />
             </div>
 
@@ -340,7 +340,7 @@ export default function ProfileVisibilityControls({
                 <Switch
                   id="require-approval"
                   checked={settings.requireApproval}
-                  onCheckedChange={(checked) => updateSetting('requireApproval', checked)}
+                  onCheckedChange={(checked: any) => updateSetting('requireApproval', checked)}
                 />
               </div>
             )}

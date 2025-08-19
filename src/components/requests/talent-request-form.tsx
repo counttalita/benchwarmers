@@ -306,7 +306,7 @@ export default function TalentRequestForm() {
                   {skillFields.map((field, index) => (
                     <div key={field.id} className="flex gap-3 items-start">
                       <div className="flex-1">
-                        <Select onValueChange={(value) => setValue(`requiredSkills.${index}.name`, value)}>
+                        <Select onValueChange={(value: any) => setValue(`requiredSkills.${index}.name`, value)}>
                           <SelectTrigger>
                             <SelectValue placeholder="Select skill" />
                           </SelectTrigger>
@@ -431,7 +431,7 @@ export default function TalentRequestForm() {
 
                 <div>
                   <Label htmlFor="timezone">Timezone *</Label>
-                  <Select onValueChange={(value) => setValue('timezone', value)}>
+                  <Select onValueChange={(value: any) => setValue('timezone', value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select timezone" />
                     </SelectTrigger>
@@ -487,7 +487,7 @@ export default function TalentRequestForm() {
 
                 <div>
                   <Label htmlFor="currency">Currency *</Label>
-                  <Select onValueChange={(value) => setValue('budget.currency', value)}>
+                  <Select onValueChange={(value: any) => setValue('budget.currency', value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="USD" />
                     </SelectTrigger>
@@ -671,7 +671,7 @@ export default function TalentRequestForm() {
 
       {/* Progress Steps */}
       <div className="flex items-center justify-between mb-8">
-        {[1, 2, 3, 4, 5].map((stepNumber) => (
+        {[1, 2, 3, 4, 5].map((stepNumber: any) => (
           <div key={stepNumber} className="flex items-center">
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${

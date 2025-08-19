@@ -199,10 +199,10 @@ export class TimesheetManager {
       endDate: weekEnd
     })
 
-    const totalHours = entries.reduce((sum, entry) => sum + entry.hoursWorked, 0)
+    const totalHours = entries.reduce((sum: any, entry: any) => sum + entry.hoursWorked, 0)
     const billableHours = entries
       .filter(entry => entry.billable)
-      .reduce((sum, entry) => sum + entry.hoursWorked, 0)
+      .reduce((sum: any, entry: any) => sum + entry.hoursWorked, 0)
 
     // Determine overall status
     let status: 'draft' | 'submitted' | 'approved' | 'rejected' = 'draft'
@@ -218,12 +218,12 @@ export class TimesheetManager {
         status = 'rejected'
       } else if (allApproved) {
         status = 'approved'
-        approvedAt = entries.reduce((latest, entry) => 
+        approvedAt = entries.reduce((latest: any, entry: any) => 
           entry.approvedAt && (!latest || entry.approvedAt > latest) ? entry.approvedAt : latest
         , undefined as Date | undefined)
       } else if (allSubmitted) {
         status = 'submitted'
-        submittedAt = entries.reduce((latest, entry) => 
+        submittedAt = entries.reduce((latest: any, entry: any) => 
           entry.submittedAt && (!latest || entry.submittedAt > latest) ? entry.submittedAt : latest
         , undefined as Date | undefined)
       }
@@ -404,10 +404,10 @@ export class TimesheetManager {
       status: 'approved'
     })
 
-    const totalHours = entries.reduce((sum, entry) => sum + entry.hoursWorked, 0)
+    const totalHours = entries.reduce((sum: any, entry: any) => sum + entry.hoursWorked, 0)
     const billableHours = entries
       .filter(entry => entry.billable)
-      .reduce((sum, entry) => sum + entry.hoursWorked, 0)
+      .reduce((sum: any, entry: any) => sum + entry.hoursWorked, 0)
 
     const hourlyRate = Number(engagement.contract.offer.rate)
     const totalAmount = billableHours * hourlyRate

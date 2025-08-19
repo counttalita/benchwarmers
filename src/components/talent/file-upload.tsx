@@ -96,7 +96,7 @@ export default function FileUpload({
   }
 
   const simulateUpload = async (file: UploadedFile): Promise<void> => {
-    return new Promise((resolve) => {
+    return new Promise((resolve: any) => {
       let progress = 0
       const interval = setInterval(() => {
         progress += Math.random() * 30
@@ -189,7 +189,7 @@ export default function FileUpload({
     ))
   }
 
-  const groupedFiles = files.reduce((acc, file) => {
+  const groupedFiles = files.reduce((acc: any, file: any) => {
     if (!acc[file.category]) {
       acc[file.category] = []
     }
@@ -215,7 +215,7 @@ export default function FileUpload({
           <div>
             <label className="block text-sm font-medium mb-2">Document Category</label>
             <div className="flex flex-wrap gap-2">
-              {DEFAULT_CATEGORIES.map((category) => (
+              {DEFAULT_CATEGORIES.map((category: any) => (
                 <button
                   key={category.value}
                   onClick={() => setSelectedCategory(category.value)}
@@ -263,7 +263,7 @@ export default function FileUpload({
               type="file"
               multiple
               accept={acceptedTypes.join(',')}
-              onChange={(e) => e.target.files && handleFileSelect(e.target.files)}
+              onChange={(e: any) => e.target.files && handleFileSelect(e.target.files)}
               className="hidden"
             />
           </div>
@@ -298,7 +298,7 @@ export default function FileUpload({
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {categoryFiles.map((file) => (
+                  {categoryFiles.map((file: any) => (
                     <div
                       key={file.id}
                       className="flex items-center justify-between p-3 border rounded-lg"
@@ -341,11 +341,11 @@ export default function FileUpload({
                         {/* Category Selector */}
                         <select
                           value={file.category}
-                          onChange={(e) => updateFileCategory(file.id, e.target.value)}
+                          onChange={(e: any) => updateFileCategory(file.id, e.target.value)}
                           className="text-xs border rounded px-2 py-1"
                           disabled={file.status === 'uploading'}
                         >
-                          {DEFAULT_CATEGORIES.map((cat) => (
+                          {DEFAULT_CATEGORIES.map((cat: any) => (
                             <option key={cat.value} value={cat.value}>
                               {cat.label}
                             </option>

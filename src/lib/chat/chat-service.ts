@@ -189,15 +189,15 @@ export class ChatService {
       const conversation = await prisma.conversation.create({
         data: {
           participants: participantIds,
-          participantNames: participants.reduce((acc, p) => ({
+          participantNames: participants.reduce((acc: any, p: any) => ({
             ...acc,
             [p.id]: p.name
           }), {}),
-          participantTypes: participants.reduce((acc, p) => ({
+          participantTypes: participants.reduce((acc: any, p: any) => ({
             ...acc,
             [p.id]: p.type
           }), {}),
-          unreadCount: participantIds.reduce((acc, id) => ({
+          unreadCount: participantIds.reduce((acc: any, id: any) => ({
             ...acc,
             [id]: 0
           }), {}),

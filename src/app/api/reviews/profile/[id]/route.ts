@@ -97,7 +97,7 @@ export async function GET(
       totalReviews: stats._count.rating || 0,
       minRating: stats._min.rating || 0,
       maxRating: stats._max.rating || 0,
-      ratingDistribution: ratingDistribution.reduce((acc, item) => {
+      ratingDistribution: ratingDistribution.reduce((acc: any, item: any) => {
         acc[item.rating] = item._count.rating
         return acc
       }, {} as Record<number, number>)

@@ -280,7 +280,7 @@ describe('Reviews API', () => {
       ]
 
       const totalReviews = mockReviews.length
-      const averageRating = mockReviews.reduce((sum, review) => sum + review.rating, 0) / totalReviews
+      const averageRating = mockReviews.reduce((sum: any, review: any) => sum + review.rating, 0) / totalReviews
 
       expect(totalReviews).toBe(5)
       expect(averageRating).toBe(4.4)
@@ -397,7 +397,7 @@ describe('Reviews API', () => {
         { rating: 1 }
       ]
 
-      const averageRating = mockReviews.reduce((sum, review) => sum + review.rating, 0) / mockReviews.length
+      const averageRating = mockReviews.reduce((sum: any, review: any) => sum + review.rating, 0) / mockReviews.length
       const shouldFlag = averageRating < 2.5 && mockReviews.length >= 3
 
       expect(averageRating).toBe(1.4)

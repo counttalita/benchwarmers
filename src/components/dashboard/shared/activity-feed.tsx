@@ -172,7 +172,7 @@ export default function ActivityFeed({ activities, userType, onActionClick }: Ac
       </CardHeader>
       <CardContent className="p-0">
         <div className="divide-y">
-          {activities.map((activity) => (
+          {activities.map((activity: any) => (
             <div key={activity.id} className="p-4 hover:bg-gray-50 transition-colors">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0 mt-1">

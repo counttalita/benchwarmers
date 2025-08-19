@@ -209,7 +209,7 @@ export function NotificationPreferences({ userId, companyId, isOpen, onClose }: 
                       <Label htmlFor="timezone">Timezone</Label>
                       <Select
                         value={globalSettings.timezone}
-                        onValueChange={(value) => setGlobalSettings(prev => ({ ...prev, timezone: value }))}
+                        onValueChange={(value: any) => setGlobalSettings(prev => ({ ...prev, timezone: value }))}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -232,7 +232,7 @@ export function NotificationPreferences({ userId, companyId, isOpen, onClose }: 
                       <Input
                         type="time"
                         value={globalSettings.quietHoursStart}
-                        onChange={(e) => setGlobalSettings(prev => ({ ...prev, quietHoursStart: e.target.value }))}
+                        onChange={(e: any) => setGlobalSettings(prev => ({ ...prev, quietHoursStart: e.target.value }))}
                       />
                     </div>
                     
@@ -241,7 +241,7 @@ export function NotificationPreferences({ userId, companyId, isOpen, onClose }: 
                       <Input
                         type="time"
                         value={globalSettings.quietHoursEnd}
-                        onChange={(e) => setGlobalSettings(prev => ({ ...prev, quietHoursEnd: e.target.value }))}
+                        onChange={(e: any) => setGlobalSettings(prev => ({ ...prev, quietHoursEnd: e.target.value }))}
                       />
                     </div>
                   </div>
@@ -254,7 +254,7 @@ export function NotificationPreferences({ userId, companyId, isOpen, onClose }: 
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Notification Types</h3>
                 
-                {NOTIFICATION_TYPES.map((type) => {
+                {NOTIFICATION_TYPES.map((type: any) => {
                   const pref = preferences[type.type]
                   if (!pref) return null
 
@@ -270,7 +270,7 @@ export function NotificationPreferences({ userId, companyId, isOpen, onClose }: 
                                 <h4 className="font-medium">{type.label}</h4>
                                 <Switch
                                   checked={pref.enabled}
-                                  onCheckedChange={(checked) => updatePreference(type.type, 'enabled', checked)}
+                                  onCheckedChange={(checked: any) => updatePreference(type.type, 'enabled', checked)}
                                 />
                               </div>
                               
@@ -284,7 +284,7 @@ export function NotificationPreferences({ userId, companyId, isOpen, onClose }: 
                                   <div>
                                     <Label className="text-sm font-medium">Delivery Channels</Label>
                                     <div className="flex gap-4 mt-2">
-                                      {CHANNELS.map((channel) => {
+                                      {CHANNELS.map((channel: any) => {
                                         const Icon = channel.icon
                                         return (
                                           <div key={channel.value} className="flex items-center gap-2">
@@ -305,13 +305,13 @@ export function NotificationPreferences({ userId, companyId, isOpen, onClose }: 
                                     <Label className="text-sm font-medium">Frequency</Label>
                                     <Select
                                       value={pref.frequency || 'immediate'}
-                                      onValueChange={(value) => updatePreference(type.type, 'frequency', value)}
+                                      onValueChange={(value: any) => updatePreference(type.type, 'frequency', value)}
                                     >
                                       <SelectTrigger className="w-48 mt-1">
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        {FREQUENCIES.map((freq) => (
+                                        {FREQUENCIES.map((freq: any) => (
                                           <SelectItem key={freq.value} value={freq.value}>
                                             {freq.label}
                                           </SelectItem>

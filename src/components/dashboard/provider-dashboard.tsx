@@ -259,7 +259,7 @@ export default function ProviderDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {engagements.map((engagement) => (
+                {engagements.map((engagement: any) => (
                   <div key={engagement.id} className="border rounded-lg p-4">
                     <div className="flex justify-between items-start mb-3">
                       <div>
@@ -383,7 +383,7 @@ export default function ProviderDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {interviews.map((interview) => (
+                {interviews.map((interview: any) => (
                   <div key={interview.id} className="border rounded-lg p-4">
                     <div className="flex justify-between items-start mb-3">
                       <div>

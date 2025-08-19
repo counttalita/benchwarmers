@@ -350,7 +350,7 @@ export default function AdminDashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {recentActivity.map((activity) => (
+            {recentActivity.map((activity: any) => (
               <div key={activity.id} className="flex items-center space-x-4 p-3 rounded-lg border">
                 <div className={`p-2 rounded-full ${getSeverityColor(activity.severity)}`}>
                   {getActivityIcon(activity.type)}

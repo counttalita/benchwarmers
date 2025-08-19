@@ -96,7 +96,7 @@ export class SentryIntegration {
       }
 
       // In production, use actual Sentry SDK:
-      // Sentry.withScope((scope) => {
+      // Sentry.withScope((scope: any) => {
       //   if (context?.userId) scope.setUser({ id: context.userId })
       //   if (context?.companyId) scope.setTag('companyId', context.companyId)
       //   if (context?.correlationId) scope.setTag('correlationId', context.correlationId)
@@ -134,7 +134,7 @@ export class SentryIntegration {
       }
 
       // In production, use actual Sentry SDK:
-      // Sentry.withScope((scope) => {
+      // Sentry.withScope((scope: any) => {
       //   if (context?.userId) scope.setUser({ id: context.userId })
       //   if (context?.companyId) scope.setTag('companyId', context.companyId)
       //   if (context?.correlationId) scope.setTag('correlationId', context.correlationId)
@@ -398,7 +398,7 @@ export class SentryIntegration {
       .map(([endpoint, m]) => ({ endpoint, responseTime: m.responseTime }))
 
     const memoryUsages = metrics.map(([, m]) => m.memoryUsage)
-    const averageMemory = memoryUsages.reduce((sum, m) => sum + m, 0) / memoryUsages.length
+    const averageMemory = memoryUsages.reduce((sum: any, m: any) => sum + m, 0) / memoryUsages.length
     const peakMemory = Math.max(...memoryUsages)
 
     return {

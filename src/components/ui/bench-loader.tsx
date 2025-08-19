@@ -48,7 +48,7 @@ export function BenchLoader({ className, size = "md", message }: LoaderProps) {
       <div className="relative">
         {/* Bench seats representing talent */}
         <div className="flex space-x-2">
-          {[0, 1, 2].map((i) => (
+          {[0, 1, 2].map((i: any) => (
             <div
               key={i}
               className={cn(

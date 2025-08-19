@@ -288,7 +288,7 @@ export default function RequestDashboard() {
               <div>
                 <p className="text-sm text-muted-foreground">Total Matches</p>
                 <p className="text-2xl font-bold">
-                  {requests.reduce((sum, r) => sum + r.matchCount, 0)}
+                  {requests.reduce((sum: any, r: any) => sum + r.matchCount, 0)}
                 </p>
               </div>
               <div className="bg-purple-100 p-2 rounded-full">
@@ -304,7 +304,7 @@ export default function RequestDashboard() {
               <div>
                 <p className="text-sm text-muted-foreground">Responses</p>
                 <p className="text-2xl font-bold">
-                  {requests.reduce((sum, r) => sum + r.responseCount, 0)}
+                  {requests.reduce((sum: any, r: any) => sum + r.responseCount, 0)}
                 </p>
               </div>
               <div className="bg-orange-100 p-2 rounded-full">
@@ -325,7 +325,7 @@ export default function RequestDashboard() {
                 <Input
                   placeholder="Search requests by title, description, or skills..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e: any) => setSearchTerm(e.target.value)}
                   className="pl-10"
                 />
               </div>
@@ -377,7 +377,7 @@ export default function RequestDashboard() {
 
       {/* Requests List */}
       <div className="space-y-4">
-        {filteredRequests.map((request) => (
+        {filteredRequests.map((request: any) => (
           <Card key={request.id} className="hover:shadow-md transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-start justify-between mb-4">

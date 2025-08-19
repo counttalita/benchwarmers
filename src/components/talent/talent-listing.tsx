@@ -367,7 +367,7 @@ export default function TalentListing({
         <Input
           placeholder="Search by name, title, skills, or keywords..."
           value={filters.search}
-          onChange={(e) => updateFilter('search', e.target.value)}
+          onChange={(e: any) => updateFilter('search', e.target.value)}
           className="pl-10 pr-4 py-3 text-lg"
         />
       </div>
@@ -426,7 +426,7 @@ export default function TalentListing({
                 <Input
                   placeholder="City, Country"
                   value={filters.location}
-                  onChange={(e) => updateFilter('location', e.target.value)}
+                  onChange={(e: any) => updateFilter('location', e.target.value)}
                 />
               </div>
 
@@ -438,13 +438,13 @@ export default function TalentListing({
                     type="number"
                     placeholder="Min"
                     value={filters.minRate || ''}
-                    onChange={(e) => updateFilter('minRate', Number(e.target.value) || 0)}
+                    onChange={(e: any) => updateFilter('minRate', Number(e.target.value) || 0)}
                   />
                   <Input
                     type="number"
                     placeholder="Max"
                     value={filters.maxRate || ''}
-                    onChange={(e) => updateFilter('maxRate', Number(e.target.value) || 200)}
+                    onChange={(e: any) => updateFilter('maxRate', Number(e.target.value) || 200)}
                   />
                 </div>
               </div>
@@ -452,7 +452,7 @@ export default function TalentListing({
               {/* Availability */}
               <div>
                 <Label className="text-sm font-medium mb-2 block">Availability</Label>
-                <Select value={filters.availability} onValueChange={(value) => updateFilter('availability', value)}>
+                <Select value={filters.availability} onValueChange={(value: any) => updateFilter('availability', value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Any" />
                   </SelectTrigger>
@@ -468,7 +468,7 @@ export default function TalentListing({
               {/* Seniority Level */}
               <div>
                 <Label className="text-sm font-medium mb-2 block">Seniority</Label>
-                <Select value={filters.seniorityLevel} onValueChange={(value) => updateFilter('seniorityLevel', value)}>
+                <Select value={filters.seniorityLevel} onValueChange={(value: any) => updateFilter('seniorityLevel', value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Any" />
                   </SelectTrigger>
@@ -486,7 +486,7 @@ export default function TalentListing({
               {/* Remote Preference */}
               <div>
                 <Label className="text-sm font-medium mb-2 block">Work Style</Label>
-                <Select value={filters.remotePreference} onValueChange={(value) => updateFilter('remotePreference', value)}>
+                <Select value={filters.remotePreference} onValueChange={(value: any) => updateFilter('remotePreference', value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Any" />
                   </SelectTrigger>
@@ -503,7 +503,7 @@ export default function TalentListing({
               {/* Minimum Rating */}
               <div>
                 <Label className="text-sm font-medium mb-2 block">Min Rating</Label>
-                <Select value={filters.rating.toString()} onValueChange={(value) => updateFilter('rating', Number(value))}>
+                <Select value={filters.rating.toString()} onValueChange={(value: any) => updateFilter('rating', Number(value))}>
                   <SelectTrigger>
                     <SelectValue placeholder="Any" />
                   </SelectTrigger>
@@ -522,7 +522,7 @@ export default function TalentListing({
                   type="checkbox"
                   id="verified"
                   checked={filters.verified}
-                  onChange={(e) => updateFilter('verified', e.target.checked)}
+                  onChange={(e: any) => updateFilter('verified', e.target.checked)}
                   className="rounded"
                 />
                 <Label htmlFor="verified" className="text-sm">Verified only</Label>
@@ -546,7 +546,7 @@ export default function TalentListing({
 
       {/* Talent Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filteredAndSortedProfiles.map((profile) => (
+        {filteredAndSortedProfiles.map((profile: any) => (
           <Card key={profile.id} className="hover:shadow-lg transition-shadow cursor-pointer">
             <CardContent className="p-6">
               <div className="flex items-start gap-4">

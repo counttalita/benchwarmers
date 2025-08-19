@@ -180,7 +180,7 @@ export function NotificationCenter({ userId, companyId, isOpen, onClose }: Notif
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {filteredNotifications.map((notification) => (
+                  {filteredNotifications.map((notification: any) => (
                     <NotificationCard
                       key={notification.id}
                       notification={notification}

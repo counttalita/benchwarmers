@@ -179,7 +179,7 @@ export default function RateSettingInterface({
                   id="primaryMin"
                   type="number"
                   value={primaryRate.minRate}
-                  onChange={(e) => updateRate(primaryRate.currency, { minRate: parseFloat(e.target.value) || 0 })}
+                  onChange={(e: any) => updateRate(primaryRate.currency, { minRate: parseFloat(e.target.value) || 0 })}
                   placeholder="50"
                 />
               </div>
@@ -189,7 +189,7 @@ export default function RateSettingInterface({
                   id="primaryBase"
                   type="number"
                   value={primaryRate.baseRate}
-                  onChange={(e) => updateRate(primaryRate.currency, { baseRate: parseFloat(e.target.value) || 0 })}
+                  onChange={(e: any) => updateRate(primaryRate.currency, { baseRate: parseFloat(e.target.value) || 0 })}
                   placeholder="75"
                 />
               </div>
@@ -199,7 +199,7 @@ export default function RateSettingInterface({
                   id="primaryMax"
                   type="number"
                   value={primaryRate.maxRate}
-                  onChange={(e) => updateRate(primaryRate.currency, { maxRate: parseFloat(e.target.value) || 0 })}
+                  onChange={(e: any) => updateRate(primaryRate.currency, { maxRate: parseFloat(e.target.value) || 0 })}
                   placeholder="100"
                 />
               </div>
@@ -213,7 +213,7 @@ export default function RateSettingInterface({
                   id="rushRate"
                   type="number"
                   value={primaryRate.rushRate || ''}
-                  onChange={(e) => updateRate(primaryRate.currency, { rushRate: parseFloat(e.target.value) || undefined })}
+                  onChange={(e: any) => updateRate(primaryRate.currency, { rushRate: parseFloat(e.target.value) || undefined })}
                   placeholder="25% extra for urgent work"
                 />
               </div>
@@ -223,7 +223,7 @@ export default function RateSettingInterface({
                   id="weekendRate"
                   type="number"
                   value={primaryRate.weekendRate || ''}
-                  onChange={(e) => updateRate(primaryRate.currency, { weekendRate: parseFloat(e.target.value) || undefined })}
+                  onChange={(e: any) => updateRate(primaryRate.currency, { weekendRate: parseFloat(e.target.value) || undefined })}
                   placeholder="15% extra for weekends"
                 />
               </div>
@@ -233,7 +233,7 @@ export default function RateSettingInterface({
                   id="holidayRate"
                   type="number"
                   value={primaryRate.holidayRate || ''}
-                  onChange={(e) => updateRate(primaryRate.currency, { holidayRate: parseFloat(e.target.value) || undefined })}
+                  onChange={(e: any) => updateRate(primaryRate.currency, { holidayRate: parseFloat(e.target.value) || undefined })}
                   placeholder="50% extra for holidays"
                 />
               </div>
@@ -320,14 +320,14 @@ export default function RateSettingInterface({
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="newCurrency">Currency</Label>
-                <Select onValueChange={(value) => setNewRate({ ...newRate, currency: value })}>
+                <Select onValueChange={(value: any) => setNewRate({ ...newRate, currency: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select currency" />
                   </SelectTrigger>
                   <SelectContent>
                     {CURRENCIES
                       .filter(currency => !rates.some(r => r.currency === currency.code))
-                      .map((currency) => (
+                      .map((currency: any) => (
                         <SelectItem key={currency.code} value={currency.code}>
                           <div className="flex items-center gap-2">
                             <span>{currency.flag}</span>
@@ -346,7 +346,7 @@ export default function RateSettingInterface({
                     id="newMin"
                     type="number"
                     value={newRate.minRate}
-                    onChange={(e) => setNewRate({ ...newRate, minRate: parseFloat(e.target.value) || 0 })}
+                    onChange={(e: any) => setNewRate({ ...newRate, minRate: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
                 <div>
@@ -355,7 +355,7 @@ export default function RateSettingInterface({
                     id="newBase"
                     type="number"
                     value={newRate.baseRate}
-                    onChange={(e) => setNewRate({ ...newRate, baseRate: parseFloat(e.target.value) || 0 })}
+                    onChange={(e: any) => setNewRate({ ...newRate, baseRate: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
                 <div>
@@ -364,7 +364,7 @@ export default function RateSettingInterface({
                     id="newMax"
                     type="number"
                     value={newRate.maxRate}
-                    onChange={(e) => setNewRate({ ...newRate, maxRate: parseFloat(e.target.value) || 0 })}
+                    onChange={(e: any) => setNewRate({ ...newRate, maxRate: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
               </div>
@@ -411,7 +411,7 @@ export default function RateSettingInterface({
         )}
 
         {/* Other Currency Rates */}
-        {otherRates.map((rate) => {
+        {otherRates.map((rate: any) => {
           const currencyInfo = getCurrencyInfo(rate.currency)
           return (
             <Card key={rate.currency}>
@@ -438,7 +438,7 @@ export default function RateSettingInterface({
                     <Input
                       type="number"
                       value={rate.minRate}
-                      onChange={(e) => updateRate(rate.currency, { minRate: parseFloat(e.target.value) || 0 })}
+                      onChange={(e: any) => updateRate(rate.currency, { minRate: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
                   <div>
@@ -446,7 +446,7 @@ export default function RateSettingInterface({
                     <Input
                       type="number"
                       value={rate.baseRate}
-                      onChange={(e) => updateRate(rate.currency, { baseRate: parseFloat(e.target.value) || 0 })}
+                      onChange={(e: any) => updateRate(rate.currency, { baseRate: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
                   <div>
@@ -454,7 +454,7 @@ export default function RateSettingInterface({
                     <Input
                       type="number"
                       value={rate.maxRate}
-                      onChange={(e) => updateRate(rate.currency, { maxRate: parseFloat(e.target.value) || 0 })}
+                      onChange={(e: any) => updateRate(rate.currency, { maxRate: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
                 </div>

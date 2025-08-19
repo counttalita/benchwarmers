@@ -120,7 +120,7 @@ export class Cache {
     totalHits: number
     totalMisses: number
   } {
-    const totalHits = Array.from(this.cache.values()).reduce((sum, item) => sum + item.accessCount, 0)
+    const totalHits = Array.from(this.cache.values()).reduce((sum: any, item: any) => sum + item.accessCount, 0)
     const totalMisses = 0 // This would need to be tracked separately in a real implementation
     
     return {

@@ -378,7 +378,7 @@ export function sanitizeErrorForClient(error: AppError): Record<string, any> {
 
 // Group errors by category for bulk handling
 export function groupErrorsByCategory(errors: AppError[]): Record<ErrorCategory, AppError[]> {
-  return errors.reduce((groups, error) => {
+  return errors.reduce((groups: any, error: any) => {
     if (!groups[error.category]) {
       groups[error.category] = []
     }
@@ -460,7 +460,7 @@ export class ErrorAggregator {
   }
   
   getErrorsBySeverity(): Record<ErrorSeverity, AppError[]> {
-    return this.errors.reduce((groups, error) => {
+    return this.errors.reduce((groups: any, error: any) => {
       if (!groups[error.severity]) {
         groups[error.severity] = []
       }
@@ -694,17 +694,17 @@ export function getErrorStatistics(errors: AppError[]): {
   
   return {
     total: errors.length,
-    bySeverity: errors.reduce((acc, error) => {
+    bySeverity: errors.reduce((acc: any, error: any) => {
       acc[error.severity] = (acc[error.severity] || 0) + 1
       return acc
     }, {} as Record<ErrorSeverity, number>),
-    byCategory: errors.reduce((acc, error) => {
+    byCategory: errors.reduce((acc: any, error: any) => {
       acc[error.category] = (acc[error.category] || 0) + 1
       return acc
     }, {} as Record<ErrorCategory, number>),
     retryable: errors.filter(isRetryable).length,
     nonRetryable: errors.filter(error => !isRetryable(error)).length,
-    averageAge: ages.reduce((sum, age) => sum + age, 0) / ages.length,
+    averageAge: ages.reduce((sum: any, age: any) => sum + age, 0) / ages.length,
     oldestError: sortedByTime[sortedByTime.length - 1],
     newestError: sortedByTime[0]
   }
@@ -717,7 +717,7 @@ export function detectErrorPatterns(errors: AppError[]): {
   categoryTrends: Record<ErrorCategory, number[]>
 } {
   // Frequent error codes
-  const codeCounts = errors.reduce((acc, error) => {
+  const codeCounts = errors.reduce((acc: any, error: any) => {
     acc[error.code] = (acc[error.code] || 0) + 1
     return acc
   }, {} as Record<string, number>)

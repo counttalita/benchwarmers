@@ -264,7 +264,7 @@ export default function MatchResults({
               <Filter className="h-4 w-4 text-gray-500" />
               <select
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
+                onChange={(e: any) => setFilterStatus(e.target.value)}
                 className="border rounded px-3 py-1 text-sm"
               >
                 <option value="all">All Status</option>
@@ -281,7 +281,7 @@ export default function MatchResults({
               <SortAsc className="h-4 w-4 text-gray-500" />
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
+                onChange={(e: any) => setSortBy(e.target.value as any)}
                 className="border rounded px-3 py-1 text-sm"
               >
                 <option value="score">Match Score</option>
@@ -300,7 +300,7 @@ export default function MatchResults({
 
       {/* Match Cards */}
       <div className="space-y-4">
-        {sortedMatches.map((match) => (
+        {sortedMatches.map((match: any) => (
           <Card key={match.id} className="hover:shadow-lg transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-start gap-4">

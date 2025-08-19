@@ -148,7 +148,7 @@ export function UserManagement({ companyId, isAdminView = false }: UserManagemen
                 id="search"
                 placeholder="Search by name or email..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e: any) => setSearchTerm(e.target.value)}
               />
             </div>
             <div>
@@ -202,7 +202,7 @@ export function UserManagement({ companyId, isAdminView = false }: UserManagemen
             </CardContent>
           </Card>
         ) : (
-          filteredUsers.map((user) => (
+          filteredUsers.map((user: any) => (
             <Card key={user.id}>
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">

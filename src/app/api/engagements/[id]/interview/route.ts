@@ -197,10 +197,10 @@ export async function POST(
       }
 
       // Notify admin users for manual invoicing
-      const adminUsers = allStakeholders.filter((user) => user.role === 'admin')
+      const adminUsers = allStakeholders.filter((user: any) => user.role === 'admin')
       if (adminUsers.length > 0) {
         await notificationService.bulkCreateNotifications(
-          adminUsers.map((user) => ({
+          adminUsers.map((user: any) => ({
             userId: user.id,
             ...invoiceNotificationData
           }))

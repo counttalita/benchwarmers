@@ -210,7 +210,7 @@ export default function AvailabilityCalendar({
                   id="startDate"
                   type="date"
                   value={newSlot.startDate}
-                  onChange={(e) => setNewSlot({ ...newSlot, startDate: e.target.value })}
+                  onChange={(e: any) => setNewSlot({ ...newSlot, startDate: e.target.value })}
                   min={new Date().toISOString().split('T')[0]}
                 />
               </div>
@@ -220,7 +220,7 @@ export default function AvailabilityCalendar({
                   id="endDate"
                   type="date"
                   value={newSlot.endDate}
-                  onChange={(e) => setNewSlot({ ...newSlot, endDate: e.target.value })}
+                  onChange={(e: any) => setNewSlot({ ...newSlot, endDate: e.target.value })}
                   min={newSlot.startDate || new Date().toISOString().split('T')[0]}
                 />
               </div>
@@ -232,10 +232,10 @@ export default function AvailabilityCalendar({
                 <select
                   id="utilization"
                   value={newSlot.utilizationPercent}
-                  onChange={(e) => setNewSlot({ ...newSlot, utilizationPercent: parseInt(e.target.value) })}
+                  onChange={(e: any) => setNewSlot({ ...newSlot, utilizationPercent: parseInt(e.target.value) })}
                   className="w-full p-2 border border-input rounded-md"
                 >
-                  {UTILIZATION_LEVELS.map((level) => (
+                  {UTILIZATION_LEVELS.map((level: any) => (
                     <option key={level.value} value={level.value}>
                       {level.label}
                     </option>
@@ -250,7 +250,7 @@ export default function AvailabilityCalendar({
                   min="1"
                   max="168"
                   value={newSlot.hoursPerWeek}
-                  onChange={(e) => setNewSlot({ ...newSlot, hoursPerWeek: parseInt(e.target.value) || 40 })}
+                  onChange={(e: any) => setNewSlot({ ...newSlot, hoursPerWeek: parseInt(e.target.value) || 40 })}
                 />
               </div>
             </div>
@@ -260,7 +260,7 @@ export default function AvailabilityCalendar({
               <Input
                 id="notes"
                 value={newSlot.notes}
-                onChange={(e) => setNewSlot({ ...newSlot, notes: e.target.value })}
+                onChange={(e: any) => setNewSlot({ ...newSlot, notes: e.target.value })}
                 placeholder="Any additional notes about this availability..."
               />
             </div>
@@ -270,7 +270,7 @@ export default function AvailabilityCalendar({
                 type="checkbox"
                 id="isRecurring"
                 checked={newSlot.isRecurring}
-                onChange={(e) => setNewSlot({ ...newSlot, isRecurring: e.target.checked })}
+                onChange={(e: any) => setNewSlot({ ...newSlot, isRecurring: e.target.checked })}
               />
               <Label htmlFor="isRecurring">Recurring availability</Label>
             </div>
@@ -281,7 +281,7 @@ export default function AvailabilityCalendar({
                 <select
                   id="recurringPattern"
                   value={newSlot.recurringPattern || 'weekly'}
-                  onChange={(e) => setNewSlot({ ...newSlot, recurringPattern: e.target.value as 'weekly' | 'monthly' })}
+                  onChange={(e: any) => setNewSlot({ ...newSlot, recurringPattern: e.target.value as 'weekly' | 'monthly' })}
                   className="w-full p-2 border border-input rounded-md"
                 >
                   <option value="weekly">Weekly</option>
@@ -316,7 +316,7 @@ export default function AvailabilityCalendar({
             </CardContent>
           </Card>
         ) : (
-          sortedAvailability.map((slot) => {
+          sortedAvailability.map((slot: any) => {
             const utilizationInfo = getUtilizationInfo(slot.utilizationPercent)
             const isEditing = editingSlot === slot.id
             
@@ -331,7 +331,7 @@ export default function AvailabilityCalendar({
                           <Input
                             type="date"
                             value={slot.startDate}
-                            onChange={(e) => updateSlot(slot.id, { startDate: e.target.value })}
+                            onChange={(e: any) => updateSlot(slot.id, { startDate: e.target.value })}
                           />
                         </div>
                         <div>
@@ -339,7 +339,7 @@ export default function AvailabilityCalendar({
                           <Input
                             type="date"
                             value={slot.endDate}
-                            onChange={(e) => updateSlot(slot.id, { endDate: e.target.value })}
+                            onChange={(e: any) => updateSlot(slot.id, { endDate: e.target.value })}
                           />
                         </div>
                       </div>
@@ -349,10 +349,10 @@ export default function AvailabilityCalendar({
                           <Label>Utilization</Label>
                           <select
                             value={slot.utilizationPercent}
-                            onChange={(e) => updateSlot(slot.id, { utilizationPercent: parseInt(e.target.value) })}
+                            onChange={(e: any) => updateSlot(slot.id, { utilizationPercent: parseInt(e.target.value) })}
                             className="w-full p-2 border border-input rounded-md"
                           >
-                            {UTILIZATION_LEVELS.map((level) => (
+                            {UTILIZATION_LEVELS.map((level: any) => (
                               <option key={level.value} value={level.value}>
                                 {level.label}
                               </option>
@@ -364,7 +364,7 @@ export default function AvailabilityCalendar({
                           <Input
                             type="number"
                             value={slot.hoursPerWeek}
-                            onChange={(e) => updateSlot(slot.id, { hoursPerWeek: parseInt(e.target.value) || 40 })}
+                            onChange={(e: any) => updateSlot(slot.id, { hoursPerWeek: parseInt(e.target.value) || 40 })}
                           />
                         </div>
                       </div>
@@ -373,7 +373,7 @@ export default function AvailabilityCalendar({
                         <Label>Notes</Label>
                         <Input
                           value={slot.notes || ''}
-                          onChange={(e) => updateSlot(slot.id, { notes: e.target.value })}
+                          onChange={(e: any) => updateSlot(slot.id, { notes: e.target.value })}
                         />
                       </div>
 

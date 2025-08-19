@@ -231,7 +231,7 @@ export function OfferCard({ offer, userType, onOfferUpdated }: OfferCardProps) {
                 <input
                   type="number"
                   value={counterRate}
-                  onChange={(e) => setCounterRate(parseFloat(e.target.value) || 0)}
+                  onChange={(e: any) => setCounterRate(parseFloat(e.target.value) || 0)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                 />
               </div>
@@ -240,7 +240,7 @@ export function OfferCard({ offer, userType, onOfferUpdated }: OfferCardProps) {
               <label className="block text-sm font-medium mb-1">Message (optional)</label>
               <textarea
                 value={counterMessage}
-                onChange={(e) => setCounterMessage(e.target.value)}
+                onChange={(e: any) => setCounterMessage(e.target.value)}
                 placeholder="Explain your counter offer..."
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm h-20"
               />

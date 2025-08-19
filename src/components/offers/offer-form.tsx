@@ -175,7 +175,7 @@ export function OfferForm({
                           type="number" 
                           placeholder="85" 
                           {...field}
-                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                          onChange={(e: any) => field.onChange(parseFloat(e.target.value) || 0)}
                         />
                       </FormControl>
                       <FormDescription>

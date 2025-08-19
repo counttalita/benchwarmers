@@ -237,12 +237,12 @@ export default function ProfileCreationForm() {
 
             <div>
               <Label htmlFor="seniorityLevel">Seniority Level</Label>
-              <Select onValueChange={(value) => setValue('seniorityLevel', value as any)}>
+              <Select onValueChange={(value: any) => setValue('seniorityLevel', value as any)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select your seniority level" />
                 </SelectTrigger>
                 <SelectContent>
-                  {SENIORITY_LEVELS.map((level) => (
+                  {SENIORITY_LEVELS.map((level: any) => (
                     <SelectItem key={level.value} value={level.value}>
                       {level.label}
                     </SelectItem>
@@ -286,12 +286,12 @@ export default function ProfileCreationForm() {
 
             <div>
               <Label htmlFor="remotePreference">Remote Work Preference</Label>
-              <Select onValueChange={(value) => setValue('remotePreference', value as any)}>
+              <Select onValueChange={(value: any) => setValue('remotePreference', value as any)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select your remote work preference" />
                 </SelectTrigger>
                 <SelectContent>
-                  {REMOTE_PREFERENCES.map((pref) => (
+                  {REMOTE_PREFERENCES.map((pref: any) => (
                     <SelectItem key={pref.value} value={pref.value}>
                       {pref.label}
                     </SelectItem>
@@ -338,12 +338,12 @@ export default function ProfileCreationForm() {
               </div>
               <div>
                 <Label htmlFor="rateCurrency">Currency</Label>
-                <Select onValueChange={(value) => setValue('rateCurrency', value)}>
+                <Select onValueChange={(value: any) => setValue('rateCurrency', value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="USD" />
                   </SelectTrigger>
                   <SelectContent>
-                    {CURRENCIES.map((currency) => (
+                    {CURRENCIES.map((currency: any) => (
                       <SelectItem key={currency.value} value={currency.value}>
                         {currency.label}
                       </SelectItem>
@@ -368,24 +368,24 @@ export default function ProfileCreationForm() {
                 <Input
                   id="skillName"
                   value={currentSkill.name}
-                  onChange={(e) => setCurrentSkill({ ...currentSkill, name: e.target.value })}
+                  onChange={(e: any) => setCurrentSkill({ ...currentSkill, name: e.target.value })}
                   placeholder="e.g., React, Python, AWS"
                   list="common-skills"
                 />
                 <datalist id="common-skills">
-                  {COMMON_SKILLS.map((skill) => (
+                  {COMMON_SKILLS.map((skill: any) => (
                     <option key={skill} value={skill} />
                   ))}
                 </datalist>
               </div>
               <div>
                 <Label htmlFor="skillLevel">Level</Label>
-                <Select value={currentSkill.level} onValueChange={(value) => setCurrentSkill({ ...currentSkill, level: value as any })}>
+                <Select value={currentSkill.level} onValueChange={(value: any) => setCurrentSkill({ ...currentSkill, level: value as any })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {SKILL_LEVELS.map((level) => (
+                    {SKILL_LEVELS.map((level: any) => (
                       <SelectItem key={level.value} value={level.value}>
                         {level.label}
                       </SelectItem>
@@ -401,7 +401,7 @@ export default function ProfileCreationForm() {
                   min="0"
                   max="50"
                   value={currentSkill.yearsExperience}
-                  onChange={(e) => setCurrentSkill({ ...currentSkill, yearsExperience: parseInt(e.target.value) || 0 })}
+                  onChange={(e: any) => setCurrentSkill({ ...currentSkill, yearsExperience: parseInt(e.target.value) || 0 })}
                 />
               </div>
             </div>
@@ -446,7 +446,7 @@ export default function ProfileCreationForm() {
                 <Input
                   id="expRole"
                   value={currentExperience.role}
-                  onChange={(e) => setCurrentExperience({ ...currentExperience, role: e.target.value })}
+                  onChange={(e: any) => setCurrentExperience({ ...currentExperience, role: e.target.value })}
                   placeholder="Senior Developer"
                 />
               </div>
@@ -455,7 +455,7 @@ export default function ProfileCreationForm() {
                 <Input
                   id="expCompany"
                   value={currentExperience.company}
-                  onChange={(e) => setCurrentExperience({ ...currentExperience, company: e.target.value })}
+                  onChange={(e: any) => setCurrentExperience({ ...currentExperience, company: e.target.value })}
                   placeholder="TechCorp Inc"
                 />
               </div>
@@ -466,7 +466,7 @@ export default function ProfileCreationForm() {
                   type="number"
                   min="1"
                   value={currentExperience.duration}
-                  onChange={(e) => setCurrentExperience({ ...currentExperience, duration: parseInt(e.target.value) || 1 })}
+                  onChange={(e: any) => setCurrentExperience({ ...currentExperience, duration: parseInt(e.target.value) || 1 })}
                 />
               </div>
               <div>
@@ -474,7 +474,7 @@ export default function ProfileCreationForm() {
                 <Input
                   id="expIndustry"
                   value={currentExperience.industry}
-                  onChange={(e) => setCurrentExperience({ ...currentExperience, industry: e.target.value })}
+                  onChange={(e: any) => setCurrentExperience({ ...currentExperience, industry: e.target.value })}
                   placeholder="fintech, e-commerce, healthcare"
                 />
               </div>
@@ -484,7 +484,7 @@ export default function ProfileCreationForm() {
               <Textarea
                 id="expDescription"
                 value={currentExperience.description}
-                onChange={(e) => setCurrentExperience({ ...currentExperience, description: e.target.value })}
+                onChange={(e: any) => setCurrentExperience({ ...currentExperience, description: e.target.value })}
                 placeholder="Describe your key achievements and responsibilities..."
                 rows={3}
               />
@@ -535,9 +535,9 @@ export default function ProfileCreationForm() {
             <div className="flex gap-2">
               <Input
                 value={currentLanguage}
-                onChange={(e) => setCurrentLanguage(e.target.value)}
+                onChange={(e: any) => setCurrentLanguage(e.target.value)}
                 placeholder="e.g., English, Spanish, French"
-                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addLanguage())}
+                onKeyPress={(e: any) => e.key === 'Enter' && (e.preventDefault(), addLanguage())}
               />
               <Button type="button" onClick={addLanguage}>
                 <Plus className="h-4 w-4" />

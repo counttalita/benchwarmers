@@ -222,7 +222,7 @@ export function CompanyApprovalCard({ company, onActionComplete }: CompanyApprov
                   <Input
                     id="rejectionReason"
                     value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
+                    onChange={(e: any) => setRejectionReason(e.target.value)}
                     placeholder="Please provide a clear reason for rejection..."
                     className="mt-1"
                   />

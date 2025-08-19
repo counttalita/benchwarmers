@@ -158,7 +158,7 @@ describe('Domain Verification API', () => {
       // Mock Resend
       jest.mocked(require('resend').Resend).mockImplementation(() => ({
         emails: {
-          send: jest.fn().mockResolvedValue({ data: { id: 'email-123' }, error: null })
+          send: jest.fn() as jest.MockedFunction<any>.mockResolvedValue({ data: { id: 'email-123' }, error: null })
         }
       }));
 

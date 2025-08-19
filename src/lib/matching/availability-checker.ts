@@ -73,7 +73,7 @@ export class AvailabilityChecker {
       logInfo('Availability check completed', {
         correlationId,
         matchesFound: matches.length,
-        averageScore: matches.reduce((sum, m) => sum + m.availabilityScore, 0) / matches.length
+        averageScore: matches.reduce((sum: any, m: any) => sum + m.availabilityScore, 0) / matches.length
       })
 
       return matches
@@ -355,7 +355,7 @@ export class AvailabilityChecker {
     const availableSlots = slots.filter(slot => slot.status === 'available')
     if (availableSlots.length === 0) return 0
     
-    const averageCapacity = availableSlots.reduce((sum, slot) => sum + slot.capacity, 0) / availableSlots.length
+    const averageCapacity = availableSlots.reduce((sum: any, slot: any) => sum + slot.capacity, 0) / availableSlots.length
     return Math.round(averageCapacity * 100) / 100
   }
 
@@ -503,7 +503,7 @@ export class AvailabilityChecker {
     const bookedSlots = talentSlots.filter(slot => slot.status === 'booked')
     
     const averageCapacity = availableSlots.length > 0 
-      ? availableSlots.reduce((sum, slot) => sum + slot.capacity, 0) / availableSlots.length
+      ? availableSlots.reduce((sum: any, slot: any) => sum + slot.capacity, 0) / availableSlots.length
       : 0
     
     const nextAvailableDate = availableSlots

@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
 
     // Create company and user in transaction
     const transactionStartTime = Date.now()
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       // Create company
       const companyCreateStartTime = Date.now()
       const company = await tx.company.create({

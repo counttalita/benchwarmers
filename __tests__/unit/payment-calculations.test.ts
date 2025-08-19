@@ -147,7 +147,7 @@ describe('Payment System Unit Tests', () => {
         { percentage: 30, description: 'Final delivery' }
       ]
       
-      const totalPercentage = milestones.reduce((sum, milestone) => sum + milestone.percentage, 0)
+      const totalPercentage = milestones.reduce((sum: any, milestone: any) => sum + milestone.percentage, 0)
       expect(totalPercentage).toBe(100)
       
       const milestoneAmounts = milestones.map(milestone => 
@@ -218,7 +218,7 @@ describe('Payment System Unit Tests', () => {
         { percentage: 60, description: 'More than half' } // Total > 100%
       ]
       
-      const totalPercentage = milestones.reduce((sum, milestone) => sum + milestone.percentage, 0)
+      const totalPercentage = milestones.reduce((sum: any, milestone: any) => sum + milestone.percentage, 0)
       expect(totalPercentage).toBeGreaterThan(100)
     })
 

@@ -91,7 +91,7 @@ describe('Payment Calculations', () => {
         { percentage: 30, amount: (totalAmount * 30) / 100 }
       ]
       
-      const totalMilestoneAmount = milestones.reduce((sum, m) => sum + m.amount, 0)
+      const totalMilestoneAmount = milestones.reduce((sum: any, m: any) => sum + m.amount, 0)
       
       expect(totalMilestoneAmount).toBe(10000)
       expect(milestones[0].amount).toBe(3000)

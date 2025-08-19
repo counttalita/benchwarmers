@@ -149,7 +149,7 @@ export default function AdminPaymentsPage() {
         <div className="flex gap-2">
           <select
             value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value)}
+            onChange={(e: any) => setTimeRange(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-md"
           >
             <option value="7d">Last 7 days</option>
@@ -333,7 +333,7 @@ export default function AdminPaymentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {transactions.slice(0, 10).map((transaction) => (
+                {transactions.slice(0, 10).map((transaction: any) => (
                   <tr key={transaction.id} className="border-b hover:bg-gray-50">
                     <td className="p-2">
                       <div className="flex items-center gap-2">

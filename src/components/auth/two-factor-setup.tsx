@@ -183,7 +183,7 @@ export function TwoFactorSetup({ userId, isEnabled, onStatusChange }: TwoFactorS
                       id="disable-code"
                       placeholder="Enter 6-digit code"
                       value={disableCode}
-                      onChange={(e) => setDisableCode(e.target.value)}
+                      onChange={(e: any) => setDisableCode(e.target.value)}
                       maxLength={6}
                     />
                   </div>
@@ -206,7 +206,7 @@ export function TwoFactorSetup({ userId, isEnabled, onStatusChange }: TwoFactorS
               </DialogContent>
             </Dialog>
           ) : (
-            <Dialog open={isSetupDialogOpen} onOpenChange={(open) => {
+            <Dialog open={isSetupDialogOpen} onOpenChange={(open: any) => {
               setIsSetupDialogOpen(open)
               if (!open) resetSetup()
             }}>
@@ -266,7 +266,7 @@ export function TwoFactorSetup({ userId, isEnabled, onStatusChange }: TwoFactorS
                         id="verification-code"
                         placeholder="Enter 6-digit code"
                         value={verificationCode}
-                        onChange={(e) => setVerificationCode(e.target.value)}
+                        onChange={(e: any) => setVerificationCode(e.target.value)}
                         maxLength={6}
                       />
                     </div>

@@ -543,7 +543,7 @@ export class MatchingEngine {
     if (completedProjects.length === 0) return 0.3
 
     // Calculate average project duration vs expected
-    const avgDuration = completedProjects.reduce((sum, p) => sum + p.duration, 0) / completedProjects.length
+    const avgDuration = completedProjects.reduce((sum: any, p: any) => sum + p.duration, 0) / completedProjects.length
     
     // Score based on project completion speed (lower duration = higher score)
     const baseScore = Math.max(0.5, 1 - (avgDuration - 4) / 20) // Normalize around 4 weeks
@@ -558,10 +558,10 @@ export class MatchingEngine {
     if (talent.ratings.length === 0) return 0.5
 
     // Average rating
-    const avgRating = talent.ratings.reduce((sum, r) => sum + r.score, 0) / talent.ratings.length
+    const avgRating = talent.ratings.reduce((sum: any, r: any) => sum + r.score, 0) / talent.ratings.length
     
     // Rating consistency
-    const ratingVariance = talent.ratings.reduce((sum, r) => sum + Math.pow(r.score - avgRating, 2), 0) / talent.ratings.length
+    const ratingVariance = talent.ratings.reduce((sum: any, r: any) => sum + Math.pow(r.score - avgRating, 2), 0) / talent.ratings.length
     const consistencyScore = Math.max(0, 1 - ratingVariance / 2)
 
     // Project completion rate
@@ -662,7 +662,7 @@ export class MatchingEngine {
     successProbability += completionRate * 0.2
 
     // Based on experience level
-    const avgExperience = talent.skills.reduce((sum, s) => sum + s.yearsOfExperience, 0) / talent.skills.length
+    const avgExperience = talent.skills.reduce((sum: any, s: any) => sum + s.yearsOfExperience, 0) / talent.skills.length
     if (avgExperience >= 5) successProbability += 0.1
 
     return Math.min(successProbability, 1)

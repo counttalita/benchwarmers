@@ -238,14 +238,14 @@ export default function AdminUsersPage() {
                 <Input
                   placeholder="Search by name, email, or phone..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e: any) => setSearchTerm(e.target.value)}
                   className="pl-10"
                 />
               </div>
             </div>
             <select
               value={filterRole}
-              onChange={(e) => setFilterRole(e.target.value)}
+              onChange={(e: any) => setFilterRole(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-md"
             >
               <option value="all">All Roles</option>
@@ -254,7 +254,7 @@ export default function AdminUsersPage() {
             </select>
             <select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
+              onChange={(e: any) => setFilterStatus(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-md"
             >
               <option value="all">All Status</option>
@@ -329,7 +329,7 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.map((user) => (
+                {filteredUsers.map((user: any) => (
                   <tr key={user.id} className="border-b hover:bg-gray-50">
                     <td className="p-2">
                       <input

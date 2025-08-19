@@ -103,7 +103,7 @@ export default function TestTwilioPage() {
               id="phone"
               type="tel"
               value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
+              onChange={(e: any) => setPhoneNumber(e.target.value)}
               placeholder="+1234567890"
               className="w-full p-3 border rounded-md"
             />
@@ -132,7 +132,7 @@ export default function TestTwilioPage() {
               id="otp"
               type="text"
               value={otp}
-              onChange={(e) => setOtp(e.target.value)}
+              onChange={(e: any) => setOtp(e.target.value)}
               placeholder="123456"
               maxLength={6}
               className="w-full p-3 border rounded-md text-center text-lg"

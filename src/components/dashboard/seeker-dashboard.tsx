@@ -305,7 +305,7 @@ export default function SeekerDashboard({ companyId }: SeekerDashboardProps) {
                 </div>
               ) : (
                 <div className="divide-y">
-                  {projects.map((project) => (
+                  {projects.map((project: any) => (
                     <div key={project.id} className="p-4 hover:bg-gray-50 transition-colors">
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1">

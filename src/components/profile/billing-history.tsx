@@ -136,7 +136,7 @@ export default function BillingHistory() {
           </div>
         ) : (
           <div className="space-y-4">
-            {billingHistory.map((record) => (
+            {billingHistory.map((record: any) => (
               <div
                 key={record.id}
                 className="flex items-center justify-between p-4 border rounded-lg"

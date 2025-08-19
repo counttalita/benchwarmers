@@ -393,7 +393,7 @@ export default function AdminDashboard({ }: AdminDashboardProps) {
                 </div>
               ) : (
                 <div className="divide-y">
-                  {filteredEngagements.map((engagement) => (
+                  {filteredEngagements.map((engagement: any) => (
                     <div key={engagement.id} className="p-4 hover:bg-gray-50 transition-colors">
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1">
@@ -414,7 +414,7 @@ export default function AdminDashboard({ }: AdminDashboardProps) {
                         <div className="flex gap-2">
                           <Select 
                             value={engagement.status} 
-                            onValueChange={(value) => handleStatusUpdate(engagement.id, value)}
+                            onValueChange={(value: any) => handleStatusUpdate(engagement.id, value)}
                           >
                             <SelectTrigger className="w-32">
                               <SelectValue />

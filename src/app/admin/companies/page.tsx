@@ -133,19 +133,19 @@ export default function AdminCompaniesPage() {
             searchTerm={searchTerm}
             selectedType={selectedType}
             domainVerified={domainVerified}
-            onStatusChange={(status) => {
+            onStatusChange={(status: any) => {
               setSelectedStatus(status)
               setPagination(prev => ({ ...prev, page: 1 }))
             }}
-            onSearchChange={(search) => {
+            onSearchChange={(search: any) => {
               setSearchTerm(search)
               setPagination(prev => ({ ...prev, page: 1 }))
             }}
-            onTypeChange={(type) => {
+            onTypeChange={(type: any) => {
               setSelectedType(type)
               setPagination(prev => ({ ...prev, page: 1 }))
             }}
-            onDomainVerifiedChange={(verified) => {
+            onDomainVerifiedChange={(verified: any) => {
               setDomainVerified(verified)
               setPagination(prev => ({ ...prev, page: 1 }))
             }}
@@ -174,7 +174,7 @@ export default function AdminCompaniesPage() {
             </CardContent>
           </Card>
         ) : (
-          companies.map((company) => (
+          companies.map((company: any) => (
             <CompanyApprovalCard
               key={company.id}
               company={company}

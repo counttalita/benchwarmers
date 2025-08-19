@@ -97,7 +97,7 @@ export function FileUpload({
       {uploadedFiles.length > 0 && (
         <div className="space-y-2">
           <h4 className="font-medium">Uploaded Files:</h4>
-          {uploadedFiles.map((file) => (
+          {uploadedFiles.map((file: any) => (
             <div key={file.id} className="flex items-center justify-between p-2 border rounded">
               <div className="flex items-center gap-2">
                 <span className="text-sm">{file.name}</span>

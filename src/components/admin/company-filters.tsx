@@ -70,7 +70,7 @@ export function CompanyFilters({
               id="search"
               placeholder="Search by name or domain..."
               value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
+              onChange={(e: any) => setLocalSearch(e.target.value)}
             />
             <Button type="submit" variant="outline">
               Search
@@ -82,7 +82,7 @@ export function CompanyFilters({
         <div className="space-y-2">
           <Label>Status</Label>
           <div className="flex flex-wrap gap-2">
-            {statusOptions.map((option) => (
+            {statusOptions.map((option: any) => (
               <Button
                 key={option.value}
                 variant={selectedStatus === option.value ? "default" : "outline"}
@@ -99,7 +99,7 @@ export function CompanyFilters({
         <div className="space-y-2">
           <Label>Company Type</Label>
           <div className="flex flex-wrap gap-2">
-            {typeOptions.map((option) => (
+            {typeOptions.map((option: any) => (
               <Button
                 key={option.value}
                 variant={selectedType === option.value ? "default" : "outline"}
@@ -116,7 +116,7 @@ export function CompanyFilters({
         <div className="space-y-2">
           <Label>Domain Verification</Label>
           <div className="flex flex-wrap gap-2">
-            {verificationOptions.map((option) => (
+            {verificationOptions.map((option: any) => (
               <Button
                 key={option.value}
                 variant={domainVerified === option.value ? "default" : "outline"}

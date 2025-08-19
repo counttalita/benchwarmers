@@ -32,13 +32,13 @@ export async function createServer(): Promise<FastifyInstance> {
     logger: {
       level: process.env.LOG_LEVEL || 'info',
       serializers: {
-        req: (request) => ({
+        req: (request: any) => ({
           method: request.method,
           url: request.url,
           correlationId: (request as { context?: { correlationId?: string } }).context?.correlationId,
           userId: (request as { context?: { userId?: string } }).context?.userId,
         }),
-        res: (reply) => ({
+        res: (reply: any) => ({
           statusCode: reply.statusCode,
         }),
       },
@@ -87,7 +87,7 @@ async function registerPlugins(server: FastifyInstance) {
   await server.register(rateLimit, {
     max: 100, // requests
     timeWindow: '1 minute',
-    keyGenerator: (request) => {
+    keyGenerator: (request: any) => {
       return request.context?.userId || request.ip
     },
     errorResponseBuilder: (request, context) => {

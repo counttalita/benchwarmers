@@ -170,7 +170,7 @@ export default function EngagementList({
                 <Filter className="h-4 w-4 text-gray-500" />
                 <select
                   value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
+                  onChange={(e: any) => setFilterStatus(e.target.value)}
                   className="border rounded px-3 py-1 text-sm"
                 >
                   <option value="all">All Status</option>
@@ -189,7 +189,7 @@ export default function EngagementList({
                 <SortAsc className="h-4 w-4 text-gray-500" />
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
+                  onChange={(e: any) => setSortBy(e.target.value as any)}
                   className="border rounded px-3 py-1 text-sm"
                 >
                   <option value="date">Date Updated</option>
@@ -241,7 +241,7 @@ export default function EngagementList({
 
       {/* Engagement Cards */}
       <div className="space-y-4">
-        {sortedEngagements.map((engagement) => (
+        {sortedEngagements.map((engagement: any) => (
           <Card key={engagement.id} className="hover:shadow-lg transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-start gap-4">

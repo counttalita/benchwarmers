@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
       completedEngagements: engagements.filter(e => e.status === 'completed').length,
       totalEarnings: engagements
         .filter(e => e.status === 'completed')
-        .reduce((sum, e) => sum + e.payments.reduce((pSum, p) => pSum + Number(p.amount), 0), 0),
+        .reduce((sum: any, e: any) => sum + e.payments.reduce((pSum: any, p: any) => pSum + Number(p.amount), 0), 0),
       averageRating: calculateAverageRating(engagements),
       upcomingInterviews: interviews.filter(i => 
         i.status === 'scheduled' && new Date(i.startTime) > new Date()
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
       engagementEndDate: engagement.endDate,
       hourlyRate: engagement.hourlyRate || 0,
       totalHours: engagement.totalHours || 0,
-      totalEarnings: engagement.payments.reduce((sum, p) => sum + Number(p.amount), 0),
+      totalEarnings: engagement.payments.reduce((sum: any, p: any) => sum + Number(p.amount), 0),
       rating: engagement.rating || 0,
       feedback: engagement.feedback
     }))
@@ -187,6 +187,6 @@ function calculateAverageRating(engagements: any[]): number {
   
   if (ratedEngagements.length === 0) return 0
   
-  const totalRating = ratedEngagements.reduce((sum, e) => sum + e.rating, 0)
+  const totalRating = ratedEngagements.reduce((sum: any, e: any) => sum + e.rating, 0)
   return totalRating / ratedEngagements.length
 }

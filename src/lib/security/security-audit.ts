@@ -248,14 +248,14 @@ class SecurityAuditor {
   }
 
   private groupEventsByType(events: SecurityEvent[]) {
-    return events.reduce((acc, event) => {
+    return events.reduce((acc: any, event: any) => {
       acc[event.type] = (acc[event.type] || 0) + 1
       return acc
     }, {} as Record<string, number>)
   }
 
   private groupEventsBySeverity(events: SecurityEvent[]) {
-    return events.reduce((acc, event) => {
+    return events.reduce((acc: any, event: any) => {
       acc[event.severity] = (acc[event.severity] || 0) + 1
       return acc
     }, {} as Record<string, number>)

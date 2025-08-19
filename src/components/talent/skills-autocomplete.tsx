@@ -208,7 +208,7 @@ export default function SkillsAutocomplete({
     return SKILL_LEVELS.find(l => l.value === level) || SKILL_LEVELS[1]
   }
 
-  const groupedSkills = filteredSkills.reduce((acc, skill) => {
+  const groupedSkills = filteredSkills.reduce((acc: any, skill: any) => {
     if (!acc[skill.category]) {
       acc[skill.category] = []
     }
@@ -227,7 +227,7 @@ export default function SkillsAutocomplete({
             type="text"
             placeholder={placeholder}
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e: any) => setSearchTerm(e.target.value)}
             onFocus={() => searchTerm.length > 0 && setIsOpen(true)}
             className="pl-10"
             disabled={selectedSkills.length >= maxSkills}
@@ -245,7 +245,7 @@ export default function SkillsAutocomplete({
                 <div className="px-3 py-2 text-xs font-semibold text-gray-500 bg-gray-50 border-b">
                   {category}
                 </div>
-                {skills.map((skill) => (
+                {skills.map((skill: any) => (
                   <button
                     key={skill.name}
                     onClick={() => handleSkillSelect(skill)}
@@ -277,7 +277,7 @@ export default function SkillsAutocomplete({
               <div>
                 <label className="block text-sm font-medium mb-2">Experience Level</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {SKILL_LEVELS.map((level) => (
+                  {SKILL_LEVELS.map((level: any) => (
                     <button
                       key={level.value}
                       onClick={() => setTempLevel(level.value as any)}
@@ -300,7 +300,7 @@ export default function SkillsAutocomplete({
                   min="0"
                   max="50"
                   value={tempYears}
-                  onChange={(e) => setTempYears(parseInt(e.target.value) || 0)}
+                  onChange={(e: any) => setTempYears(parseInt(e.target.value) || 0)}
                   className="w-full"
                 />
               </div>
@@ -349,14 +349,14 @@ export default function SkillsAutocomplete({
                   <div className="flex items-center gap-2">
                     <select
                       value={skill.level}
-                      onChange={(e) => updateSkillLevel(
+                      onChange={(e: any) => updateSkillLevel(
                         skill.name, 
                         e.target.value as SelectedSkill['level'],
                         skill.yearsExperience
                       )}
                       className="text-xs border rounded px-2 py-1"
                     >
-                      {SKILL_LEVELS.map((level) => (
+                      {SKILL_LEVELS.map((level: any) => (
                         <option key={level.value} value={level.value}>
                           {level.value}
                         </option>
@@ -368,7 +368,7 @@ export default function SkillsAutocomplete({
                       min="0"
                       max="50"
                       value={skill.yearsExperience}
-                      onChange={(e) => updateSkillLevel(
+                      onChange={(e: any) => updateSkillLevel(
                         skill.name,
                         skill.level,
                         parseInt(e.target.value) || 0

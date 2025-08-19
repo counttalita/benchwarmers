@@ -266,8 +266,8 @@ export class TransactionService {
       const paymentTransactions = transactions.filter(t => t.type === 'payment' && t.status === 'completed')
       const feeTransactions = transactions.filter(t => t.type === 'fee' && t.status === 'completed')
 
-      const totalPayments = paymentTransactions.reduce((sum, t) => sum + t.amount, 0)
-      const totalFees = feeTransactions.reduce((sum, t) => sum + t.amount, 0)
+      const totalPayments = paymentTransactions.reduce((sum: any, t: any) => sum + t.amount, 0)
+      const totalFees = feeTransactions.reduce((sum: any, t: any) => sum + t.amount, 0)
       const paymentCount = paymentTransactions.length
       const averagePayment = paymentCount > 0 ? totalPayments / paymentCount : 0
 
