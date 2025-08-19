@@ -21,7 +21,11 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const correlationId = uuidv4()
+
   try {
+    const resolvedParams = await params
+    const engagementId = resolvedParams.id
     // Authentication check
     const user = await getCurrentUser(request)
     if (!user) {

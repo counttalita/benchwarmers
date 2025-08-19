@@ -25,6 +25,7 @@ export async function POST(
   const correlationId = uuidv4()
 
   try {
+    const resolvedParams = await params
     const contractId = resolvedParams.id
     const body = await request.json()
     
