@@ -183,81 +183,86 @@ enum CalendarIntegrationType {
 }
 
 model User {
-  id                String    @id @default(cuid())
-  name              String
-  email             String    @unique
-  phone             String?   @unique
-  passwordHash      String?   @map("password_hash")
-  role              UserRole  @default(member)
-  isEmailVerified   Boolean   @default(false) @map("is_email_verified")
-  isPhoneVerified   Boolean   @default(false) @map("is_phone_verified")
-  emailVerificationToken String? @map("email_verification_token")
-  phoneVerificationToken String? @map("phone_verification_token")
-  resetPasswordToken String? @map("reset_password_token")
-  resetPasswordExpires DateTime? @map("reset_password_expires")
-  lastLoginAt       DateTime? @map("last_login_at")
-  isActive          Boolean   @default(true) @map("is_active")
-  paystackCustomerId String? @map("paystack_customer_id")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  id                     String    @id @default(cuid())
+  name                   String
+  email                  String    @unique
+  phone                  String?   @unique
+  passwordHash           String?   @map("password_hash")
+  role                   UserRole  @default(member)
+  isEmailVerified        Boolean   @default(false) @map("is_email_verified")
+  isPhoneVerified        Boolean   @default(false) @map("is_phone_verified")
+  emailVerificationToken String?   @map("email_verification_token")
+  phoneVerificationToken String?   @map("phone_verification_token")
+  resetPasswordToken     String?   @map("reset_password_token")
+  resetPasswordExpires   DateTime? @map("reset_password_expires")
+  lastLoginAt            DateTime? @map("last_login_at")
+  isActive               Boolean   @default(true) @map("is_active")
+  paystackCustomerId     String?   @map("paystack_customer_id")
+  companyId              String?   @map("company_id")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  company           Company?
-  talentProfiles    TalentProfile[]
-  talentRequests    TalentRequest[]
-  offers            Offer[]
-  engagements       Engagement[]
-  payments          Payment[]
-  notifications     Notification[]
+  company                 Company?                 @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  talentProfiles          TalentProfile[]
+  talentRequests          TalentRequest[]
+  offers                  Offer[]
+  engagements             Engagement[]
+  payments                Payment[]
+  notifications           Notification[]
   notificationPreferences NotificationPreference[]
-  contracts         Contract[]
-  contractSignatures ContractSignature[]
-  calendarIntegrations CalendarIntegration[]
-  interviewSchedules InterviewSchedule[]
+  contracts               Contract[]
+  contractSignatures      ContractSignature[]
+  calendarIntegrations    CalendarIntegration[]
+  interviewSchedules      InterviewSchedule[]
+  seekerEngagements       Engagement[]             @relation("SeekerUser")
+  providerEngagements     Engagement[]             @relation("ProviderUser")
 
   @@index([email])
   @@index([phone])
   @@index([role])
   @@index([isActive])
+  @@index([companyId])
   @@map("users")
 }
 
 model Company {
-  id                String        @id @default(cuid())
-  name              String
-  type              CompanyType
-  status            CompanyStatus @default(pending)
-  industry          String?
-  size              String?
-  website           String?
-  description       String?
-  logoUrl           String?       @map("logo_url")
-  address           String?
-  city              String?
-  state             String?
-  country           String?
-  postalCode        String?       @map("postal_code")
-  phone             String?
-  email             String?
-  taxId             String?       @map("tax_id")
-  registrationNumber String?      @map("registration_number")
-  verificationToken String?       @map("verification_token")
-  isVerified        Boolean       @default(false) @map("is_verified")
-  verifiedAt        DateTime?     @map("verified_at")
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
+  id                 String        @id @default(cuid())
+  name               String
+  type               CompanyType
+  status             CompanyStatus @default(pending)
+  industry           String?
+  size               String?
+  website            String?
+  description        String?
+  logoUrl            String?       @map("logo_url")
+  address            String?
+  city               String?
+  state              String?
+  country            String?
+  postalCode         String?       @map("postal_code")
+  phone              String?
+  email              String?
+  taxId              String?       @map("tax_id")
+  registrationNumber String?       @map("registration_number")
+  verificationToken  String?       @map("verification_token")
+  isVerified         Boolean       @default(false) @map("is_verified")
+  verifiedAt         DateTime?     @map("verified_at")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  users             User[]
-  talentProfiles    TalentProfile[]
-  talentRequests    TalentRequest[]
-  offers            Offer[]
-  engagements       Engagement[]
-  payments          Payment[]
-  notifications     Notification[]
+  users                   User[]
+  talentProfiles          TalentProfile[]
+  talentRequests          TalentRequest[]
+  offers                  Offer[]
+  seekerEngagements       Engagement[]             @relation("SeekerEngagements")
+  providerEngagements     Engagement[]             @relation("ProviderEngagements")
+  payments                Payment[]
+  notifications           Notification[]
   notificationPreferences NotificationPreference[]
-  contracts         Contract[]
-  contractSignatures ContractSignature[]
+  contracts               Contract[]
+  contractSignatures      ContractSignature[]
 
   @@index([type])
   @@index([status])
@@ -267,43 +272,44 @@ model Company {
 }
 
 model TalentProfile {
-  id                String    @id @default(cuid())
-  userId            String    @map("user_id")
-  companyId         String    @map("company_id")
-  name              String
-  title             String?
-  bio               String?
-  skills            Json      // Array of skill objects
-  experience        Json      // Array of experience objects
-  education         Json?     // Array of education objects
-  certifications    Json?     // Array of certification objects
-  portfolio         Json?     // Array of portfolio items
-  availability      String?   // available, partially_available, unavailable
-  rateMin           Decimal   @map("rate_min")
-  rateMax           Decimal   @map("rate_max")
-  currency          String    @default("ZAR")
-  location          String?
-  timezone          String    @default("UTC")
-  languages         String[]  // Array of language codes
-  remotePreference  String?   @map("remote_preference") // remote, hybrid, onsite
-  workingHours      Json?     @map("working_hours") // Working hours configuration
-  preferredCompanySize String? @map("preferred_company_size")
-  workStyle         String?   @map("work_style") // agile, waterfall, hybrid
-  communicationStyle String? @map("communication_style") // formal, casual, mixed
-  isVisible         Boolean   @default(true) @map("is_visible")
-  status            String    @default("active")
-  rating            Decimal?  @default(0)
-  totalReviews      Int       @default(0) @map("total_reviews")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  id                   String   @id @default(cuid())
+  userId               String   @map("user_id")
+  companyId            String   @map("company_id")
+  name                 String
+  title                String?
+  bio                  String?
+  skills               Json // Array of skill objects
+  experience           Json // Array of experience objects
+  education            Json? // Array of education objects
+  certifications       Json? // Array of certification objects
+  portfolio            Json? // Array of portfolio items
+  availability         String? // available, partially_available, unavailable
+  rateMin              Decimal  @map("rate_min")
+  rateMax              Decimal  @map("rate_max")
+  currency             String   @default("ZAR")
+  location             String?
+  timezone             String   @default("UTC")
+  languages            String[] // Array of language codes
+  remotePreference     String?  @map("remote_preference") // remote, hybrid, onsite
+  workingHours         Json?    @map("working_hours") // Working hours configuration
+  preferredCompanySize String?  @map("preferred_company_size")
+  workStyle            String?  @map("work_style") // agile, waterfall, hybrid
+  communicationStyle   String?  @map("communication_style") // formal, casual, mixed
+  isVisible            Boolean  @default(true) @map("is_visible")
+  status               String   @default("active")
+  rating               Decimal? @default(0)
+  totalReviews         Int      @default(0) @map("total_reviews")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
 
   // Relations
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  offers            Offer[]
-  engagements       Engagement[]
-  reviews           Review[]
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  offers             Offer[]
+  engagements        Engagement[]
+  reviews            Review[]
   interviewSchedules InterviewSchedule[]
+  matches            Match[]
 
   @@index([userId])
   @@index([companyId])
@@ -314,38 +320,39 @@ model TalentProfile {
 }
 
 model TalentRequest {
-  id                String        @id @default(cuid())
-  userId            String        @map("user_id")
-  companyId         String        @map("company_id")
-  title             String
-  description       String
-  requiredSkills    Json          @map("required_skills") // Array of skill requirements
-  preferredSkills   Json?         @map("preferred_skills") // Array of preferred skills
-  budgetMin         Decimal       @map("budget_min")
-  budgetMax         Decimal       @map("budget_max")
-  currency          String        @default("ZAR")
-  durationWeeks     Int           @map("duration_weeks")
-  startDate         DateTime      @map("start_date")
-  urgency           String        @default("medium") // low, medium, high, critical
-  projectType       String?       @map("project_type") // development, consulting, design, data, other
-  teamSize          Int           @default(1) @map("team_size")
-  industry          String?
-  companySize       String?       @map("company_size")
-  workStyle         String?       @map("work_style") // agile, waterfall, hybrid
-  location          String?
-  remotePreference  String?       @map("remote_preference") // remote, hybrid, onsite
-  timezone          String?
-  status            RequestStatus @default(open)
-  isVisible         Boolean       @default(true) @map("is_visible")
-  expiresAt         DateTime?     @map("expires_at")
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
+  id               String        @id @default(cuid())
+  userId           String        @map("user_id")
+  companyId        String        @map("company_id")
+  title            String
+  description      String
+  requiredSkills   Json          @map("required_skills") // Array of skill requirements
+  preferredSkills  Json?         @map("preferred_skills") // Array of preferred skills
+  budgetMin        Decimal       @map("budget_min")
+  budgetMax        Decimal       @map("budget_max")
+  currency         String        @default("ZAR")
+  durationWeeks    Int           @map("duration_weeks")
+  startDate        DateTime      @map("start_date")
+  urgency          String        @default("medium") // low, medium, high, critical
+  projectType      String?       @map("project_type") // development, consulting, design, data, other
+  teamSize         Int           @default(1) @map("team_size")
+  industry         String?
+  companySize      String?       @map("company_size")
+  workStyle        String?       @map("work_style") // agile, waterfall, hybrid
+  location         String?
+  remotePreference String?       @map("remote_preference") // remote, hybrid, onsite
+  timezone         String?
+  status           RequestStatus @default(open)
+  isVisible        Boolean       @default(true) @map("is_visible")
+  expiresAt        DateTime?     @map("expires_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company           Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  offers            Offer[]
-  matches           Match[]
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  offers      Offer[]
+  matches     Match[]
+  engagements Engagement[]
 
   @@index([userId])
   @@index([companyId])
@@ -356,28 +363,28 @@ model TalentRequest {
 }
 
 model Match {
-  id                String      @id @default(cuid())
-  talentRequestId   String      @map("talent_request_id")
-  talentId          String      @map("talent_id")
-  score             Decimal
-  breakdown         Json        // Detailed scoring breakdown
-  reasons           String[]    // Array of match reasons
-  concerns          String[]    // Array of potential concerns
-  rank              Int
-  confidence        Decimal
-  predictedSuccess  Decimal     @map("predicted_success")
-  status            MatchStatus @default(pending)
-  viewedAt          DateTime?   @map("viewed_at")
-  respondedAt       DateTime?   @map("responded_at")
-  expiresAt         DateTime?   @map("expires_at")
-  responseDeadline  DateTime?   @map("response_deadline")
-  createdAt         DateTime    @default(now()) @map("created_at")
-  updatedAt         DateTime    @updatedAt @map("updated_at")
+  id               String      @id @default(cuid())
+  talentRequestId  String      @map("talent_request_id")
+  talentId         String      @map("talent_id")
+  score            Decimal
+  breakdown        Json // Detailed scoring breakdown
+  reasons          String[] // Array of match reasons
+  concerns         String[] // Array of potential concerns
+  rank             Int
+  confidence       Decimal
+  predictedSuccess Decimal     @map("predicted_success")
+  status           MatchStatus @default(pending)
+  viewedAt         DateTime?   @map("viewed_at")
+  respondedAt      DateTime?   @map("responded_at")
+  expiresAt        DateTime?   @map("expires_at")
+  responseDeadline DateTime?   @map("response_deadline")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
 
   // Relations
-  talentRequest     TalentRequest @relation(fields: [talentRequestId], references: [id], onDelete: Cascade)
-  talent            TalentProfile @relation(fields: [talentId], references: [id], onDelete: Cascade)
-  offers            Offer[]
+  talentRequest TalentRequest @relation(fields: [talentRequestId], references: [id], onDelete: Cascade)
+  talent        TalentProfile @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  offers        Offer[]
 
   @@index([talentRequestId])
   @@index([talentId])
@@ -388,85 +395,97 @@ model Match {
 }
 
 model Offer {
-  id                String      @id @default(cuid())
-  matchId           String      @map("match_id")
-  talentRequestId   String      @map("talent_request_id")
-  talentId          String      @map("talent_id")
-  companyId         String      @map("company_id")
-  amount            Decimal
-  currency          String      @default("ZAR")
-  message           String?
-  terms             Json?       // Additional terms and conditions
-  status            OfferStatus @default(pending)
-  respondedAt       DateTime?   @map("responded_at")
-  expiresAt         DateTime?   @map("expires_at")
-  createdAt         DateTime    @default(now()) @map("created_at")
-  updatedAt         DateTime    @updatedAt @map("updated_at")
+  id              String      @id @default(cuid())
+  matchId         String      @map("match_id")
+  talentRequestId String      @map("talent_request_id")
+  talentId        String      @map("talent_id")
+  companyId       String      @map("company_id")
+  userId          String      @map("user_id")
+  amount          Decimal
+  currency        String      @default("ZAR")
+  message         String?
+  terms           Json? // Additional terms and conditions
+  status          OfferStatus @default(pending)
+  respondedAt     DateTime?   @map("responded_at")
+  expiresAt       DateTime?   @map("expires_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
 
   // Relations
-  match             Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  talentRequest     TalentRequest @relation(fields: [talentRequestId], references: [id], onDelete: Cascade)
-  talent            TalentProfile @relation(fields: [talentId], references: [id], onDelete: Cascade)
-  company           Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  engagements       Engagement[]
-  contracts         Contract[]
+  match         Match         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  talentRequest TalentRequest @relation(fields: [talentRequestId], references: [id], onDelete: Cascade)
+  talent        TalentProfile @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  engagements   Engagement[]
+  contracts     Contract[]
 
   @@index([matchId])
   @@index([talentRequestId])
   @@index([talentId])
   @@index([companyId])
+  @@index([userId])
   @@index([status])
   @@index([expiresAt])
   @@map("offers")
 }
 
 model Engagement {
-  id                String            @id @default(cuid())
-  offerId           String            @map("offer_id")
-  talentRequestId   String            @map("talent_request_id")
-  talentId          String            @map("talent_id")
-  seekerCompanyId   String            @map("seeker_company_id")
-  providerCompanyId String            @map("provider_company_id")
+  id                String           @id @default(cuid())
+  offerId           String           @map("offer_id")
+  talentRequestId   String           @map("talent_request_id")
+  talentId          String           @map("talent_id")
+  seekerCompanyId   String           @map("seeker_company_id")
+  providerCompanyId String           @map("provider_company_id")
+  seekerUserId      String           @map("seeker_user_id")
+  providerUserId    String           @map("provider_user_id")
   title             String
   description       String?
-  status            EngagementStatus  @default(staged)
-  startDate         DateTime?         @map("start_date")
-  endDate           DateTime?         @map("end_date")
-  hourlyRate        Decimal?          @map("hourly_rate")
-  totalHours        Int?              @map("total_hours")
-  totalAmount       Decimal?          @map("total_amount")
-  providerAmount    Decimal?          @map("provider_amount")
-  platformFee       Decimal?          @map("platform_fee")
-  currency          String            @default("ZAR")
-  milestones        Json?             // Array of milestone objects
-  progress          Json?             // Progress tracking data
-  rating            Decimal?          @default(0)
+  status            EngagementStatus @default(staged)
+  startDate         DateTime?        @map("start_date")
+  endDate           DateTime?        @map("end_date")
+  hourlyRate        Decimal?         @map("hourly_rate")
+  totalHours        Int?             @map("total_hours")
+  totalAmount       Decimal?         @map("total_amount")
+  providerAmount    Decimal?         @map("provider_amount")
+  platformFee       Decimal?         @map("platform_fee")
+  currency          String           @default("ZAR")
+  milestones        Json? // Array of milestone objects
+  progress          Json? // Progress tracking data
+  rating            Decimal?         @default(0)
   feedback          String?
-  interviewDate     DateTime?         @map("interview_date")
-  interviewNotes    String?           @map("interview_notes")
-  disputedAt        DateTime?         @map("disputed_at")
-  disputeReason     String?           @map("dispute_reason")
-  completedAt       DateTime?         @map("completed_at")
-  terminatedAt      DateTime?         @map("terminated_at")
-  terminationReason String?           @map("termination_reason")
-  createdAt         DateTime          @default(now()) @map("created_at")
-  updatedAt         DateTime          @updatedAt @map("updated_at")
+  interviewDate     DateTime?        @map("interview_date")
+  interviewNotes    String?          @map("interview_notes")
+  disputedAt        DateTime?        @map("disputed_at")
+  disputeReason     String?          @map("dispute_reason")
+  completedAt       DateTime?        @map("completed_at")
+  terminatedAt      DateTime?        @map("terminated_at")
+  terminationReason String?          @map("termination_reason")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
 
   // Relations
-  offer             Offer       @relation(fields: [offerId], references: [id], onDelete: Cascade)
-  talentRequest     TalentRequest @relation(fields: [talentRequestId], references: [id], onDelete: Cascade)
-  talent            TalentProfile @relation(fields: [talentId], references: [id], onDelete: Cascade)
-  seekerCompany     Company     @relation("SeekerEngagements", fields: [seekerCompanyId], references: [id], onDelete: Cascade)
-  providerCompany   Company     @relation("ProviderEngagements", fields: [providerCompanyId], references: [id], onDelete: Cascade)
-  payments          Payment[]
-  contracts         Contract[]
-  conversations     Conversation[]
+  offer           Offer          @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  talentRequest   TalentRequest  @relation(fields: [talentRequestId], references: [id], onDelete: Cascade)
+  talent          TalentProfile  @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  seekerCompany   Company        @relation("SeekerEngagements", fields: [seekerCompanyId], references: [id], onDelete: Cascade)
+  providerCompany Company        @relation("ProviderEngagements", fields: [providerCompanyId], references: [id], onDelete: Cascade)
+  seekerUser      User           @relation("SeekerUser", fields: [seekerUserId], references: [id], onDelete: Cascade)
+  providerUser    User           @relation("ProviderUser", fields: [providerUserId], references: [id], onDelete: Cascade)
+  payments        Payment[]
+  contracts       Contract[]
+  conversations   Conversation[]
+  reviews         Review[]
+  User            User?          @relation(fields: [userId], references: [id])
+  userId          String?
 
   @@index([offerId])
   @@index([talentRequestId])
   @@index([talentId])
   @@index([seekerCompanyId])
   @@index([providerCompanyId])
+  @@index([seekerUserId])
+  @@index([providerUserId])
   @@index([status])
   @@index([startDate])
   @@index([endDate])
@@ -477,12 +496,13 @@ model Payment {
   id                String        @id @default(cuid())
   engagementId      String        @map("engagement_id")
   userId            String        @map("user_id")
+  companyId         String        @map("company_id")
   amount            Decimal
   currency          String        @default("ZAR")
-  type              String        // subscription, transaction, transfer, escrow
+  type              String // subscription, transaction, transfer, escrow
   status            PaymentStatus @default(pending)
   paystackPaymentId String?       @map("paystack_payment_id")
-  reason            String?       // completion, milestone, partial, dispute_resolution
+  reason            String? // completion, milestone, partial, dispute_resolution
   verificationData  Json?         @map("verification_data")
   milestoneId       String?       @map("milestone_id")
   processedAt       DateTime?     @map("processed_at")
@@ -490,11 +510,13 @@ model Payment {
   updatedAt         DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  engagement        Engagement    @relation(fields: [engagementId], references: [id], onDelete: Cascade)
-  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  engagement Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([engagementId])
   @@index([userId])
+  @@index([companyId])
   @@index([status])
   @@index([type])
   @@index([processedAt])
@@ -502,18 +524,18 @@ model Payment {
 }
 
 model Subscription {
-  id                    String    @id @default(cuid())
-  userId                String    @map("user_id")
+  id                     String   @id @default(cuid())
+  userId                 String   @map("user_id")
   paystackSubscriptionId String   @map("paystack_subscription_id")
-  paystackCustomerId    String    @map("paystack_customer_id")
-  paystackPlanCode      String    @map("paystack_plan_code")
-  status                String    @default("active")
-  startDate             DateTime  @map("start_date")
-  endDate               DateTime  @map("end_date")
-  amount                Decimal
-  currency              String    @default("ZAR")
-  createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
+  paystackCustomerId     String   @map("paystack_customer_id")
+  paystackPlanCode       String   @map("paystack_plan_code")
+  status                 String   @default("active")
+  startDate              DateTime @map("start_date")
+  endDate                DateTime @map("end_date")
+  amount                 Decimal
+  currency               String   @default("ZAR")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
 
   @@index([userId])
   @@index([paystackSubscriptionId])
@@ -522,21 +544,21 @@ model Subscription {
 }
 
 model Review {
-  id                String    @id @default(cuid())
-  engagementId      String    @map("engagement_id")
-  talentId          String    @map("talent_id")
-  reviewerId        String    @map("reviewer_id")
-  rating            Decimal
-  title             String?
-  comment           String?
-  categories        String[]  // Array of review categories
-  isPublic          Boolean   @default(true) @map("is_public")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  id           String   @id @default(cuid())
+  engagementId String   @map("engagement_id")
+  talentId     String   @map("talent_id")
+  reviewerId   String   @map("reviewer_id")
+  rating       Decimal
+  title        String?
+  comment      String?
+  categories   String[] // Array of review categories
+  isPublic     Boolean  @default(true) @map("is_public")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   // Relations
-  engagement        Engagement    @relation(fields: [engagementId], references: [id], onDelete: Cascade)
-  talent            TalentProfile @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  engagement Engagement    @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  talent     TalentProfile @relation(fields: [talentId], references: [id], onDelete: Cascade)
 
   @@index([engagementId])
   @@index([talentId])
@@ -547,31 +569,31 @@ model Review {
 }
 
 model Contract {
-  id                String        @id @default(cuid())
-  engagementId      String        @map("engagement_id")
-  offerId           String        @map("offer_id")
-  userId            String        @map("user_id")
-  companyId         String        @map("company_id")
-  type              ContractType  @default(ENGAGEMENT)
-  status            ContractStatus @default(DRAFT)
-  title             String
-  content           String        // Contract content/template
-  terms             Json?         // Additional terms and conditions
-  metadata          Json?         // Additional contract metadata
-  sentAt            DateTime?     @map("sent_at")
-  expiresAt         DateTime?     @map("expires_at")
-  signedAt          DateTime?     @map("signed_at")
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
+  id           String         @id @default(cuid())
+  engagementId String         @map("engagement_id")
+  offerId      String         @map("offer_id")
+  userId       String         @map("user_id")
+  companyId    String         @map("company_id")
+  type         ContractType   @default(ENGAGEMENT)
+  status       ContractStatus @default(DRAFT)
+  title        String
+  content      String // Contract content/template
+  terms        Json? // Additional terms and conditions
+  metadata     Json? // Additional contract metadata
+  sentAt       DateTime?      @map("sent_at")
+  expiresAt    DateTime?      @map("expires_at")
+  signedAt     DateTime?      @map("signed_at")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
 
   // Relations
-  engagement        Engagement    @relation(fields: [engagementId], references: [id], onDelete: Cascade)
-  offer             Offer         @relation(fields: [offerId], references: [id], onDelete: Cascade)
-  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company           Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  signatures        ContractSignature[]
-  amendments        ContractAmendment[]
-  conversations     Conversation[]
+  engagement    Engagement          @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  offer         Offer               @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company       Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  signatures    ContractSignature[]
+  amendments    ContractAmendment[]
+  conversations Conversation[]
 
   @@index([engagementId])
   @@index([offerId])
@@ -584,22 +606,22 @@ model Contract {
 }
 
 model ContractSignature {
-  id                String          @id @default(cuid())
-  contractId        String          @map("contract_id")
-  userId            String          @map("user_id")
-  companyId         String          @map("company_id")
-  status            SignatureStatus @default(PENDING)
-  signedAt          DateTime?       @map("signed_at")
-  signatureData     Json?           @map("signature_data")
-  ipAddress         String?         @map("ip_address")
-  userAgent         String?         @map("user_agent")
-  createdAt         DateTime        @default(now()) @map("created_at")
-  updatedAt         DateTime        @updatedAt @map("updated_at")
+  id            String          @id @default(cuid())
+  contractId    String          @map("contract_id")
+  userId        String          @map("user_id")
+  companyId     String          @map("company_id")
+  status        SignatureStatus @default(PENDING)
+  signedAt      DateTime?       @map("signed_at")
+  signatureData Json?           @map("signature_data")
+  ipAddress     String?         @map("ip_address")
+  userAgent     String?         @map("user_agent")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
 
   // Relations
-  contract          Contract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([contractId])
   @@index([userId])
@@ -609,16 +631,16 @@ model ContractSignature {
 }
 
 model ContractAmendment {
-  id                String    @id @default(cuid())
-  contractId        String    @map("contract_id")
-  userId            String    @map("user_id")
-  description       String
-  changes           Json      // Detailed changes made
-  approvedAt        DateTime? @map("approved_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
+  id          String    @id @default(cuid())
+  contractId  String    @map("contract_id")
+  userId      String    @map("user_id")
+  description String
+  changes     Json // Detailed changes made
+  approvedAt  DateTime? @map("approved_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   // Relations
-  contract          Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@index([contractId])
   @@index([userId])
@@ -626,25 +648,25 @@ model ContractAmendment {
 }
 
 model InterviewSchedule {
-  id                String          @id @default(cuid())
-  talentId          String          @map("talent_id")
-  seekerId          String          @map("seeker_id")
-  title             String
-  description       String?
-  startTime         DateTime        @map("start_time")
-  endTime           DateTime        @map("end_time")
-  timezone          String          @default("UTC")
-  meetingType       MeetingType     @map("meeting_type")
-  meetingUrl        String?         @map("meeting_url")
-  location          String?
-  status            InterviewStatus @default(scheduled)
-  notes             String?
-  createdAt         DateTime        @default(now()) @map("created_at")
-  updatedAt         DateTime        @updatedAt @map("updated_at")
+  id          String          @id @default(cuid())
+  talentId    String          @map("talent_id")
+  seekerId    String          @map("seeker_id")
+  title       String
+  description String?
+  startTime   DateTime        @map("start_time")
+  endTime     DateTime        @map("end_time")
+  timezone    String          @default("UTC")
+  meetingType MeetingType     @map("meeting_type")
+  meetingUrl  String?         @map("meeting_url")
+  location    String?
+  status      InterviewStatus @default(scheduled)
+  notes       String?
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
 
   // Relations
-  talent            TalentProfile @relation(fields: [talentId], references: [id], onDelete: Cascade)
-  seeker            User          @relation(fields: [seekerId], references: [id], onDelete: Cascade)
+  talent TalentProfile @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  seeker User          @relation(fields: [seekerId], references: [id], onDelete: Cascade)
 
   @@index([talentId])
   @@index([seekerId])
@@ -655,18 +677,18 @@ model InterviewSchedule {
 }
 
 model CalendarIntegration {
-  id                String                    @id @default(cuid())
-  userId            String                    @map("user_id")
-  type              CalendarIntegrationType
-  accessToken       String                    @map("access_token")
-  refreshToken      String?                   @map("refresh_token")
-  calendarId        String?                   @map("calendar_id")
-  isActive          Boolean                   @default(true) @map("is_active")
-  createdAt         DateTime                  @default(now()) @map("created_at")
-  updatedAt         DateTime                  @updatedAt @map("updated_at")
+  id           String                  @id @default(cuid())
+  userId       String                  @map("user_id")
+  type         CalendarIntegrationType
+  accessToken  String                  @map("access_token")
+  refreshToken String?                 @map("refresh_token")
+  calendarId   String?                 @map("calendar_id")
+  isActive     Boolean                 @default(true) @map("is_active")
+  createdAt    DateTime                @default(now()) @map("created_at")
+  updatedAt    DateTime                @updatedAt @map("updated_at")
 
   // Relations
-  user              User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, type])
   @@index([userId])
@@ -676,22 +698,22 @@ model CalendarIntegration {
 }
 
 model Notification {
-  id                String              @id @default(cuid())
-  userId            String              @map("user_id")
-  companyId         String?             @map("company_id")
-  type              NotificationType
-  title             String
-  message           String
-  data              Json?              // Additional context data
-  status            NotificationStatus @default(unread)
-  priority          NotificationPriority @default(medium)
-  channels          NotificationChannel[] @default([in_app])
-  readAt            DateTime?          @map("read_at")
-  sentAt            DateTime?          @map("sent_at")
-  scheduledFor      DateTime?          @map("scheduled_for")
-  expiresAt         DateTime?          @map("expires_at")
-  createdAt         DateTime           @default(now()) @map("created_at")
-  updatedAt         DateTime           @updatedAt @map("updated_at")
+  id           String                @id @default(cuid())
+  userId       String                @map("user_id")
+  companyId    String?               @map("company_id")
+  type         NotificationType
+  title        String
+  message      String
+  data         Json? // Additional context data
+  status       NotificationStatus    @default(unread)
+  priority     NotificationPriority  @default(medium)
+  channels     NotificationChannel[] @default([in_app])
+  readAt       DateTime?             @map("read_at")
+  sentAt       DateTime?             @map("sent_at")
+  scheduledFor DateTime?             @map("scheduled_for")
+  expiresAt    DateTime?             @map("expires_at")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
 
   // Relations
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -707,18 +729,18 @@ model Notification {
 }
 
 model NotificationPreference {
-  id                String              @id @default(cuid())
-  userId            String              @map("user_id")
-  companyId         String?             @map("company_id")
-  type              NotificationType
-  channels          NotificationChannel[] @default([in_app, email])
-  enabled           Boolean             @default(true)
-  quietHoursStart   String?             @map("quiet_hours_start") // HH:MM format
-  quietHoursEnd     String?             @map("quiet_hours_end")   // HH:MM format
-  timezone          String              @default("UTC")
-  frequency         String              @default("immediate") // immediate, daily, weekly
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
+  id              String                @id @default(cuid())
+  userId          String                @map("user_id")
+  companyId       String?               @map("company_id")
+  type            NotificationType
+  channels        NotificationChannel[] @default([in_app, email])
+  enabled         Boolean               @default(true)
+  quietHoursStart String?               @map("quiet_hours_start") // HH:MM format
+  quietHoursEnd   String?               @map("quiet_hours_end") // HH:MM format
+  timezone        String                @default("UTC")
+  frequency       String                @default("immediate") // immediate, daily, weekly
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
 
   // Relations
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -732,19 +754,23 @@ model NotificationPreference {
 }
 
 model Conversation {
-  id           String             @id @default(cuid())
-  participants String[]           // Array of user IDs
-  participantNames Json           @map("participant_names") // Record of participant names
-  participantTypes Json           @map("participant_types") // Record of participant types
-  unreadCount  Json               @map("unread_count") // Record of unread counts per user
-  lastMessageId String?           @map("last_message_id")
-  context      String?            // JSON string for context data
-  isActive     Boolean            @default(true) @map("is_active")
-  createdAt    DateTime           @default(now()) @map("created_at")
-  updatedAt    DateTime           @updatedAt @map("updated_at")
+  id               String   @id @default(cuid())
+  participants     String[] // Array of user IDs
+  participantNames Json     @map("participant_names") // Record of participant names
+  participantTypes Json     @map("participant_types") // Record of participant types
+  unreadCount      Json     @map("unread_count") // Record of unread counts per user
+  lastMessageId    String?  @map("last_message_id")
+  context          String? // JSON string for context data
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   // Relations
-  messages Message[]
+  messages     Message[]
+  Engagement   Engagement? @relation(fields: [engagementId], references: [id])
+  engagementId String?
+  Contract     Contract?   @relation(fields: [contractId], references: [id])
+  contractId   String?
 
   @@index([participants])
   @@index([isActive])
