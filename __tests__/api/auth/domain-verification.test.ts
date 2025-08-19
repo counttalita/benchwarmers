@@ -156,11 +156,15 @@ describe('Domain Verification API', () => {
       mockPrisma.company.update.mockResolvedValue(testCompany);
 
       // Mock Resend
+      const mockSend = jest.fn().mockImplementation(() => 
+        Promise.resolve({ data: { id: 'email-123' }, error: null })
+      );
+      
       jest.mocked(require('resend').Resend).mockImplementation(() => ({
         emails: {
-          send: jest.fn().mockResolvedValue({ data: { id: 'email-123' }, error: null })
+          send: mockSend
         }
-      }));
+      }) as any);
 
       const request = new NextRequest('http://localhost:3000/api/auth/send-domain-verification', {
         method: 'POST',

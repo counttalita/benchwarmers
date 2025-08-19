@@ -1,4 +1,7 @@
 import { z } from 'zod'
+import { EnhancedSkillMatcher } from './enhanced-skill-matcher'
+import { DynamicWeightsCalculator } from './dynamic-weights'
+import { FairnessAnalyzer } from './fairness-analyzer'
 
 // Type definitions
 export interface Skill {
@@ -160,6 +163,7 @@ export interface MatchingOptions {
   cacheResults?: boolean
   realTimeUpdates?: boolean
   customWeights?: Partial<ProjectWeights>
+  includeBiasAnalysis?: boolean
 }
 
 export interface ProjectWeights {
@@ -297,15 +301,27 @@ interface SkillGap {
 }
 
 export class MatchingEngine {
-  private readonly defaultWeights: ProjectWeights = {
-    skills: 0.30,           // 30% - Most important
-    experience: 0.20,       // 20% - Proven track record
-    availability: 0.15,     // 15% - Can they start when needed
-    budget: 0.15,          // 15% - Cost compatibility  
-    location: 0.10,        // 10% - Time zone/location fit
-    culture: 0.05,         // 5% - Company culture fit
-    velocity: 0.03,        // 3% - How fast they deliver
-    reliability: 0.02      // 2% - Past performance reliability
+  private enhancedSkillMatcher: EnhancedSkillMatcher
+  private dynamicWeightsCalculator: DynamicWeightsCalculator
+  private fairnessAnalyzer: FairnessAnalyzer
+
+  constructor() {
+    this.enhancedSkillMatcher = new EnhancedSkillMatcher()
+    this.dynamicWeightsCalculator = new DynamicWeightsCalculator()
+    this.fairnessAnalyzer = new FairnessAnalyzer()
+  }
+
+  private get defaultWeights(): ProjectWeights {
+    return {
+      skills: 0.30,           // 30% - Most important
+      experience: 0.20,       // 20% - Proven track record
+      availability: 0.15,     // 15% - Can they start when needed
+      budget: 0.15,          // 15% - Cost compatibility  
+      location: 0.10,        // 10% - Time zone/location fit
+      culture: 0.05,         // 5% - Company culture fit
+      velocity: 0.03,        // 3% - How fast they deliver
+      reliability: 0.02      // 2% - Past performance reliability
+    }
   }
 
   // Enhanced skill dependencies mapping
@@ -357,56 +373,26 @@ export class MatchingEngine {
       .sort((a, b) => b.totalScore - a.totalScore)
       .map((match: MatchScore, index: number) => ({ ...match, rank: index + 1 }))
     
-    // Step 5: Apply business rules and filters
-    return this.applyBusinessRules(rankedMatches, requirement, options)
+    // Step 5: Apply bias detection and fairness adjustments
+    const biasAnalysis = this.fairnessAnalyzer.analyzeMatchingBias(rankedMatches, requirement, availableTalent)
+    
+    // Step 6: Apply business rules and filters
+    const finalMatches = this.applyBusinessRules(biasAnalysis.adjustedMatches, requirement, options)
+    
+    // Add bias analysis to the results if requested
+    if (options.includeBiasAnalysis) {
+      return finalMatches.map(match => ({
+        ...match,
+        biasAnalysis: biasAnalysis
+      }))
+    }
+    
+    return finalMatches
   }
 
   private getDynamicWeights(requirement: ProjectRequirement): ProjectWeights {
-    let weights = { ...this.defaultWeights }
-
-    // Adjust weights based on project urgency
-    if (requirement.urgency === 'critical') {
-      weights.availability = 0.25  // Increase availability importance
-      weights.skills = 0.25        // Slightly reduce skills for immediate need
-      weights.experience = 0.25    // Increase experience for reliability
-      weights.budget = 0.10        // Reduce budget importance for urgent projects
-    } else if (requirement.urgency === 'low') {
-      weights.budget = 0.20        // More budget conscious for non-urgent
-      weights.skills = 0.35        // Can be more selective on skills
-      weights.availability = 0.10  // Less time pressure
-    }
-
-    // Adjust for project complexity (inferred from required skills count)
-    const skillComplexity = requirement.requiredSkills.length
-    if (skillComplexity > 8) {
-      weights.skills = Math.min(weights.skills + 0.10, 0.50)  // Cap at 50%
-      weights.experience = Math.min(weights.experience + 0.05, 0.30)
-    }
-
-    // Adjust for project duration
-    if (requirement.duration.weeks > 26) { // Long-term projects
-      weights.culture = 0.10       // Culture fit more important
-      weights.reliability = 0.05   // Reliability crucial for long projects
-      weights.velocity = 0.02      // Less emphasis on speed
-    } else if (requirement.duration.weeks < 4) { // Short sprints
-      weights.velocity = 0.08      // Speed is critical
-      weights.availability = 0.20  // Must be immediately available
-      weights.culture = 0.02       // Less time for culture issues
-    }
-
-    // Adjust for team size
-    if (requirement.teamSize > 10) {
-      weights.culture = 0.12       // Large teams need good cultural fit
-      weights.experience = 0.25    // Need experienced people for large teams
-    }
-
-    // Normalize weights to ensure they sum to 1
-    const totalWeight = Object.values(weights).reduce((sum, weight) => sum + weight, 0)
-    Object.keys(weights).forEach(key => {
-      weights[key as keyof ProjectWeights] = weights[key as keyof ProjectWeights] / totalWeight
-    })
-
-    return weights
+    // Use the enhanced dynamic weights calculator
+    return this.dynamicWeightsCalculator.calculateDynamicWeights(requirement)
   }
 
   private preFilterTalent(
@@ -509,14 +495,22 @@ export class MatchingEngine {
   }
 
   private calculateSkillsScore(requirement: ProjectRequirement, talent: TalentProfile): number {
-    const skillMatchResult = this.calculateAdvancedSkillMatch(requirement.requiredSkills, talent.skills)
-    const preferredMatchResult = this.calculateAdvancedSkillMatch(requirement.preferredSkills, talent.skills)
+    // Use the enhanced skill matcher for better semantic understanding
+    const requiredSkillMatchResult = this.enhancedSkillMatcher.calculateAdvancedSkillMatch(
+      requirement.requiredSkills,
+      talent.skills
+    )
+    
+    const preferredSkillMatchResult = this.enhancedSkillMatcher.calculateAdvancedSkillMatch(
+      requirement.preferredSkills,
+      talent.skills
+    )
     
     // Weight required skills more heavily than preferred
     const requiredWeight = 0.8
     const preferredWeight = 0.2
     
-    return (skillMatchResult.overallScore * requiredWeight) + (preferredMatchResult.overallScore * preferredWeight)
+    return (requiredSkillMatchResult.overallScore * requiredWeight) + (preferredSkillMatchResult.overallScore * preferredWeight)
   }
 
   private calculateAdvancedSkillMatch(requiredSkills: SkillRequirement[], talentSkills: Skill[]): SkillMatchResult {

@@ -229,7 +229,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Invalid request data', details: error.errors }, { status: 400 })
     }
 
-    logger.error(error as Error, 'Failed to update offer')
+    logger.error('Failed to update offer', error as Error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -245,7 +245,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = params
+    const resolvedParams = await params
+    const { id } = resolvedParams
 
     // Validate UUID
     if (!z.string().uuid().safeParse(id).success) {
@@ -281,7 +282,7 @@ export async function DELETE(
     return NextResponse.json({ success: true }, { status: 204 })
 
   } catch (error) {
-    logger.error(error as Error, 'Failed to delete offer')
+    logger.error('Failed to delete offer', error as Error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
