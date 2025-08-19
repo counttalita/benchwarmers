@@ -285,6 +285,7 @@ export async function DELETE(
     return new NextResponse(null, { status: 204 })
 
   } catch (error) {
+    const resolvedParams = await params
     logger.error('Failed to delete talent request', {
       correlationId,
       requestId: resolvedParams.id,

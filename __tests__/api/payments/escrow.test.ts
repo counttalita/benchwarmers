@@ -209,7 +209,7 @@ describe('Escrow Payment API', () => {
     it('should reject if provider not set up for payments', async () => {
       const mockEngagement = {
         id: 'engagement-123',
-        status: 'pending',
+        status: 'active',
         seekerCompany: { id: 'seeker-123' },
         providerCompany: { 
           id: 'provider-123',
@@ -413,7 +413,12 @@ describe('Escrow Payment API', () => {
         companyId: 'seeker-123',
       })
 
-      jest.mocked(require('@/lib/prisma').prisma.escrowPayment.findUnique).mockResolvedValue(mockEscrowPayment as any)
+      jest.mocked(require('@/lib/prisma').prisma.transaction.findUnique).mockResolvedValue({
+        id: 'escrow-123',
+        status: 'escrowed',
+        amount: 1000,
+        ...mockEscrowPayment
+      } as any)
       jest.mocked(require('@/lib/payments/escrow').escrowPaymentService.releasePayment).mockResolvedValue(mockReleasedPayment)
       jest.mocked(require('@/lib/prisma').prisma.engagement.update).mockResolvedValue(mockEscrowPayment.engagement as any)
 
@@ -424,7 +429,8 @@ describe('Escrow Payment API', () => {
           'x-company-id': 'seeker-123',
         },
         body: JSON.stringify({
-          escrowPaymentId: 'escrow-123',
+          transactionId: 'escrow-123',
+          providerAccountId: 'acct_provider123',
         }),
       })
 

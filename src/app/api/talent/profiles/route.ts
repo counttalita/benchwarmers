@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logRequest, logError } from '@/lib/logger'
+import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
 const createProfileSchema = z.object({
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
   const correlationId = `create-profile-${Date.now()}`
   
   try {
-    logRequest(request, { metadata: { correlationId } })
+    logger.info('Creating talent profile', { correlationId })
 
     // TODO: Get user from session/auth
     const userId = request.headers.get('x-user-id') || 'test-user-id'
@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
 
     const talentProfile = await prisma.talentProfile.create({
       data: {
+        userId,
         name: validatedBody.name,
         title: validatedBody.title,
         skills: validatedBody.skills,
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
     }, { status: 201 })
 
   } catch (error) {
-    logError('Failed to create talent profile', {
+    logger.error('Failed to create talent profile', {
       correlationId,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
@@ -141,7 +142,7 @@ export async function GET(request: NextRequest) {
   const correlationId = `list-profiles-${Date.now()}`
   
   try {
-    logRequest(request, { metadata: { correlationId } })
+    logger.info('Listing talent profiles', { correlationId })
 
     const { searchParams } = new URL(request.url)
     const skills = searchParams.get('skills')

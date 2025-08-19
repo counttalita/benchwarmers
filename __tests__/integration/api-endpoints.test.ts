@@ -309,6 +309,36 @@ describe('API Endpoints Integration Tests', () => {
 
   describe('Talent Profile and Discovery Flow', () => {
     it('should handle talent profile creation and discovery', async () => {
+      // Mock the provider company lookup
+      jest.mocked(require('@/lib/prisma').prisma.company.findUnique).mockResolvedValue({
+        id: 'provider-company-789',
+        type: 'provider',
+        name: 'Provider Corp'
+      } as any)
+
+      // Mock talent profile creation
+      jest.mocked(require('@/lib/prisma').prisma.talentProfile.create).mockImplementation(({ data }) => 
+        Promise.resolve({
+          id: `profile-${Date.now()}`,
+          ...data,
+          createdAt: new Date()
+        } as any)
+      )
+
+      // Mock talent profile listing
+      jest.mocked(require('@/lib/prisma').prisma.talentProfile.findMany).mockResolvedValue([
+        {
+          id: 'profile-1',
+          name: 'Alice Johnson',
+          title: 'Senior Frontend Developer',
+          skills: [{ name: 'React', level: 'senior', yearsOfExperience: 6 }],
+          rateMin: 80,
+          rateMax: 120,
+          location: 'San Francisco, CA'
+        }
+      ] as any)
+
+      jest.mocked(require('@/lib/prisma').prisma.talentProfile.count).mockResolvedValue(2)
       // Create multiple profiles
       const profiles = [
         {
