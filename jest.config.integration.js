@@ -17,6 +17,12 @@ const customJestConfig = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1'
   },
+  transform: {
+    '^.+\\.(ts|tsx)$': 'ts-jest'
+  },
+  transformIgnorePatterns: [
+    'node_modules/(?!(@prisma/client)/)'
+  ],
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',

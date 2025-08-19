@@ -577,11 +577,11 @@ export class MatchingEngine {
       const matchingSkills = requirement.requiredSkills
         .filter(req => talent.skills.some(t => this.isSkillMatch(req.name, t.name)))
         .map(req => req.name)
-      reasons.push(`Strong match in ${matchingSkills.join(', ')}`)
+      reasons.push(`Perfect skill match for ${matchingSkills.join(', ')}`)
     }
 
     if (scores.experienceScore > 0.8) {
-      reasons.push('Relevant industry and project experience')
+      reasons.push('Strong experience in technology industry')
     }
 
     if (scores.availabilityScore > 0.9) {

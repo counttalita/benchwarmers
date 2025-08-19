@@ -41,6 +41,7 @@ export async function GET(
   const correlationId = `get-request-${Date.now()}`
   
   try {
+    const resolvedParams = await params
     const requestLogger = logger
     logger.info('Getting talent request', { correlationId, requestId: resolvedParams.id })
 
@@ -85,6 +86,7 @@ export async function GET(
     })
 
   } catch (error) {
+    const resolvedParams = await params
     logger.error('Failed to get talent request', {
       correlationId,
       requestId: resolvedParams.id,
@@ -105,6 +107,7 @@ export async function PUT(
   const correlationId = `update-request-${Date.now()}`
   
   try {
+    const resolvedParams = await params
     const requestLogger = logger
     logger.info('Updating talent request', { correlationId, requestId: resolvedParams.id })
 
