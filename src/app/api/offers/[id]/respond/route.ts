@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-const resolvedParams = await params
 import { prisma } from '@/lib/prisma'
 import logger from '@/lib/logger'
 
@@ -11,7 +10,8 @@ export async function POST(
   const requestLogger = logger
 
   try {
-    const { id: offerId } = params
+    const resolvedParams = await params
+    const { id: offerId } = resolvedParams
     const body = await request.json()
     const { action, counterRate, counterDuration, message } = body
 
