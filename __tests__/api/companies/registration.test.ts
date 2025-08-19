@@ -1,16 +1,7 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 import { NextRequest } from 'next/server'
 import { POST as registerCompany } from '@/app/api/auth/register/route'
-import { Mock,UnknownFunction } from 'jest-mock'
-import { Mock,UnknownFunction } from 'jest-mock'
-import { Mock,UnknownFunction } from 'jest-mock'
-import { Mock,UnknownFunction } from 'jest-mock'
-import { Mock,UnknownFunction } from 'jest-mock'
-import { Mock,UnknownFunction } from 'jest-mock'
-import { Mock,UnknownFunction } from 'jest-mock'
-import { Mock,UnknownFunction } from 'jest-mock'
-import { Mock,UnknownFunction } from 'jest-mock'
-import { Mock,UnknownFunction } from 'jest-mock'
+import { Mock, UnknownFunction } from 'jest-mock'
 
 // Mock Prisma
 jest.mock('@/lib/prisma', () => ({

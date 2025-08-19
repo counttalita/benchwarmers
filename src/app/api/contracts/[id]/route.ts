@@ -44,6 +44,7 @@ export async function GET(
   const correlationId = uuidv4()
 
   try {
+    const resolvedParams = await params
     const contractId = resolvedParams.id
 
     logInfo('Fetching contract details', {
@@ -120,6 +121,7 @@ export async function PATCH(
   const correlationId = uuidv4()
 
   try {
+    const resolvedParams = await params
     const contractId = resolvedParams.id
     const body = await request.json()
     
@@ -261,14 +263,15 @@ export async function PATCH(
   }
 }
 
-// POST /api/contracts/[id]/sign - Sign contract
-export async function POST(
+// PUT /api/contracts/[id]/sign - Sign contract
+export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const correlationId = uuidv4()
 
   try {
+    const resolvedParams = await params
     const contractId = resolvedParams.id
     const body = await request.json()
     
@@ -420,6 +423,7 @@ export async function DELETE(
   const correlationId = uuidv4()
 
   try {
+    const resolvedParams = await params
     const contractId = resolvedParams.id
     const { searchParams } = new URL(request.url)
     const reason = searchParams.get('reason') || 'Contract cancelled'
