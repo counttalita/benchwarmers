@@ -157,6 +157,7 @@ describe('/api/requests/talent-requests', () => {
       jest.mocked(require('@/lib/prisma').prisma.talentRequest.create).mockResolvedValue({
         id: 'req-123',
         ...validRequestData,
+        userId: 'user-123',
         companyId: 'company-123',
         status: 'open',
         createdAt: new Date(),
@@ -176,6 +177,7 @@ describe('/api/requests/talent-requests', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             title: validRequestData.title,
+            userId: 'user-123',
             companyId: 'company-123'
           })
         })
@@ -315,7 +317,7 @@ describe('/api/requests/talent-requests', () => {
       })
 
       const { PUT } = await import('@/app/api/requests/talent-requests/[id]/route')
-      const response = await PUT(request, { params: { id: 'req-123' } })
+      const response = await PUT(request, { params: Promise.resolve({ id: 'req-123' }) })
       const data = await response.json()
 
       expect(response.status).toBe(200)
@@ -347,7 +349,7 @@ describe('/api/requests/talent-requests', () => {
       jest.mocked(require('@/lib/prisma').prisma.talentRequest.findUnique).mockResolvedValue(null)
 
       const { PUT } = await import('@/app/api/requests/talent-requests/[id]/route')
-      const response = await PUT(request, { params: { id: 'nonexistent' } })
+      const response = await PUT(request, { params: Promise.resolve({ id: 'nonexistent' }) })
 
       expect(response.status).toBe(404)
     })
@@ -384,7 +386,7 @@ describe('/api/requests/talent-requests', () => {
       })
 
       const { DELETE } = await import('@/app/api/requests/talent-requests/[id]/route')
-      const response = await DELETE(request, { params: { id: 'req-123' } })
+      const response = await DELETE(request, { params: Promise.resolve({ id: 'req-123' }) })
 
       expect(response.status).toBe(204)
       expect(require('@/lib/prisma').prisma.talentRequest.delete).toHaveBeenCalledWith({
@@ -412,7 +414,7 @@ describe('/api/requests/talent-requests', () => {
       jest.mocked(require('@/lib/prisma').prisma.talentRequest.findUnique).mockResolvedValue(null)
 
       const { DELETE } = await import('@/app/api/requests/talent-requests/[id]/route')
-      const response = await DELETE(request, { params: { id: 'nonexistent' } })
+      const response = await DELETE(request, { params: Promise.resolve({ id: 'nonexistent' }) })
 
       expect(response.status).toBe(404)
     })

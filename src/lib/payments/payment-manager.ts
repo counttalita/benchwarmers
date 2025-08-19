@@ -473,6 +473,84 @@ export class PaymentManager {
   }
 
   /**
+   * Verify engagement completion and release payment
+   */
+  async verifyCompletionAndRelease(
+    engagementId: string,
+    completionData: {
+      deliverables: string[]
+      approvedBy: string
+      notes?: string
+    },
+    correlationId: string
+  ): Promise<{ success: boolean; paymentReleased: boolean; message: string }> {
+    try {
+      // Get engagement details with payment info
+      const engagement = await prisma.engagement.findUnique({
+        where: { id: engagementId },
+        include: {
+          offer: {
+            include: {
+              request: {
+                include: {
+                  company: true
+                }
+              }
+            }
+          },
+          talent: {
+            include: {
+              user: true
+            }
+          }
+        }
+      })
+
+      if (!engagement) {
+        throw new Error('Engagement not found')
+      }
+
+      if (engagement.status !== 'active') {
+        throw new Error('Engagement is not in active status')
+      }
+
+      // Update engagement status to completed
+      await prisma.engagement.update({
+        where: { id: engagementId },
+        data: {
+          status: 'completed',
+          completedAt: new Date(),
+          deliverables: completionData.deliverables,
+          completionNotes: completionData.notes
+        }
+      })
+
+      // For now, log payment release (manual process)
+      logger.info('Engagement completion verified - manual payment release required', {
+        correlationId,
+        engagementId,
+        amount: engagement.offer.budget,
+        talentEmail: engagement.talent.user.email,
+        approvedBy: completionData.approvedBy
+      })
+
+      return {
+        success: true,
+        paymentReleased: false, // Manual process for now
+        message: 'Engagement completed successfully. Payment release will be processed manually.'
+      }
+
+    } catch (error) {
+      logger.error('Failed to verify completion and release payment', {
+        correlationId,
+        engagementId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error
+    }
+  }
+
+  /**
    * Get available banks for transfers
    */
   async getBanks(): Promise<any[]> {

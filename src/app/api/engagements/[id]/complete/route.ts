@@ -22,6 +22,7 @@ export async function POST(
   const correlationId = uuidv4()
 
   try {
+    const resolvedParams = await params
     const engagementId = resolvedParams.id
     const body = await request.json()
     
@@ -70,7 +71,7 @@ export async function POST(
     }
 
     // Check if already completed
-    const existingVerification = engagement.verifications.find(v => v.status === 'approved')
+    const existingVerification = engagement.verifications.find((v: any) => v.status === 'approved')
     if (existingVerification) {
       return NextResponse.json({
         success: false,
@@ -113,7 +114,7 @@ export async function POST(
       } else {
         return NextResponse.json({
           success: false,
-          error: result.error,
+          error: 'Failed to complete engagement',
           correlationId
         }, { status: 400 })
       }

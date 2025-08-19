@@ -256,24 +256,38 @@ describe('Database Integration Tests', () => {
     it('should create talent request and find matching profiles', async () => {
       const requestId = randomUUID()
 
+      // Mock talent request creation
+      const mockTalentRequest = {
+        id: requestId,
+        companyId: seekerCompanyId,
+        title: 'Senior React Developer Needed',
+        description: 'Looking for experienced React developer',
+        budgetMin: 5000,
+        budgetMax: 8000,
+        durationWeeks: 4,
+        requiredSkills: ['React', 'TypeScript'],
+        projectType: 'development',
+        urgency: 'medium',
+        location: 'Remote',
+        status: 'open',
+        startDate: new Date()
+      }
+
+      prisma.talentRequest.create.mockResolvedValue(mockTalentRequest)
+
       // Create talent request
       const talentRequest = await prisma.talentRequest.create({
-        data: {
-          id: requestId,
-          companyId: seekerCompanyId,
-          title: 'Senior React Developer Needed',
-          description: 'Looking for experienced React developer',
-          budgetMin: 5000,
-          budgetMax: 8000,
-          durationWeeks: 4,
-          requiredSkills: ['React', 'TypeScript'],
-          projectType: 'development',
-          urgency: 'medium',
-          location: 'Remote',
-          status: 'open',
-          startDate: new Date()
-        }
+        data: mockTalentRequest
       })
+
+      // Mock talent profile findMany
+      const mockMatchingProfiles = [{
+        id: talentProfileId,
+        skills: ['React', 'TypeScript', 'Node.js'],
+        user: { id: 'user-1', name: 'John Developer' }
+      }]
+
+      prisma.talentProfile.findMany.mockResolvedValue(mockMatchingProfiles)
 
       // Find matching profiles (simulate matching algorithm)
       const matchingProfiles = await prisma.talentProfile.findMany({

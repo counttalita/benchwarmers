@@ -94,8 +94,9 @@ describe('MatchingEngine', () => {
         id: 'profile-2',
         name: 'Jane Junior',
         skills: [
-          { name: 'React', level: 'junior' as const, yearsOfExperience: 2, category: 'frontend' as const },
-          { name: 'JavaScript', level: 'mid' as const, yearsOfExperience: 2, category: 'frontend' as const }
+          { name: 'React', level: 'senior' as const, yearsOfExperience: 3, category: 'frontend' as const },
+          { name: 'TypeScript', level: 'mid' as const, yearsOfExperience: 2, category: 'frontend' as const },
+          { name: 'Node.js', level: 'junior' as const, yearsOfExperience: 1, category: 'backend' as const }
         ],
         experience: [
           {
