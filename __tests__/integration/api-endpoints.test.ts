@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll } from '@jest/globals'
 import { NextRequest } from 'next/server'
 import { createMocks } from 'node-mocks-http'
-import { POST as sendOTP, POST as verifyOTP, POST as register } from '@/app/api/auth/send-otp/route'
+import { POST as sendOTP, POST as verifyOTP } from '@/app/api/auth/send-otp/route'
+import { POST as register } from '@/app/api/auth/register/route'
 import { POST as createRequest, GET as listRequests } from '@/app/api/requests/talent-requests/route'
 import { POST as createProfile, GET as listProfiles } from '@/app/api/talent/profiles/route'
 import { POST as createOffer } from '@/app/api/offers/route'
@@ -54,16 +55,14 @@ describe('API Endpoints Integration Tests', () => {
         body: JSON.stringify({
           companyName: 'Test Company',
           contactName: 'John Doe',
-          email: 'john@testcompany.com',
-          phone: '+1234567890',
-          companyType: 'seeker',
-          industry: 'technology',
-          companySize: 'startup'
+          companyEmail: 'john@testcompany.com',
+          phoneNumber: '+1234567890',
+          companyType: 'seeker'
         })
       })
 
       const registerResponse = await register(registerRequest)
-      expect(registerResponse.status).toBe(201)
+      expect(registerResponse.status).toBe(200)
       
       const registerData = await registerResponse.json()
       expect(registerData.success).toBe(true)

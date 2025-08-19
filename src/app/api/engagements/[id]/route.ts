@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid'
+import { v4 as uuidv4 } from 'uuid'
 import { NextRequest, NextResponse } from 'next/server'
 const resolvedParams = await params
 import { z } from 'zod'
@@ -151,7 +152,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = params
+    const { id } = resolvedParams
 
     // Validate UUID
     if (!z.string().uuid().safeParse(id).success) {

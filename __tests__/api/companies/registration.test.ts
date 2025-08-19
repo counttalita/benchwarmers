@@ -7,12 +7,12 @@ import { Mock, UnknownFunction } from 'jest-mock'
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     company: {
-      findUnique: jest.fn() as jest.MockedFunction<any>,
-      create: jest.fn() as jest.MockedFunction<any>
+      findUnique: jest.fn() as jest.MockedFunction<any> as jest.MockedFunction<any>,
+      create: jest.fn() as jest.MockedFunction<any> as jest.MockedFunction<any>
     },
     user: {
-      findUnique: jest.fn() as jest.MockedFunction<any>,
-      create: jest.fn() as jest.MockedFunction<any>
+      findUnique: jest.fn() as jest.MockedFunction<any> as jest.MockedFunction<any>,
+      create: jest.fn() as jest.MockedFunction<any> as jest.MockedFunction<any>
     }
   }
 }))

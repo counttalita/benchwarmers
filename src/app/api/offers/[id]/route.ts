@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-const resolvedParams = await params
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import logger from '@/lib/logger'
@@ -25,7 +24,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = params
+    const resolvedParams = await params
+    const { id } = resolvedParams
 
     // Validate UUID
     if (!z.string().uuid().safeParse(id).success) {
@@ -102,7 +102,7 @@ export async function GET(
     })
 
   } catch (error) {
-    logger.error(error as Error, 'Failed to get offer')
+    logger.error('Error fetching offer:', error instanceof Error ? error.message : String(error))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -118,7 +118,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = params
+    const resolvedParams = await params
+    const { id } = resolvedParams
 
     // Validate UUID
     if (!z.string().uuid().safeParse(id).success) {
