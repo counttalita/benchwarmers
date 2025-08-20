@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { logRequest, logSecurity } from '@/lib/logger'
+// import { logRequest, logSecurity } from '@/lib/logger'
 
 export function middleware(request: NextRequest) {
   const startTime = Date.now()
-  logRequest(request, startTime)
+  // logRequest(request, startTime)
 
   // Add request ID to headers for tracing
   const requestId = request.headers.get('x-request-id') || `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
@@ -28,12 +28,12 @@ export function middleware(request: NextRequest) {
   )
 
   if (isSensitiveEndpoint) {
-    logSecurity('Sensitive endpoint accessed', {
-      endpoint: request.nextUrl.pathname,
-      method: request.method,
-      ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-      userAgent: request.headers.get('user-agent'),
-    })
+    // logSecurity('Sensitive endpoint accessed', {
+    //   endpoint: request.nextUrl.pathname,
+    //   method: request.method,
+    //   ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+    //   userAgent: request.headers.get('user-agent'),
+    // })
   }
 
   // Rate limiting check (basic implementation)
@@ -42,11 +42,11 @@ export function middleware(request: NextRequest) {
   // In a real implementation, you'd use Redis or similar for rate limiting
   // For now, we'll just log the request
   if (request.method !== 'GET') {
-    logSecurity('Non-GET request', {
-      method: request.method,
-      endpoint: request.nextUrl.pathname,
-      ip: clientIp,
-    })
+    // logSecurity('Non-GET request', {
+    //   method: request.method,
+    //   endpoint: request.nextUrl.pathname,
+    //   ip: clientIp,
+    // })
   }
 
   return response

@@ -40,25 +40,21 @@ export async function PATCH(
       where: { id: engagementId },
       data: {
         status,
-        updatedAt: new Date(),
-        ...(notes && { notes })
+        updatedAt: new Date()
       },
       include: {
         offer: {
           include: {
-            request: {
-              include: {
-                seekerCompany: true
-              }
-            },
-            providerCompany: true,
-            talentProfile: {
+            talent: {
               include: {
                 user: true
               }
             }
           }
-        }
+        },
+        talentRequest: true,
+        seekerCompany: true,
+        providerCompany: true
       }
     })
 
@@ -67,8 +63,8 @@ export async function PATCH(
       engagementId,
       oldStatus,
       newStatus: status,
-      seekerCompany: updatedEngagement.offer.request.seekerCompany.name,
-      provider: updatedEngagement.offer.talentProfile.user.name
+      seekerCompany: updatedEngagement.seekerCompany.name,
+      provider: updatedEngagement.offer.talent.user.name
     })
 
     // Send notifications if status changed to "accepted"
@@ -98,15 +94,12 @@ export async function PATCH(
         id: updatedEngagement.id,
         status: updatedEngagement.status,
         updatedAt: updatedEngagement.updatedAt,
-        offer: {
-          request: {
-            title: updatedEngagement.offer.request.title,
-            seekerCompany: updatedEngagement.offer.request.seekerCompany.name
-          },
-          talentProfile: {
-            user: {
-              name: updatedEngagement.offer.talentProfile.user.name
-            }
+        title: updatedEngagement.title,
+        seekerCompany: updatedEngagement.seekerCompany.name,
+        providerCompany: updatedEngagement.providerCompany.name,
+        talent: {
+          user: {
+            name: updatedEngagement.offer.talent.user.name
           }
         }
       }
@@ -138,11 +131,11 @@ export async function PATCH(
  */
 async function sendAcceptedEngagementNotifications(engagement: any) {
   try {
-    const { offer } = engagement
-    const { request, talentProfile, providerCompany } = offer
+    const { offer, talentRequest, seekerCompany, providerCompany } = engagement
+    const { talent } = offer
     
     // Calculate payment amounts
-    const totalAmount = engagement.totalAmount || offer.amount || 0
+    const totalAmount = engagement.totalAmount || 0
     const platformFee = totalAmount * 0.05 // 5% facilitation fee
     const providerAmount = totalAmount - platformFee
 
@@ -152,18 +145,18 @@ async function sendAcceptedEngagementNotifications(engagement: any) {
       totalAmount,
       platformFee,
       providerAmount,
-      engagementTitle: request.title || 'Accepted Engagement',
-      talentName: talentProfile?.user?.name || 'Talent',
-      companyName: request.seekerCompany?.name || 'Company'
+      engagementTitle: talentRequest?.title || engagement.title || 'Accepted Engagement',
+      talentName: talent?.user?.name || 'Talent',
+      companyName: seekerCompany?.name || 'Company'
     }
 
     // Notify talent seeker (company) - they need to pay the platform
     await notificationService.createNotification({
-      userId: request.seekerCompany?.userId,
-      companyId: request.seekerCompany?.id,
+      userId: seekerCompany?.userId,
+      companyId: seekerCompany?.id,
       type: 'manual_invoice_required',
       title: 'Payment Required - Engagement Accepted',
-      message: `Your engagement "${request.title || 'Project'}" has been accepted. Please pay ${totalAmount.toFixed(2)} ZAR to the platform.`,
+      message: `Your engagement "${talentRequest?.title || engagement.title || 'Project'}" has been accepted. Please pay ${totalAmount.toFixed(2)} ZAR to the platform.`,
       data: {
         ...notificationData,
         action: 'pay_platform',
@@ -175,11 +168,11 @@ async function sendAcceptedEngagementNotifications(engagement: any) {
 
     // Notify talent provider - they need to invoice the platform
     await notificationService.createNotification({
-      userId: talentProfile?.user?.id,
-      companyId: talentProfile?.companyId,
+      userId: talent?.user?.id,
+      companyId: talent?.companyId,
       type: 'manual_invoice_required',
       title: 'Invoice Required - Engagement Accepted',
-      message: `Your engagement "${request.title || 'Project'}" has been accepted. Please invoice the platform for ${providerAmount.toFixed(2)} ZAR.`,
+      message: `Your engagement "${talentRequest?.title || engagement.title || 'Project'}" has been accepted. Please invoice the platform for ${providerAmount.toFixed(2)} ZAR.`,
       data: {
         ...notificationData,
         action: 'invoice_platform',
@@ -233,28 +226,23 @@ export async function GET(
         status: true,
         createdAt: true,
         updatedAt: true,
-        notes: true,
+        title: true,
+        description: true,
+        seekerCompany: {
+          select: {
+            name: true,
+            website: true
+          }
+        },
+        providerCompany: {
+          select: {
+            name: true,
+            website: true
+          }
+        },
         offer: {
           select: {
-            request: {
-              select: {
-                title: true,
-                description: true,
-                seekerCompany: {
-                  select: {
-                    name: true,
-                    domain: true
-                  }
-                }
-              }
-            },
-            providerCompany: {
-              select: {
-                name: true,
-                domain: true
-              }
-            },
-            talentProfile: {
+            talent: {
               select: {
                 user: {
                   select: {

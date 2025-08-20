@@ -1,4 +1,4 @@
-import { AppError, handleFetchError, logApiCall, logError } from '@/lib/errors'
+import { AppError, handleFetchError, logApiCall, logError } from '@/lib/errors/index'
 
 // API client configuration
 interface ApiConfig {

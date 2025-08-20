@@ -9,6 +9,7 @@ export interface AppErrorInterface extends Error {
   severity: ErrorSeverity
   context?: Record<string, any>
   correlationId?: string
+  retryable?: boolean
 }
 
 export class AppError extends Error implements AppErrorInterface {
@@ -18,10 +19,33 @@ export class AppError extends Error implements AppErrorInterface {
     public category: ErrorCategory,
     public severity: ErrorSeverity = 'medium',
     public context?: Record<string, any>,
-    public correlationId?: string
+    public correlationId?: string,
+    public retryable?: boolean
   ) {
     super(message)
     this.name = 'AppError'
+    
+    // Set default retryable behavior based on category if not explicitly provided
+    if (retryable === undefined) {
+      this.retryable = this.getDefaultRetryBehavior()
+    }
+  }
+
+  private getDefaultRetryBehavior(): boolean {
+    switch (this.category) {
+      case 'validation':
+      case 'authentication':
+      case 'authorization':
+      case 'not_found':
+      case 'conflict':
+        return false // Client errors - don't retry
+      case 'rate_limit':
+      case 'internal':
+      case 'external':
+        return true // Server errors and rate limits - retry
+      default:
+        return false
+    }
   }
 }
 
@@ -166,16 +190,92 @@ export function getUserMessage(error: AppError | Error | unknown): string {
 }
 
 // Fetch error handler
-export function handleFetchError(error: unknown): AppError {
-  if (error instanceof TypeError && error.message.includes('fetch')) {
-    return createError.external('NETWORK_ERROR', 'Network connection failed')
-  }
+export async function handleFetchError(response: Response): Promise<AppError> {
+  let errorData: any = {}
   
-  if (error instanceof Error && error.message.includes('timeout')) {
-    return createError.external('TIMEOUT_ERROR', 'Request timed out')
+  try {
+    const contentType = response.headers.get('content-type')
+    if (contentType?.includes('application/json')) {
+      errorData = await response.json()
+    } else {
+      errorData = { message: await response.text() }
+    }
+  } catch {
+    // Ignore parsing errors
   }
+
+  const code = errorData.code || `HTTP_${response.status}`
+  const message = errorData.message || response.statusText || 'Request failed'
   
-  return parseError(error)
+  // Determine category and retryable based on status code
+  let category: ErrorCategory
+  let retryable: boolean
+  
+  if (response.status >= 400 && response.status < 500) {
+    // Client errors
+    if (response.status === 401) {
+      category = 'authentication'
+    } else if (response.status === 403) {
+      category = 'authorization'  
+    } else if (response.status === 404) {
+      category = 'not_found'
+    } else if (response.status === 409) {
+      category = 'conflict'
+    } else if (response.status === 429) {
+      category = 'rate_limit'
+    } else {
+      category = 'validation'
+    }
+    retryable = response.status === 429 // Only retry rate limits
+  } else {
+    // Server errors
+    category = 'internal'
+    retryable = true
+  }
+
+  return new AppError(
+    code,
+    message,
+    category,
+    'medium',
+    { 
+      status: response.status,
+      statusText: response.statusText,
+      ...errorData 
+    },
+    undefined,
+    retryable
+  )
+}
+
+// API call logging
+export function logApiCall(
+  method: string, 
+  url: string, 
+  status: number, 
+  duration: number, 
+  error?: AppError
+): void {
+  const logData = {
+    method,
+    url,
+    status,
+    duration: `${duration}ms`,
+    timestamp: new Date().toISOString()
+  }
+
+  if (error) {
+    logError(`API call failed: ${method} ${url}`, {
+      ...logData,
+      error: {
+        code: error.code,
+        message: error.message,
+        category: error.category
+      }
+    })
+  } else {
+    logInfo(`API call: ${method} ${url} - ${status}`, logData)
+  }
 }
 
 // User action logging

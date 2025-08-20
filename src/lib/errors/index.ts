@@ -32,6 +32,6 @@ export {
   errorLogger,
   logError,
   logInfo,
-  logApiCall as logAppApiCall,
-  logUserAction as logAppUserAction
+  logApiCall,
+  logUserAction
 } from './logger'

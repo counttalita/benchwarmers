@@ -6,10 +6,8 @@ async function main() {
   console.log('🌱 Seeding database...')
 
   // Create test companies
-  const seekerCompany = await prisma.company.upsert({
-    where: { domain: 'techcorp.com' },
-    update: {},
-    create: {
+  const seekerCompany = await prisma.company.create({
+    data: {
       name: 'TechCorp Solutions',
       domain: 'techcorp.com',
       type: 'seeker',
@@ -20,10 +18,8 @@ async function main() {
     },
   })
 
-  const providerCompany = await prisma.company.upsert({
-    where: { domain: 'devstudio.com' },
-    update: {},
-    create: {
+  const providerCompany = await prisma.company.create({
+    data: {
       name: 'DevStudio Inc',
       domain: 'devstudio.com',
       type: 'provider',
@@ -34,10 +30,8 @@ async function main() {
     },
   })
 
-  const bothCompany = await prisma.company.upsert({
-    where: { domain: 'fullstack.com' },
-    update: {},
-    create: {
+  const bothCompany = await prisma.company.create({
+    data: {
       name: 'FullStack Agency',
       domain: 'fullstack.com',
       type: 'both',
@@ -49,10 +43,8 @@ async function main() {
   })
 
   // Create test users
-  const seekerUser = await prisma.user.upsert({
-    where: { phoneNumber: '+1234567890' },
-    update: {},
-    create: {
+  const seekerUser = await prisma.user.create({
+    data: {
       phoneNumber: '+1234567890',
       email: 'admin@techcorp.com',
       name: 'John Seeker',
@@ -63,10 +55,8 @@ async function main() {
     },
   })
 
-  const providerUser = await prisma.user.upsert({
-    where: { phoneNumber: '+1234567891' },
-    update: {},
-    create: {
+  const providerUser = await prisma.user.create({
+    data: {
       phoneNumber: '+1234567891',
       email: 'admin@devstudio.com',
       name: 'Jane Provider',
@@ -91,41 +81,11 @@ async function main() {
         { name: 'PostgreSQL', level: 'senior', yearsExperience: 4 },
         { name: 'AWS', level: 'mid', yearsExperience: 3 }
       ],
-      experience: [
-        {
-          role: 'Senior Developer',
-          company: 'TechStart Inc',
-          duration: 24,
-          industry: 'fintech'
-        },
-        {
-          role: 'Full-Stack Developer',
-          company: 'WebCorp',
-          duration: 18,
-          industry: 'e-commerce'
-        }
-      ],
       location: 'San Francisco, CA',
-      timezone: 'America/Los_Angeles',
       remotePreference: 'remote',
       rateMin: 120,
       rateMax: 180,
-      availabilityCalendar: [
-        {
-          startDate: '2024-01-01',
-          endDate: '2024-12-31',
-          utilizationPercent: 0
-        }
-      ],
-      preferences: {
-        preferredCompanySize: 'startup',
-        workStyle: 'collaborative'
-      },
-      pastProjects: [
-        { completedOnTime: true, qualityRating: 4.8, clientSatisfaction: 5.0 },
-        { completedOnTime: true, qualityRating: 4.9, clientSatisfaction: 4.8 }
-      ],
-      languages: ['English', 'Spanish'],
+      currency: 'USD',
       rating: 4.85,
       reviewCount: 12
     }
@@ -144,34 +104,11 @@ async function main() {
         { name: 'Docker', level: 'mid', yearsExperience: 2 },
         { name: 'Redis', level: 'mid', yearsExperience: 2 }
       ],
-      experience: [
-        {
-          role: 'Backend Developer',
-          company: 'DataFlow Systems',
-          duration: 30,
-          industry: 'healthcare'
-        }
-      ],
       location: 'Austin, TX',
-      timezone: 'America/Chicago',
       remotePreference: 'hybrid',
       rateMin: 80,
       rateMax: 120,
-      availabilityCalendar: [
-        {
-          startDate: '2024-02-01',
-          endDate: '2024-12-31',
-          utilizationPercent: 25
-        }
-      ],
-      preferences: {
-        preferredCompanySize: 'medium',
-        workStyle: 'independent'
-      },
-      pastProjects: [
-        { completedOnTime: true, qualityRating: 4.5, clientSatisfaction: 4.7 }
-      ],
-      languages: ['English'],
+      currency: 'USD',
       rating: 4.6,
       reviewCount: 8
     }
@@ -194,20 +131,11 @@ async function main() {
       ],
       budgetMin: 100,
       budgetMax: 160,
-      budgetIdeal: 130,
+      currency: 'USD',
       startDate: new Date('2024-01-15'),
       durationWeeks: 12,
-      hoursPerWeek: 40,
       locationPreference: 'remote',
-      urgency: 'high',
-      companySize: 'startup',
-      industry: 'e-commerce',
-      customWeights: {
-        skills: 0.35,
-        experience: 0.25,
-        availability: 0.20,
-        budget: 0.20
-      }
+      urgency: 'high'
     }
   })
 
@@ -227,14 +155,11 @@ async function main() {
       ],
       budgetMin: 70,
       budgetMax: 110,
-      budgetIdeal: 90,
+      currency: 'USD',
       startDate: new Date('2024-02-01'),
       durationWeeks: 16,
-      hoursPerWeek: 40,
       locationPreference: 'remote',
-      urgency: 'medium',
-      companySize: 'startup',
-      industry: 'fintech'
+      urgency: 'medium'
     }
   })
 
@@ -278,7 +203,7 @@ async function main() {
   })
 
   console.log('✅ Database seeded successfully!')
-  console.log(`Created ${2} companies, ${2} users, ${2} talent profiles, ${2} requests, and ${2} matches`)
+  console.log(`Created ${3} companies, ${2} users, ${2} talent profiles, ${2} requests, and ${2} matches`)
 }
 
 main()
